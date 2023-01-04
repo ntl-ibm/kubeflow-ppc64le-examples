@@ -30,9 +30,17 @@ https://github.com/triton-inference-server/server/blob/main/docs/user_guide/mode
 The batch configuration is controlled by a configuration file in the model repository:
 https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
 
+Comments for gRPC support:
+The code supports either a gRPC and HTTP/REST protocol for communicating with the predictor. When the inference service is deployed,
+only one of these protocols will be exposed to the transformer. HTTP/REST is the default and the easiest to use. However,
+transmitting large tensors using JSON has poor performance, gRPC will result in much faster transmissions. The instructions for
+exposing the gRPC endpoint of a triton predictor can be found here:
+https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint
+The transformer will attempt to use the protocol defined by the "--protocol" argument on the deployment command.
 
+Comments on class labels:
+The transformer service is deployed with an environment value that contains the mapping of class lables.
 Author: ntl@us.ibm.com
-
 """
 import argparse
 import base64
@@ -65,14 +73,20 @@ class MonkeyImageTransformer(kserve.Model):
         super().__init__(name)
         self.predictor_host = predictor_host
         self.protocol = protocol
+        logging.info(
+            f"Transformer {name} on host {predictor_host} using protocol {protocol}"
+        )
         self.ready = True
 
     def _v2_grpc_tensor_transform(self, input_tensors) -> ModelInferRequest:
-        """Converts tensors to a gRPC request"""
+        """Converts tensors to a gRPC request payload
+
+        This is appropriate when the predictor has exposed a V2 gRPC interface.
+        """
         request = ModelInferRequest()
         request.model_name = self.name
         input_0 = InferInput(
-            MonkeyImageTransformer.MODEL_INPUT_NAME, input_tensors.shape, "FP32"
+            MonkeyImageTransformer.MODEL_INPUT_NAME, input_tensors.shape, "UINT8"
         )
         input_0.set_data_from_numpy(input_tensors)
         request.inputs.extend([input_0._get_tensor()])
@@ -81,7 +95,10 @@ class MonkeyImageTransformer(kserve.Model):
         return request
 
     def _json_tensor_transform(self, input_tensor) -> Dict[Any, Any]:
-        """Converts tensors to a JSON request"""
+        """Converts tensors to a JSON request payload
+
+        This payload is appropriate when the predictor has exposed a V2 REST interface.
+        """
         logging.debug("Building json payload")
         payload = {
             "inputs": [
@@ -91,7 +108,7 @@ class MonkeyImageTransformer(kserve.Model):
                     # the expected data type.
                     "name": MonkeyImageTransformer.MODEL_INPUT_NAME,
                     "shape": input_tensor.shape,
-                    "datatype": "FP32",
+                    "datatype": "UINT8",
                     "data": input_tensor.flatten().tolist(),
                 }
             ]
@@ -109,9 +126,9 @@ class MonkeyImageTransformer(kserve.Model):
                         }
         }
 
-        The format of the returned DICT matches the format expected by the predictor.
-        The assumption is that the inference service was deployed to use the v2 JSON model.
-        https://github.com/kserve/kserve/blob/master/docs/predict-api/v2/required_api.md#inference-request-json-object
+        The format of the returned Dict or ModelInferRequest matches the format expected by the predictor.
+        The assumption is that the inference service was deployed to use the v2 model.
+        https://github.com/kserve/kserve/blob/master/docs/predict-api/v2/required_api.md
         """
         logging.debug("decoding image and expanding dimensions to a batch")
         try:
@@ -142,15 +159,22 @@ class MonkeyImageTransformer(kserve.Model):
         return self._json_tensor_transform(tensor)
 
     def _json_model_output_to_tensor(self, model_output: Dict[Any, Any]) -> np.array:
-        """Convert model output (JSON) to a tensor"""
+        """Converts the model's output (JSON) to a tensor
+
+        This is used when the predictor has exposed the REST inteface.
+        """
         return np.array(model_output["outputs"][0]["data"])
 
     def _v2_grpc_model_output_to_tensor(
         self, model_output: ModelInferResponse
     ) -> np.array:
-        """Convert model output (GRPC) to a tensor"""
+        """Converts the model's output (GRPC) to a tensor.
+
+        This is used when the predictor has exposed the gRPC interface
+        """
         response = InferResult(model_output)
-        return response.as_numpy(MonkeyImageTransformer.MODEL_OUTPUT_NAME)
+        # float32 is not serialized by json, so we cast here to float
+        return response.as_numpy(MonkeyImageTransformer.MODEL_OUTPUT_NAME).astype(float)
 
     def postprocess(
         self, model_output: Union[Dict[Any, Any], ModelInferResponse]
@@ -158,8 +182,8 @@ class MonkeyImageTransformer(kserve.Model):
         """Convert model outputs from the prediction to the JSON response
 
         This method assumes that the inference service was deployed to use the v2 JSON model.
-        The expected format of model_output (from the predictor) is documented in the KServe documentation.
-        https://github.com/kserve/kserve/blob/master/docs/predict-api/v2/required_api.md#inference-response-json-object
+        The model output formats are described at:
+        https://github.com/kserve/kserve/blob/master/docs/predict-api/v2/required_api.md
         """
 
         logging.debug("post processing....")
@@ -202,7 +226,8 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", help="The name that the model is served under.")
 
     # Deterimes whether REST or GRPC will be used to communicate with the predictor
-    # This example only supports REST/JSON/V2.
+    # The default is REST/JSON format. The value provided must match the interface
+    # that is exposed by the predictor.
     parser.add_argument(
         "--protocol", help="The protocol for the predictor", default="v2"
     )

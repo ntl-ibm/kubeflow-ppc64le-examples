@@ -7,6 +7,7 @@
 #
 # You'll need to do a podman machine start after each reboot
 #
-VERSION="v2.0"
+VERSION="v3.0"
 podman buildx build --format=docker --platform linux/ppc64le -f Dockerfile -t quay.io/ntlawrence/monkeytransform:${VERSION} -t quay.io/ntlawrence/monkeytransform:latest
 podman push quay.io/ntlawrence/monkeytransform:latest quay.io/ntlawrence/monkeytransform:${VERSION}
+podman push quay.io/ntlawrence/monkeytransform:latest quay.io/ntlawrence/monkeytransform:latest
