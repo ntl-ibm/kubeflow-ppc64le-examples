@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2022-12-22T18:50:15.659460',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-04T01:36:45.905623',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -116,7 +116,7 @@ spec:
       - --class-labels
       - /tmp/inputs/class_labels/data
       - --transformer-image
-      - quay.io/ntlawrence/monkeytransform:v1.0
+      - quay.io/ntlawrence/monkeytransform:v2.0
       - --rm-existing
       - "True"
       - --minio-credential-secret
@@ -184,7 +184,7 @@ spec:
         \       {labels_json}\n\n      predictor:\n        {minReplicas}\n       \
         \ {maxReplicas}\n        serviceAccountName: kserve-inference-sa\n       \
         \ triton:\n          runtimeVersion: {triton_runtime_version}\n          protocolVersion:\
-        \ v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:\
+        \ grpc-v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:\
         \ {storage_uri}\n          resources:\n            limits:\n             \
         \  {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n\
         \        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec, check=True,\
@@ -281,7 +281,7 @@ spec:
           name: STORAGE_URI\n              value: {storage_uri}\n            - name:
           CLASS_LABELS\n              value: |\n                     {labels_json}\n\n      predictor:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
           kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          protocolVersion:
-          v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:
+          grpc-v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:
           {storage_uri}\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
           \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n    )\n\n    print(\"Waiting
           for inference service to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
@@ -314,14 +314,13 @@ spec:
           "concurrency_target", "optional": true, "type": "Integer"}, {"default":
           "22.03-py3", "name": "triton_runtime_version", "optional": true, "type":
           "String"}], "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "c46eb33a27c48d2208ba745d2426f082789e5fb4e6b2570dc8370832be00415d", "url":
-          "/home/jovyan/components/model-deployment/deploy-model-with-triton/component.yaml"}',
-        pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "4",
-          "max_replicas": "4", "min_replicas": "1", "minio_credential_secret": "mlpipeline-minio-artifact",
-          "minio_url": "{{inputs.parameters.minio_url}}", "name": "{{inputs.parameters.model_name}}",
-          "pred_gpus": "1", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/",
-          "transformer_image": "quay.io/ntlawrence/monkeytransform:v1.0", "triton_runtime_version":
-          "21.08-py3-gpu"}'}
+          "62f9867f92b4a326b4cd64d9302aab0de5a00216935834fc1a73c49905013041", "url":
+          "./deploy_inference_service_component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target":
+          "4", "max_replicas": "4", "min_replicas": "1", "minio_credential_secret":
+          "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
+          "name": "{{inputs.parameters.model_name}}", "pred_gpus": "1", "rm_existing":
+          "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/", "transformer_image":
+          "quay.io/ntlawrence/monkeytransform:v2.0", "triton_runtime_version": "21.08-py3-gpu"}'}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:
       parameters:
@@ -480,7 +479,7 @@ spec:
           "type": "String"}, {"default": "20", "name": "batch_size", "optional": true,
           "type": "Integer"}], "name": "Evaluate model", "outputs": [{"name": "mlpipeline_metrics",
           "type": "Metrics"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"batch_size":
-          "20"}'}
+          "20"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: load-test-train-dataset-for-tf
     container:
       args: [--dataset-url, Lehrig/Monkey-Species-Collection, --dataset-configuration,
