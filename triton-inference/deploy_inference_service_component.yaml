@@ -67,18 +67,20 @@ implementation:
       \      {maxReplicas}\n        serviceAccountName: kserve-inference-sa\n    \
       \    containers:\n        - image: \"{transformer_image}\"\n          name:\
       \ {name}-transformer\n          command: [\"python\", \"transform.py\"]\n  \
-      \        env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
-      \            - name: CLASS_LABELS\n              value: |\n                \
-      \     {labels_json}\n\n      predictor:\n        {minReplicas}\n        {maxReplicas}\n\
-      \        serviceAccountName: kserve-inference-sa\n        triton:\n        \
-      \  runtimeVersion: {triton_runtime_version}\n          protocolVersion: grpc-v2\n\
-      \          args: [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n\
-      \          resources:\n            limits:\n               {gpu_resources}\n\
-      \    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\"\
-      , \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n   \
-      \ )\n\n    print(\"Waiting for inference service to become available\")\n  \
-      \  subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\"\
-      ,\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
+      \        args: [\"--protocol=grpc-v2\"]\n          env:\n            - name:\
+      \ STORAGE_URI\n              value: {storage_uri}\n            - name: CLASS_LABELS\n\
+      \              value: |\n                     {labels_json}\n\n      predictor:\n\
+      \        {minReplicas}\n        {maxReplicas}\n        serviceAccountName: kserve-inference-sa\n\
+      \        triton:\n          runtimeVersion: {triton_runtime_version}\n     \
+      \     args: [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n\
+      \          ports:\n          - containerPort: 9000\n            name: h2c\n\
+      \            protocol: TCP\n          env:\n          - name: OMP_NUM_THREADS\n\
+      \            value: \"1\"\n          resources:\n            limits:\n     \
+      \          {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n\
+      \        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec, check=True,\
+      \ text=True\n    )\n\n    print(\"Waiting for inference service to become available\"\
+      )\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"\
+      wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
       ,\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\
       \ndef _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n\
       \    return strtobool(s) == 1\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\

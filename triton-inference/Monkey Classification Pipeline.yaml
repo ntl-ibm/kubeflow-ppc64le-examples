@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-04T01:36:45.905623',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-04T22:48:36.094975',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -116,7 +116,7 @@ spec:
       - --class-labels
       - /tmp/inputs/class_labels/data
       - --transformer-image
-      - quay.io/ntlawrence/monkeytransform:v2.0
+      - quay.io/ntlawrence/monkeytransform:latest
       - --rm-existing
       - "True"
       - --minio-credential-secret
@@ -179,20 +179,22 @@ spec:
         \        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:\
         \ kserve-inference-sa\n        containers:\n        - image: \"{transformer_image}\"\
         \n          name: {name}-transformer\n          command: [\"python\", \"transform.py\"\
-        ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
-        \            - name: CLASS_LABELS\n              value: |\n              \
-        \       {labels_json}\n\n      predictor:\n        {minReplicas}\n       \
-        \ {maxReplicas}\n        serviceAccountName: kserve-inference-sa\n       \
-        \ triton:\n          runtimeVersion: {triton_runtime_version}\n          protocolVersion:\
-        \ grpc-v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:\
-        \ {storage_uri}\n          resources:\n            limits:\n             \
-        \  {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n\
-        \        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec, check=True,\
-        \ text=True\n    )\n\n    print(\"Waiting for inference service to become\
-        \ available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n\
-        \            \"wait\",\n            \"--for=condition=Ready\",\n         \
-        \   f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n     \
-        \   ],\n        check=True,\n    )\n\ndef _deserialize_bool(s) -> bool:\n\
+        ]\n          args: [\"--protocol=grpc-v2\"]\n          env:\n            -\
+        \ name: STORAGE_URI\n              value: {storage_uri}\n            - name:\
+        \ CLASS_LABELS\n              value: |\n                     {labels_json}\n\
+        \n      predictor:\n        {minReplicas}\n        {maxReplicas}\n       \
+        \ serviceAccountName: kserve-inference-sa\n        triton:\n          runtimeVersion:\
+        \ {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
+        ]\n          storageUri: {storage_uri}\n          ports:\n          - containerPort:\
+        \ 9000\n            name: h2c\n            protocol: TCP\n          env:\n\
+        \          - name: OMP_NUM_THREADS\n            value: \"1\"\n          resources:\n\
+        \            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n\
+        \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec,\
+        \ check=True, text=True\n    )\n\n    print(\"Waiting for inference service\
+        \ to become available\")\n    subprocess.run(\n        [\n            \"kubectl\"\
+        ,\n            \"wait\",\n            \"--for=condition=Ready\",\n       \
+        \     f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n   \
+        \     ],\n        check=True,\n    )\n\ndef _deserialize_bool(s) -> bool:\n\
         \    from distutils.util import strtobool\n    return strtobool(s) == 1\n\n\
         import argparse\n_parser = argparse.ArgumentParser(prog='Deploy inference\
         \ service', description='')\n_parser.add_argument(\"--name\", dest=\"name\"\
@@ -277,12 +279,13 @@ spec:
           https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        autoscaling.knative.dev/target:
           \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\n    spec:\n      transformer:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
           kserve-inference-sa\n        containers:\n        - image: \"{transformer_image}\"\n          name:
-          {name}-transformer\n          command: [\"python\", \"transform.py\"]\n          env:\n            -
-          name: STORAGE_URI\n              value: {storage_uri}\n            - name:
-          CLASS_LABELS\n              value: |\n                     {labels_json}\n\n      predictor:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
-          kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          protocolVersion:
-          grpc-v2\n          args: [ \"--strict-model-config=false\"]\n          storageUri:
-          {storage_uri}\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
+          {name}-transformer\n          command: [\"python\", \"transform.py\"]\n          args:
+          [\"--protocol=grpc-v2\"]\n          env:\n            - name: STORAGE_URI\n              value:
+          {storage_uri}\n            - name: CLASS_LABELS\n              value: |\n                     {labels_json}\n\n      predictor:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
+          kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          args:
+          [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n          ports:\n          -
+          containerPort: 9000\n            name: h2c\n            protocol: TCP\n          env:\n          -
+          name: OMP_NUM_THREADS\n            value: \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
           \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n    )\n\n    print(\"Waiting
           for inference service to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
           _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
@@ -314,13 +317,14 @@ spec:
           "concurrency_target", "optional": true, "type": "Integer"}, {"default":
           "22.03-py3", "name": "triton_runtime_version", "optional": true, "type":
           "String"}], "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "62f9867f92b4a326b4cd64d9302aab0de5a00216935834fc1a73c49905013041", "url":
+          "269dde8547434daa80201db54e1c3e22bcff5b2c2a1e76f705258317c86a8b3e", "url":
           "./deploy_inference_service_component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target":
           "4", "max_replicas": "4", "min_replicas": "1", "minio_credential_secret":
           "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "name": "{{inputs.parameters.model_name}}", "pred_gpus": "1", "rm_existing":
           "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/", "transformer_image":
-          "quay.io/ntlawrence/monkeytransform:v2.0", "triton_runtime_version": "21.08-py3-gpu"}'}
+          "quay.io/ntlawrence/monkeytransform:latest", "triton_runtime_version": "21.08-py3-gpu"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:
       parameters:
@@ -479,7 +483,7 @@ spec:
           "type": "String"}, {"default": "20", "name": "batch_size", "optional": true,
           "type": "Integer"}], "name": "Evaluate model", "outputs": [{"name": "mlpipeline_metrics",
           "type": "Metrics"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"batch_size":
-          "20"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+          "20"}'}
   - name: load-test-train-dataset-for-tf
     container:
       args: [--dataset-url, Lehrig/Monkey-Species-Collection, --dataset-configuration,
@@ -551,7 +555,7 @@ spec:
                 batch_size=16,
                 features=datasets.Features(
                     {
-                        "image": datasets.Array3D(dtype="float32", shape=(224, 224, 3)),
+                        "image": datasets.Array3D(dtype="uint8", shape=(224, 224, 3)),
                         "label": datasets.Sequence(
                             feature=datasets.Value(dtype="int32"), length=len(CLASSES)
                         ),
@@ -619,7 +623,7 @@ spec:
           there is an assumption\n    # that images in the batch are all the same
           size for both\n    # training and inferencing. We assume that is true with
           the\n    # hugging face data and don''t resize here.\n    dataset = dataset.map(\n        process,\n        batched=True,\n        batch_size=16,\n        features=datasets.Features(\n            {\n                \"image\":
-          datasets.Array3D(dtype=\"float32\", shape=(224, 224, 3)),\n                \"label\":
+          datasets.Array3D(dtype=\"uint8\", shape=(224, 224, 3)),\n                \"label\":
           datasets.Sequence(\n                    feature=datasets.Value(dtype=\"int32\"),
           length=len(CLASSES)\n                ),\n            }\n        ),\n        num_proc=8,\n    )\n\n    dev_test_dataset
           = dataset[\"test\"].train_test_split(test_size=0.5, shuffle=False)\n\n    save_as_tf_dataset(dataset[\"train\"],
@@ -700,8 +704,8 @@ spec:
                     layer.trainable = False
 
                 model = Sequential()
-                model.add(Input(shape=(None, None, 3), name="image"))
-                model.add(Resizing(height=224, width=224))
+                model.add(Input(shape=(None, None, 3), name="image", dtype=tf.uint8))
+                model.add(Resizing(height=224, width=224, interpolation="nearest"))
                 model.add(Rescaling(scale=1.0 / 255))
                 model.add(RandomContrast(factor=0.2, seed=42))
                 model.add(RandomBrightness(factor=0.2, value_range=(0.0, 1.0), seed=42))
@@ -808,10 +812,11 @@ spec:
           tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau\n\n    def
           build_model():\n\n        backbone = InceptionV3(include_top=False, weights=\"imagenet\")\n\n        for
           layer in backbone.layers:\n            layer.trainable = False\n\n        model
-          = Sequential()\n        model.add(Input(shape=(None, None, 3), name=\"image\"))\n        model.add(Resizing(height=224,
-          width=224))\n        model.add(Rescaling(scale=1.0 / 255))\n        model.add(RandomContrast(factor=0.2,
-          seed=42))\n        model.add(RandomBrightness(factor=0.2, value_range=(0.0,
-          1.0), seed=42))\n        model.add(RandomRotation(factor=0.2, seed=42))\n        model.add(backbone)\n        model.add(GlobalAveragePooling2D())\n        model.add(Dense(128,
+          = Sequential()\n        model.add(Input(shape=(None, None, 3), name=\"image\",
+          dtype=tf.uint8))\n        model.add(Resizing(height=224, width=224, interpolation=\"nearest\"))\n        model.add(Rescaling(scale=1.0
+          / 255))\n        model.add(RandomContrast(factor=0.2, seed=42))\n        model.add(RandomBrightness(factor=0.2,
+          value_range=(0.0, 1.0), seed=42))\n        model.add(RandomRotation(factor=0.2,
+          seed=42))\n        model.add(backbone)\n        model.add(GlobalAveragePooling2D())\n        model.add(Dense(128,
           activation=\"relu\"))\n        model.add(BatchNormalization())\n        model.add(Dropout(0.3))\n        model.add(Dense(64,
           activation=\"relu\"))\n        model.add(BatchNormalization())\n        model.add(Dropout(0.3))\n        model.add(Dense(10,
           activation=\"softmax\", name=\"scores\"))\n\n        return model\n\n    callbacks
