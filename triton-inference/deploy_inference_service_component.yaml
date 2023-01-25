@@ -16,6 +16,8 @@ inputs:
 - {name: pred_gpus, type: Integer, default: '0', optional: true}
 - {name: concurrency_target, type: Integer, default: '1', optional: true}
 - {name: triton_runtime_version, type: String, default: 22.03-py3, optional: true}
+- {name: transformer_specification, type: 'typing.Dict[str, typing.Union[str, int]]',
+  optional: true}
 implementation:
   container:
     image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
@@ -31,10 +33,12 @@ implementation:
       ,\n    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
       ,\n    min_replicas = None,\n    max_replicas = None,\n    pred_gpus = 0,\n\
       \    concurrency_target = 1,\n    triton_runtime_version = \"22.03-py3\",\n\
-      ):\n    import os\n    import subprocess\n    import yaml\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+      \    transformer_specification = None,\n):\n    import os\n    import subprocess\n\
+      \    import yaml\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
       \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
       \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
       \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
+      \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
       \n    # It happens that the credentials for the minio user name and password\
       \ are already in a secret\n    # This just loads them so that we can create\
       \ our own secret to store the S3 connection information\n    # for the Inference\
@@ -83,7 +87,7 @@ implementation:
       wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
       ,\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\
       \ndef _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n\
-      \    return strtobool(s) == 1\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
+      \    return strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
       \ inference service', description='')\n_parser.add_argument(\"--name\", dest=\"\
       name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
       --storage-uri\", dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n\
@@ -102,7 +106,9 @@ implementation:
       --concurrency-target\", dest=\"concurrency_target\", type=int, required=False,\
       \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--triton-runtime-version\"\
       , dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n\
-      _parsed_args = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"
+      _parser.add_argument(\"--transformer-specification\", dest=\"transformer_specification\"\
+      , type=json.loads, required=False, default=argparse.SUPPRESS)\n_parsed_args\
+      \ = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"
     args:
     - --name
     - {inputValue: name}
@@ -152,3 +158,8 @@ implementation:
         then:
         - --triton-runtime-version
         - {inputValue: triton_runtime_version}
+    - if:
+        cond: {isPresent: transformer_specification}
+        then:
+        - --transformer-specification
+        - {inputValue: transformer_specification}
