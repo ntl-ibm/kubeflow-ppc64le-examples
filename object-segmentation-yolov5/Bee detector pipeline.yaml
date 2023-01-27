@@ -2,11 +2,15 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: bee-yolov5-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-25T22:33:32.011898',
-    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "dataset_path", "type":
-      "String"}, {"name": "initial_weights", "optional": true, "type": "String"},
-      {"default": "300", "name": "epochs", "optional": true, "type": "Integer"}],
-      "name": "bee-yolov5"}'}
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-27T00:15:49.580240',
+    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "model_config_url",
+      "type": "String"}, {"name": "initial_weights_url", "type": "String"}, {"name":
+      "data_vol_pvc_name", "type": "String"}, {"name": "data_vol_subpath", "type":
+      "String"}, {"default": "mlpipeline-artefacts", "name": "blackboard", "optional":
+      true, "type": "String"}, {"default": "750", "name": "epochs", "optional": true,
+      "type": "Integer"}, {"default": "minio-service.kubeflow:9000", "name": "minio_url",
+      "optional": true}, {"default": "1", "name": "model_version", "optional": true,
+      "type": "Integer"}], "name": "bee-yolov5"}'}
   labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
 spec:
   entrypoint: bee-yolov5
@@ -14,43 +18,117 @@ spec:
   - name: bee-yolov5
     inputs:
       parameters:
-      - {name: dataset_path}
-      - {name: initial_weights}
-      artifacts:
-      - {name: initial_weights}
+      - {name: blackboard}
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      - {name: epochs}
+      - {name: initial_weights_url}
+      - {name: minio_url}
+      - {name: model_config_url}
+      - {name: model_version}
     dag:
       tasks:
+      - name: create-artefacts-blackboard
+        template: create-artefacts-blackboard
+        arguments:
+          parameters:
+          - {name: blackboard, value: '{{inputs.parameters.blackboard}}'}
       - name: deploy-inference-service
         template: deploy-inference-service
         dependencies: [upload-model]
-      - name: load-data
-        template: load-data
         arguments:
           parameters:
-          - {name: dataset_path, value: '{{inputs.parameters.dataset_path}}'}
-          - {name: initial_weights, value: '{{inputs.parameters.initial_weights}}'}
+          - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
+      - name: evaluate-model
+        template: evaluate-model
+        dependencies: [train-model]
+        arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          artifacts:
+          - {name: train-model-onnx_model, from: '{{tasks.train-model.outputs.artifacts.train-model-onnx_model}}'}
+      - name: evaluate-model-2
+        template: evaluate-model-2
+        dependencies: [train-model]
+        arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          artifacts:
+          - {name: train-model-pt_model, from: '{{tasks.train-model.outputs.artifacts.train-model-pt_model}}'}
+      - name: load-from-url
+        template: load-from-url
+        dependencies: [create-artefacts-blackboard]
+        arguments:
+          parameters:
+          - {name: model_config_url, value: '{{inputs.parameters.model_config_url}}'}
+      - name: load-from-url-2
+        template: load-from-url-2
+        dependencies: [create-artefacts-blackboard]
+        arguments:
+          parameters:
+          - {name: initial_weights_url, value: '{{inputs.parameters.initial_weights_url}}'}
       - name: train-model
         template: train-model
-        dependencies: [load-data]
+        dependencies: [load-from-url, load-from-url-2]
         arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          - {name: epochs, value: '{{inputs.parameters.epochs}}'}
           artifacts:
-          - {name: initial_weights, from: '{{inputs.artifacts.initial_weights}}'}
-          - {name: load-data-pipeline_dataset_dir, from: '{{tasks.load-data.outputs.artifacts.load-data-pipeline_dataset_dir}}'}
+          - {name: load-from-url-2-dest, from: '{{tasks.load-from-url-2.outputs.artifacts.load-from-url-2-dest}}'}
+          - {name: load-from-url-dest, from: '{{tasks.load-from-url.outputs.artifacts.load-from-url-dest}}'}
       - name: upload-model
         template: upload-model
         dependencies: [train-model]
         arguments:
+          parameters:
+          - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
+          - {name: model_version, value: '{{inputs.parameters.model_version}}'}
           artifacts:
-          - {name: train-model-model, from: '{{tasks.train-model.outputs.artifacts.train-model-model}}'}
+          - {name: train-model-onnx_model, from: '{{tasks.train-model.outputs.artifacts.train-model-onnx_model}}'}
+  - name: create-artefacts-blackboard
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: '{{workflow.name}}-{{inputs.parameters.blackboard}}'
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 4Gi
+    inputs:
+      parameters:
+      - {name: blackboard}
+    outputs:
+      parameters:
+      - name: create-artefacts-blackboard-manifest
+        valueFrom: {jsonPath: '{}'}
+      - name: create-artefacts-blackboard-name
+        valueFrom: {jsonPath: '{.metadata.name}'}
+      - name: create-artefacts-blackboard-size
+        valueFrom: {jsonPath: '{.status.capacity.storage}'}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
   - name: deploy-inference-service
     container:
       args:
       - --name
       - bee
       - --storage-uri
-      - s3://{{workflow.namespace}}-bee-yolov5/onnx
+      - s3://{{workflow.namespace}}-bee/onnx
       - --minio-url
-      - minio-service.kubeflow:9000
+      - '{{inputs.parameters.minio_url}}'
       - --rm-existing
       - "True"
       - --minio-credential-secret
@@ -160,6 +238,9 @@ spec:
         \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
         \n_outputs = deploy_inference_service(**_parsed_args)\n"
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: minio_url}
     metadata:
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
@@ -268,15 +349,289 @@ spec:
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
           "8b89e82d18a951f64d5b1a66187e34e7705a4e857d96b85700b676fd59375d93", "url":
           "./deploy_inference_service_component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
-          "mlpipeline-minio-artifact", "minio_url": "minio-service.kubeflow:9000",
+          "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "name": "bee", "predictor_gpu_allocation": "0", "predictor_protocol": "v2",
-          "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee-yolov5/onnx",
+          "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee/onnx",
           "triton_runtime_version": "22.03-py3"}'}
-  - name: load-data
+  - name: evaluate-model
     container:
-      args: [--source-dataset-dir, '{{inputs.parameters.dataset_path}}', --initial-weights,
-        '{{inputs.parameters.initial_weights}}', --pipeline-dataset-dir, /tmp/outputs/pipeline_dataset_dir/data,
-        --pipeline-initial-weights, /tmp/outputs/pipeline_initial_weights/data]
+      args: [--model, /tmp/inputs/model/data, --model-format, onnx, --conf-thres,
+        '0.001', --iou-thres, '0.6', --max-det, '300']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def evaluate_model(
+            model,
+            model_format = "onnx",  # onnx, pt, tf ....
+            conf_thres = 0.001,
+            iou_thres = 0.6,
+            max_det = 300,
+        ):
+            import subprocess
+            import os
+            import torch
+            from ruamel.yaml import YAML
+            import pathlib
+
+            print(f"The size of the model is {os.path.getsize(model)}")
+
+            if model_format == "onnx" and not torch.cuda.is_available():
+                # the base image is built with an onnxruntime for GPU
+                # This should work for both CPU and GPU, but val.py
+                # does it's own checking for CPU onnxruntime only
+                # Since that's not installed and not on pypl for ppc64le,
+                # The script won't work unless we change up the version
+                subprocess.run(
+                    "mamba install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y",
+                    check=True,
+                    shell=True,
+                )
+
+            # valy.py uses the file name to determine the type of model
+            # mode is an input path where the name is generated by kubeflow
+            # We need to control the name that is used...
+            named_model = f"/tmp/{os.path.basename(model)}.{model_format}"
+            os.symlink(model, named_model)
+
+            # Update data.yaml so that the directories point to where the
+            # data is
+            # yaml = YAML()
+            # dataf = pathlib.Path(f"{data_dir}/data.yaml")
+            # d = yaml.load(dataf)
+            # d["train"] = f"{data_dir}/train"
+            # d["test"] = f"{data_dir}/test"
+            # d["val"] = f"{data_dir}/valid"
+            # yaml.dump(d, dataf)
+
+            subprocess.run(
+                f"python val.py --weights {named_model} --data /dataset/data.yaml --img 640 "
+                f"--conf-thres {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 ",
+                check=True,
+                shell=True,
+                cwd="/yolov5",
+            )
+
+            subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--conf-thres", dest="conf_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--iou-thres", dest="iou_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--max-det", dest="max_det", type=int, required=False, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = evaluate_model(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, subPath: '{{inputs.parameters.data_vol_subpath}}'}
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      artifacts:
+      - {name: train-model-onnx_model, path: /tmp/inputs/model/data}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate ONNX, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--model", {"inputPath": "model"}, {"if": {"cond":
+          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
+          "model_format"}]}}, {"if": {"cond": {"isPresent": "conf_thres"}, "then":
+          ["--conf-thres", {"inputValue": "conf_thres"}]}}, {"if": {"cond": {"isPresent":
+          "iou_thres"}, "then": ["--iou-thres", {"inputValue": "iou_thres"}]}}, {"if":
+          {"cond": {"isPresent": "max_det"}, "then": ["--max-det", {"inputValue":
+          "max_det"}]}}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def evaluate_model(\n    model,\n    model_format = \"onnx\",  # onnx,
+          pt, tf ....\n    conf_thres = 0.001,\n    iou_thres = 0.6,\n    max_det
+          = 300,\n):\n    import subprocess\n    import os\n    import torch\n    from
+          ruamel.yaml import YAML\n    import pathlib\n\n    print(f\"The size of
+          the model is {os.path.getsize(model)}\")\n\n    if model_format == \"onnx\"
+          and not torch.cuda.is_available():\n        # the base image is built with
+          an onnxruntime for GPU\n        # This should work for both CPU and GPU,
+          but val.py\n        # does it''s own checking for CPU onnxruntime only\n        #
+          Since that''s not installed and not on pypl for ppc64le,\n        # The
+          script won''t work unless we change up the version\n        subprocess.run(\n            \"mamba
+          install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y\",\n            check=True,\n            shell=True,\n        )\n\n    #
+          valy.py uses the file name to determine the type of model\n    # mode is
+          an input path where the name is generated by kubeflow\n    # We need to
+          control the name that is used...\n    named_model = f\"/tmp/{os.path.basename(model)}.{model_format}\"\n    os.symlink(model,
+          named_model)\n\n    # Update data.yaml so that the directories point to
+          where the\n    # data is\n    # yaml = YAML()\n    # dataf = pathlib.Path(f\"{data_dir}/data.yaml\")\n    #
+          d = yaml.load(dataf)\n    # d[\"train\"] = f\"{data_dir}/train\"\n    #
+          d[\"test\"] = f\"{data_dir}/test\"\n    # d[\"val\"] = f\"{data_dir}/valid\"\n    #
+          yaml.dump(d, dataf)\n\n    subprocess.run(\n        f\"python val.py --weights
+          {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
+          {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    subprocess.run(\"find
+          . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
+          dest=\"conf_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--iou-thres\",
+          dest=\"iou_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-det\",
+          dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = evaluate_model(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "model", "type": "String"}, {"default": "onnx", "name": "model_format",
+          "optional": true, "type": "String"}, {"default": "0.001", "name": "conf_thres",
+          "optional": true, "type": "Float"}, {"default": "0.6", "name": "iou_thres",
+          "optional": true, "type": "Float"}, {"default": "300", "name": "max_det",
+          "optional": true, "type": "Integer"}], "name": "Evaluate model"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"conf_thres": "0.001", "iou_thres":
+          "0.6", "max_det": "300", "model_format": "onnx"}'}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
+  - name: evaluate-model-2
+    container:
+      args: [--model, /tmp/inputs/model/data, --model-format, pt, --conf-thres, '0.001',
+        --iou-thres, '0.6', --max-det, '300']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def evaluate_model(
+            model,
+            model_format = "onnx",  # onnx, pt, tf ....
+            conf_thres = 0.001,
+            iou_thres = 0.6,
+            max_det = 300,
+        ):
+            import subprocess
+            import os
+            import torch
+            from ruamel.yaml import YAML
+            import pathlib
+
+            print(f"The size of the model is {os.path.getsize(model)}")
+
+            if model_format == "onnx" and not torch.cuda.is_available():
+                # the base image is built with an onnxruntime for GPU
+                # This should work for both CPU and GPU, but val.py
+                # does it's own checking for CPU onnxruntime only
+                # Since that's not installed and not on pypl for ppc64le,
+                # The script won't work unless we change up the version
+                subprocess.run(
+                    "mamba install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y",
+                    check=True,
+                    shell=True,
+                )
+
+            # valy.py uses the file name to determine the type of model
+            # mode is an input path where the name is generated by kubeflow
+            # We need to control the name that is used...
+            named_model = f"/tmp/{os.path.basename(model)}.{model_format}"
+            os.symlink(model, named_model)
+
+            # Update data.yaml so that the directories point to where the
+            # data is
+            # yaml = YAML()
+            # dataf = pathlib.Path(f"{data_dir}/data.yaml")
+            # d = yaml.load(dataf)
+            # d["train"] = f"{data_dir}/train"
+            # d["test"] = f"{data_dir}/test"
+            # d["val"] = f"{data_dir}/valid"
+            # yaml.dump(d, dataf)
+
+            subprocess.run(
+                f"python val.py --weights {named_model} --data /dataset/data.yaml --img 640 "
+                f"--conf-thres {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 ",
+                check=True,
+                shell=True,
+                cwd="/yolov5",
+            )
+
+            subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--conf-thres", dest="conf_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--iou-thres", dest="iou_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--max-det", dest="max_det", type=int, required=False, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = evaluate_model(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, subPath: '{{inputs.parameters.data_vol_subpath}}'}
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      artifacts:
+      - {name: train-model-pt_model, path: /tmp/inputs/model/data}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate with best weights,
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, {"if": {"cond":
+          {"isPresent": "conf_thres"}, "then": ["--conf-thres", {"inputValue": "conf_thres"}]}},
+          {"if": {"cond": {"isPresent": "iou_thres"}, "then": ["--iou-thres", {"inputValue":
+          "iou_thres"}]}}, {"if": {"cond": {"isPresent": "max_det"}, "then": ["--max-det",
+          {"inputValue": "max_det"}]}}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def evaluate_model(\n    model,\n    model_format = \"onnx\",  # onnx,
+          pt, tf ....\n    conf_thres = 0.001,\n    iou_thres = 0.6,\n    max_det
+          = 300,\n):\n    import subprocess\n    import os\n    import torch\n    from
+          ruamel.yaml import YAML\n    import pathlib\n\n    print(f\"The size of
+          the model is {os.path.getsize(model)}\")\n\n    if model_format == \"onnx\"
+          and not torch.cuda.is_available():\n        # the base image is built with
+          an onnxruntime for GPU\n        # This should work for both CPU and GPU,
+          but val.py\n        # does it''s own checking for CPU onnxruntime only\n        #
+          Since that''s not installed and not on pypl for ppc64le,\n        # The
+          script won''t work unless we change up the version\n        subprocess.run(\n            \"mamba
+          install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y\",\n            check=True,\n            shell=True,\n        )\n\n    #
+          valy.py uses the file name to determine the type of model\n    # mode is
+          an input path where the name is generated by kubeflow\n    # We need to
+          control the name that is used...\n    named_model = f\"/tmp/{os.path.basename(model)}.{model_format}\"\n    os.symlink(model,
+          named_model)\n\n    # Update data.yaml so that the directories point to
+          where the\n    # data is\n    # yaml = YAML()\n    # dataf = pathlib.Path(f\"{data_dir}/data.yaml\")\n    #
+          d = yaml.load(dataf)\n    # d[\"train\"] = f\"{data_dir}/train\"\n    #
+          d[\"test\"] = f\"{data_dir}/test\"\n    # d[\"val\"] = f\"{data_dir}/valid\"\n    #
+          yaml.dump(d, dataf)\n\n    subprocess.run(\n        f\"python val.py --weights
+          {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
+          {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    subprocess.run(\"find
+          . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
+          dest=\"conf_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--iou-thres\",
+          dest=\"iou_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-det\",
+          dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = evaluate_model(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "model", "type": "String"}, {"default": "onnx", "name": "model_format",
+          "optional": true, "type": "String"}, {"default": "0.001", "name": "conf_thres",
+          "optional": true, "type": "Float"}, {"default": "0.6", "name": "iou_thres",
+          "optional": true, "type": "Float"}, {"default": "300", "name": "max_det",
+          "optional": true, "type": "Integer"}], "name": "Evaluate model"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"conf_thres": "0.001", "iou_thres":
+          "0.6", "max_det": "300", "model_format": "pt"}'}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
+  - name: load-from-url
+    container:
+      args: [--source, '{{inputs.parameters.model_config_url}}', --dest, /tmp/outputs/dest/data]
       command:
       - sh
       - -ec
@@ -290,79 +645,175 @@ spec:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             return file_path
 
-        def load_data(source_dataset_dir,
-                      initial_weights,
-                      pipeline_dataset_dir,
-                      pipeline_initial_weights):
+        def load_from_url(
+            source,
+            dest,
+        ):
             import os
             import shutil
+            from urllib.request import urlretrieve
+            from urllib.parse import urlparse
 
-            if not os.path.exists(pipeline_dataset_dir):
-                os.makedirs(pipeline_dataset_dir)
+            # Make target directories if needed
+            parent_dirs = os.path.basename(dest)
+            if not os.path.exists(parent_dirs):
+                os.makedirs(parent_dirs)
 
-            if not os.path.exists(os.path.dirname(pipeline_initial_weights)):
-                os.makedirs(os.path.dirname(pipeline_initial_weights))
+            # Option to use an empty file to indicate no weights
+            if not source:
+                with open(dest, "w") as _:
+                    pass
 
-            shutil.copytree(source_dataset_dir, f"{pipeline_dataset_dir}/data")
-            shutil.copyfile(initial_weights, pipeline_initial_weights)
+            source_details = urlparse(source)
+
+            if source_details.scheme == "file":
+                if os.path.isdir(source_details.path):
+                    shutil.copytree(source_details.path, dest)
+                else:
+                    shutil.copyfile(source_details.path, dest)
+            elif source_details.scheme in ("http", "https", "ftp", "ftps"):
+                urlretrieve(source, filename=dest)
+            else:
+                raise ValueError(f"source does not use a supported url scheme")
 
         import argparse
-        _parser = argparse.ArgumentParser(prog='Load data', description='')
-        _parser.add_argument("--source-dataset-dir", dest="source_dataset_dir", type=str, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--initial-weights", dest="initial_weights", type=str, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--pipeline-dataset-dir", dest="pipeline_dataset_dir", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--pipeline-initial-weights", dest="pipeline_initial_weights", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser = argparse.ArgumentParser(prog='Load from url', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parsed_args = vars(_parser.parse_args())
 
-        _outputs = load_data(**_parsed_args)
+        _outputs = load_from_url(**_parsed_args)
       image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
-      volumeMounts:
-      - {mountPath: /home/jovyan/vol-1, name: vol-1}
     inputs:
       parameters:
-      - {name: dataset_path}
-      - {name: initial_weights}
+      - {name: model_config_url}
     outputs:
       artifacts:
-      - {name: load-data-pipeline_dataset_dir, path: /tmp/outputs/pipeline_dataset_dir/data}
-      - {name: load-data-pipeline_initial_weights, path: /tmp/outputs/pipeline_initial_weights/data}
+      - {name: load-from-url-dest, path: /tmp/outputs/dest/data}
     metadata:
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
-          {"args": ["--source-dataset-dir", {"inputValue": "source_dataset_dir"},
-          "--initial-weights", {"inputValue": "initial_weights"}, "--pipeline-dataset-dir",
-          {"outputPath": "pipeline_dataset_dir"}, "--pipeline-initial-weights", {"outputPath":
-          "pipeline_initial_weights"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
-          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
-          "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
-          exist_ok=True)\n    return file_path\n\ndef load_data(source_dataset_dir,\n              initial_weights,\n              pipeline_dataset_dir,\n              pipeline_initial_weights):\n    import
-          os\n    import shutil\n\n    if not os.path.exists(pipeline_dataset_dir):\n        os.makedirs(pipeline_dataset_dir)\n\n    if
-          not os.path.exists(os.path.dirname(pipeline_initial_weights)):\n        os.makedirs(os.path.dirname(pipeline_initial_weights))\n\n    shutil.copytree(source_dataset_dir,
-          f\"{pipeline_dataset_dir}/data\")\n    shutil.copyfile(initial_weights,
-          pipeline_initial_weights)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
-          data'', description='''')\n_parser.add_argument(\"--source-dataset-dir\",
-          dest=\"source_dataset_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--initial-weights\",
-          dest=\"initial_weights\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--pipeline-dataset-dir\",
-          dest=\"pipeline_dataset_dir\", type=_make_parent_dirs_and_return_path, required=True,
-          default=argparse.SUPPRESS)\n_parser.add_argument(\"--pipeline-initial-weights\",
-          dest=\"pipeline_initial_weights\", type=_make_parent_dirs_and_return_path,
-          required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = load_data(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
-          "inputs": [{"name": "source_dataset_dir", "type": "String"}, {"name": "initial_weights",
-          "type": "String"}], "name": "Load data", "outputs": [{"name": "pipeline_dataset_dir",
-          "type": "String"}, {"name": "pipeline_initial_weights", "type": "String"}]}',
-        pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"initial_weights":
-          "{{inputs.parameters.initial_weights}}", "source_dataset_dir": "{{inputs.parameters.dataset_path}}"}'}
-    volumes:
-    - name: vol-1
-      persistentVolumeClaim: {claimName: yolov5-work}
+          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
+          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
+          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
+          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
+          os\n    import shutil\n    from urllib.request import urlretrieve\n    from
+          urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
+          = os.path.basename(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    #
+          Option to use an empty file to indicate no weights\n    if not source:\n        with
+          open(dest, \"w\") as _:\n            pass\n\n    source_details = urlparse(source)\n\n    if
+          source_details.scheme == \"file\":\n        if os.path.isdir(source_details.path):\n            shutil.copytree(source_details.path,
+          dest)\n        else:\n            shutil.copyfile(source_details.path, dest)\n    elif
+          source_details.scheme in (\"http\", \"https\", \"ftp\", \"ftps\"):\n        urlretrieve(source,
+          filename=dest)\n    else:\n        raise ValueError(f\"source does not use
+          a supported url scheme\")\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
+          from url'', description='''')\n_parser.add_argument(\"--source\", dest=\"source\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
+          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.model_config_url}}"}'}
+  - name: load-from-url-2
+    container:
+      args: [--source, '{{inputs.parameters.initial_weights_url}}', --dest, /tmp/outputs/dest/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def load_from_url(
+            source,
+            dest,
+        ):
+            import os
+            import shutil
+            from urllib.request import urlretrieve
+            from urllib.parse import urlparse
+
+            # Make target directories if needed
+            parent_dirs = os.path.basename(dest)
+            if not os.path.exists(parent_dirs):
+                os.makedirs(parent_dirs)
+
+            # Option to use an empty file to indicate no weights
+            if not source:
+                with open(dest, "w") as _:
+                    pass
+
+            source_details = urlparse(source)
+
+            if source_details.scheme == "file":
+                if os.path.isdir(source_details.path):
+                    shutil.copytree(source_details.path, dest)
+                else:
+                    shutil.copyfile(source_details.path, dest)
+            elif source_details.scheme in ("http", "https", "ftp", "ftps"):
+                urlretrieve(source, filename=dest)
+            else:
+                raise ValueError(f"source does not use a supported url scheme")
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Load from url', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = load_from_url(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+    inputs:
+      parameters:
+      - {name: initial_weights_url}
+    outputs:
+      artifacts:
+      - {name: load-from-url-2-dest, path: /tmp/outputs/dest/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
+          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
+          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
+          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
+          os\n    import shutil\n    from urllib.request import urlretrieve\n    from
+          urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
+          = os.path.basename(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    #
+          Option to use an empty file to indicate no weights\n    if not source:\n        with
+          open(dest, \"w\") as _:\n            pass\n\n    source_details = urlparse(source)\n\n    if
+          source_details.scheme == \"file\":\n        if os.path.isdir(source_details.path):\n            shutil.copytree(source_details.path,
+          dest)\n        else:\n            shutil.copyfile(source_details.path, dest)\n    elif
+          source_details.scheme in (\"http\", \"https\", \"ftp\", \"ftps\"):\n        urlretrieve(source,
+          filename=dest)\n    else:\n        raise ValueError(f\"source does not use
+          a supported url scheme\")\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
+          from url'', description='''')\n_parser.add_argument(\"--source\", dest=\"source\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
+          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.initial_weights_url}}"}'}
   - name: train-model
     container:
-      args: [--data-dir, /tmp/inputs/data_dir/data, --initial-weights, /tmp/inputs/initial_weights/data,
-        --epochs, '1', --model, /tmp/outputs/model/data]
+      args: [--model-cfg, /tmp/inputs/model_cfg/data, --initial-weights, /tmp/inputs/initial_weights/data,
+        --epochs, '{{inputs.parameters.epochs}}', --onnx-model, /tmp/outputs/onnx_model/data,
+        --pt-model, /tmp/outputs/pt_model/data, --results, /tmp/outputs/results/data]
       command:
       - sh
       - -ec
@@ -377,10 +828,12 @@ spec:
             return file_path
 
         def train_model(
-            data_dir,
-            model,
-            initial_weights = None,
-            epochs = 500,
+            onnx_model,
+            pt_model,
+            results,
+            model_cfg,
+            initial_weights,
+            epochs,
         ):
             import subprocess
             import pathlib
@@ -388,19 +841,22 @@ spec:
             import os
             import shutil
 
-            yaml = YAML()
-            dataf = pathlib.Path(f"{data_dir}/data/data.yaml")
-            d = yaml.load(dataf)
-            d["train"] = f"{data_dir}/data/train"
-            d["test"] = f"{data_dir}/data/test"
-            d["val"] = f"{data_dir}/data/valid"
-            yaml.dump(d, dataf)
+            # data_dir is from an input path, so we have to
+            # update the data.yaml with the path names
+            #yaml = YAML()
+            #dataf = pathlib.Path(f"{data_dir}/data.yaml")
+            #d = yaml.load(dataf)
+            #d["train"] = f"{data_dir}/train"
+            #d["test"] = f"{data_dir}/test"
+            #d["val"] = f"{data_dir}/valid"
+            #yaml.dump(d, dataf)
 
-            weights = initial_weights if initial_weights else "yolov5s.pt"
+            # Option to pass an empty file to train from scratch
+            weights = initial_weights if os.path.getsize(initial_weights) > 0 else ""
 
             subprocess.run(
-                f"python train.py --img 640 --batch -1 --noplots --epochs {epochs} --cache ram "
-                f"--data {data_dir}/data/data.yaml --weights {weights} --workers=0 --device=0 --optimizer=Adam",
+                f"python train.py --img 640 --batch -1 --noplots --epochs {epochs} --cache ram --cfg={model_cfg} "
+                f"--data /dataset/data.yaml --weights {weights} --workers=0 --device=0 --optimizer=Adam",
                 check=True,
                 cwd="/yolov5",
                 shell=True,
@@ -408,84 +864,104 @@ spec:
 
             subprocess.run(
                 f"python export.py --img 640 --include=onnx --int8 "
-                f"--data {data_dir}/data/data.yaml --weights /yolov5/runs/train/exp/weights/best.pt --device=0 ",
+                f"--data /dataset/data.yaml --weights /yolov5/runs/train/exp/weights/best.pt --device=0 ",
                 check=True,
                 cwd="/yolov5",
                 shell=True,
             )
 
-            subprocess.run("find /yolov5 -print")
+            os.makedirs(os.path.dirname(pt_model), exist_ok=True)
+            os.makedirs(os.path.dirname(onnx_model), exist_ok=True)
+            os.makedirs(os.path.dirname(results), exist_ok=True)
 
-            target_path = os.path.basename(model)
-            if not os.path.exists(target_path):
-                os.makedirs(target_path)
-
-            shutil.copyfile("/yolov5/runs/train/exp/weights/best.onnx", model)
+            shutil.copyfile("/yolov5/runs/train/exp/weights/best.pt", pt_model)
+            shutil.copyfile("/yolov5/runs/train/exp/weights/best.onnx", onnx_model)
+            shutil.copyfile("/yolov5/runs/train/exp/results.csv", results)
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Train model', description='')
-        _parser.add_argument("--data-dir", dest="data_dir", type=str, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--initial-weights", dest="initial_weights", type=str, required=False, default=argparse.SUPPRESS)
-        _parser.add_argument("--epochs", dest="epochs", type=int, required=False, default=argparse.SUPPRESS)
-        _parser.add_argument("--model", dest="model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-cfg", dest="model_cfg", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--initial-weights", dest="initial_weights", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--epochs", dest="epochs", type=int, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--onnx-model", dest="onnx_model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--pt-model", dest="pt_model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--results", dest="results", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = train_model(**_parsed_args)
       image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       resources:
         limits: {nvidia.com/gpu: 1, memory: 30G}
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, subPath: '{{inputs.parameters.data_vol_subpath}}'}
     inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      - {name: epochs}
       artifacts:
-      - {name: load-data-pipeline_dataset_dir, path: /tmp/inputs/data_dir/data}
-      - {name: initial_weights, path: /tmp/inputs/initial_weights/data}
+      - {name: load-from-url-2-dest, path: /tmp/inputs/initial_weights/data}
+      - {name: load-from-url-dest, path: /tmp/inputs/model_cfg/data}
     outputs:
       artifacts:
-      - {name: train-model-model, path: /tmp/outputs/model/data}
+      - {name: train-model-onnx_model, path: /tmp/outputs/onnx_model/data}
+      - {name: train-model-pt_model, path: /tmp/outputs/pt_model/data}
+      - {name: train-model-results, path: /tmp/outputs/results/data}
     metadata:
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
-          {"args": ["--data-dir", {"inputPath": "data_dir"}, {"if": {"cond": {"isPresent":
-          "initial_weights"}, "then": ["--initial-weights", {"inputPath": "initial_weights"}]}},
-          {"if": {"cond": {"isPresent": "epochs"}, "then": ["--epochs", {"inputValue":
-          "epochs"}]}}, "--model", {"outputPath": "model"}], "command": ["sh", "-ec",
-          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          {"args": ["--model-cfg", {"inputPath": "model_cfg"}, "--initial-weights",
+          {"inputPath": "initial_weights"}, "--epochs", {"inputValue": "epochs"},
+          "--onnx-model", {"outputPath": "onnx_model"}, "--pt-model", {"outputPath":
+          "pt_model"}, "--results", {"outputPath": "results"}], "command": ["sh",
+          "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
           -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
           str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
-          file_path\n\ndef train_model(\n    data_dir,\n    model,\n    initial_weights
-          = None,\n    epochs = 500,\n):\n    import subprocess\n    import pathlib\n    from
-          ruamel.yaml import YAML\n    import os\n    import shutil\n\n    yaml =
-          YAML()\n    dataf = pathlib.Path(f\"{data_dir}/data/data.yaml\")\n    d
-          = yaml.load(dataf)\n    d[\"train\"] = f\"{data_dir}/data/train\"\n    d[\"test\"]
-          = f\"{data_dir}/data/test\"\n    d[\"val\"] = f\"{data_dir}/data/valid\"\n    yaml.dump(d,
-          dataf)\n\n    weights = initial_weights if initial_weights else \"yolov5s.pt\"\n\n    subprocess.run(\n        f\"python
-          train.py --img 640 --batch -1 --noplots --epochs {epochs} --cache ram \"\n        f\"--data
-          {data_dir}/data/data.yaml --weights {weights} --workers=0 --device=0 --optimizer=Adam\",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    subprocess.run(\n        f\"python
-          export.py --img 640 --include=onnx --int8 \"\n        f\"--data {data_dir}/data/data.yaml
-          --weights /yolov5/runs/train/exp/weights/best.pt --device=0 \",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    subprocess.run(\"find
-          /yolov5 -print\")\n\n    target_path = os.path.basename(model)\n    if not
-          os.path.exists(target_path):\n        os.makedirs(target_path)\n\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.onnx\",
-          model)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Train
-          model'', description='''')\n_parser.add_argument(\"--data-dir\", dest=\"data_dir\",
+          file_path\n\ndef train_model(\n    onnx_model,\n    pt_model,\n    results,\n    model_cfg,\n    initial_weights,\n    epochs,\n):\n    import
+          subprocess\n    import pathlib\n    from ruamel.yaml import YAML\n    import
+          os\n    import shutil\n\n    # data_dir is from an input path, so we have
+          to\n    # update the data.yaml with the path names\n    #yaml = YAML()\n    #dataf
+          = pathlib.Path(f\"{data_dir}/data.yaml\")\n    #d = yaml.load(dataf)\n    #d[\"train\"]
+          = f\"{data_dir}/train\"\n    #d[\"test\"] = f\"{data_dir}/test\"\n    #d[\"val\"]
+          = f\"{data_dir}/valid\"\n    #yaml.dump(d, dataf)\n\n    # Option to pass
+          an empty file to train from scratch\n    weights = initial_weights if os.path.getsize(initial_weights)
+          > 0 else \"\"\n\n    subprocess.run(\n        f\"python train.py --img 640
+          --batch -1 --noplots --epochs {epochs} --cache ram --cfg={model_cfg} \"\n        f\"--data
+          /dataset/data.yaml --weights {weights} --workers=0 --device=0 --optimizer=Adam\",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    subprocess.run(\n        f\"python
+          export.py --img 640 --include=onnx --int8 \"\n        f\"--data /dataset/data.yaml
+          --weights /yolov5/runs/train/exp/weights/best.pt --device=0 \",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    os.makedirs(os.path.dirname(pt_model),
+          exist_ok=True)\n    os.makedirs(os.path.dirname(onnx_model), exist_ok=True)\n    os.makedirs(os.path.dirname(results),
+          exist_ok=True)\n\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.pt\",
+          pt_model)\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.onnx\",
+          onnx_model)\n    shutil.copyfile(\"/yolov5/runs/train/exp/results.csv\",
+          results)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Train
+          model'', description='''')\n_parser.add_argument(\"--model-cfg\", dest=\"model_cfg\",
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--initial-weights\",
-          dest=\"initial_weights\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--epochs\",
-          dest=\"epochs\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\",
-          dest=\"model\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
-          = vars(_parser.parse_args())\n\n_outputs = train_model(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
-          [{"name": "data_dir", "type": "String"}, {"name": "initial_weights", "optional":
-          true, "type": "String"}, {"default": "500", "name": "epochs", "optional":
-          true, "type": "Integer"}], "name": "Train model", "outputs": [{"name": "model",
-          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"epochs":
-          "1"}'}
+          dest=\"initial_weights\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--epochs\",
+          dest=\"epochs\", type=int, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model\",
+          dest=\"onnx_model\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parser.add_argument(\"--pt-model\", dest=\"pt_model\",
+          type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
+          dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = train_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          "inputs": [{"name": "model_cfg", "type": "String"}, {"name": "initial_weights",
+          "type": "String"}, {"name": "epochs", "type": "Integer"}], "name": "Train
+          model", "outputs": [{"name": "onnx_model", "type": "String"}, {"name": "pt_model",
+          "type": "String"}, {"name": "results", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"epochs": "{{inputs.parameters.epochs}}"}'}
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
   - name: upload-model
     container:
-      args: [--model, /tmp/inputs/model/data, --minio-url, 'minio-service.kubeflow:9000',
-        --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-bee-yolov5',
-        --model-name, bee, --model-version, '1', --model-format, onnx, '----output-paths',
-        /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
+      args: [--model, /tmp/inputs/model/data, --minio-url, '{{inputs.parameters.minio_url}}',
+        --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-bee',
+        --model-name, bee, --model-version, '{{inputs.parameters.model_version}}',
+        --model-format, onnx, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
       command:
       - sh
       - -ec
@@ -630,8 +1106,11 @@ spec:
                 f.write(_output_serializers[idx](_outputs[idx]))
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
     inputs:
+      parameters:
+      - {name: minio_url}
+      - {name: model_version}
       artifacts:
-      - {name: train-model-model, path: /tmp/inputs/model/data}
+      - {name: train-model-onnx_model, path: /tmp/inputs/model/data}
     outputs:
       artifacts:
       - {name: upload-model-s3_address, path: /tmp/outputs/s3_address/data}
@@ -725,15 +1204,17 @@ spec:
           "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
           "6da225cd49bc4c67005599df5513903975e1aa6837d1a1e41c503d7b793253c6", "url":
           "/home/jovyan/components/model-building/upload-model/component.yaml"}',
-        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-bee-yolov5",
-          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "minio-service.kubeflow:9000",
-          "model_format": "onnx", "model_name": "bee", "model_version": "1"}'}
+        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-bee",
+          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
+          "model_format": "onnx", "model_name": "bee", "model_version": "{{inputs.parameters.model_version}}"}'}
   arguments:
     parameters:
-    - {name: dataset_path}
-    - {name: initial_weights}
-    - {name: epochs, value: '300'}
-    artifacts:
-    - name: initial_weights
-      raw: {data: '{{workflow.parameters.initial_weights}}'}
+    - {name: model_config_url}
+    - {name: initial_weights_url}
+    - {name: data_vol_pvc_name}
+    - {name: data_vol_subpath}
+    - {name: blackboard, value: mlpipeline-artefacts}
+    - {name: epochs, value: '750'}
+    - {name: minio_url, value: 'minio-service.kubeflow:9000'}
+    - {name: model_version, value: '1'}
   serviceAccountName: pipeline-runner
