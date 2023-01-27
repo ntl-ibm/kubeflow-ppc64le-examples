@@ -1,0 +1,1266 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: bee-yolov5-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-27T22:03:25.732372',
+    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_vol_pvc_name",
+      "type": "String"}, {"name": "data_vol_subpath", "type": "String"}, {"default":
+      "750", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml",
+      "name": "model_config_url", "optional": true, "type": "String"}, {"default":
+      "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.pt", "name":
+      "initial_weights_url", "optional": true, "type": "String"}, {"default": "int8",
+      "name": "quantize_onnx", "optional": true, "type": "String"}, {"default": "minio-service.kubeflow:9000",
+      "name": "minio_url", "optional": true}, {"default": "1", "name": "model_version",
+      "optional": true, "type": "Integer"}], "name": "bee-yolov5"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
+spec:
+  entrypoint: bee-yolov5
+  templates:
+  - name: bee-yolov5
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      - {name: epochs}
+      - {name: initial_weights_url}
+      - {name: minio_url}
+      - {name: model_config_url}
+      - {name: model_version}
+      - {name: quantize_onnx}
+    dag:
+      tasks:
+      - name: convert-model-to-onnx
+        template: convert-model-to-onnx
+        dependencies: [train-model]
+        arguments:
+          parameters:
+          - {name: quantize_onnx, value: '{{inputs.parameters.quantize_onnx}}'}
+          artifacts:
+          - {name: train-model-model, from: '{{tasks.train-model.outputs.artifacts.train-model-model}}'}
+      - name: deploy-inference-service
+        template: deploy-inference-service
+        dependencies: [upload-model]
+        arguments:
+          parameters:
+          - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
+      - name: evaluate-model
+        template: evaluate-model
+        dependencies: [convert-model-to-onnx]
+        arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          artifacts:
+          - {name: convert-model-to-onnx-onnx_model, from: '{{tasks.convert-model-to-onnx.outputs.artifacts.convert-model-to-onnx-onnx_model}}'}
+      - name: evaluate-model-2
+        template: evaluate-model-2
+        dependencies: [train-model]
+        arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          artifacts:
+          - {name: train-model-model, from: '{{tasks.train-model.outputs.artifacts.train-model-model}}'}
+      - name: load-from-url
+        template: load-from-url
+        arguments:
+          parameters:
+          - {name: model_config_url, value: '{{inputs.parameters.model_config_url}}'}
+      - name: load-from-url-2
+        template: load-from-url-2
+        arguments:
+          parameters:
+          - {name: initial_weights_url, value: '{{inputs.parameters.initial_weights_url}}'}
+      - name: train-model
+        template: train-model
+        dependencies: [load-from-url, load-from-url-2]
+        arguments:
+          parameters:
+          - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
+          - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
+          - {name: epochs, value: '{{inputs.parameters.epochs}}'}
+          artifacts:
+          - {name: load-from-url-2-dest, from: '{{tasks.load-from-url-2.outputs.artifacts.load-from-url-2-dest}}'}
+          - {name: load-from-url-dest, from: '{{tasks.load-from-url.outputs.artifacts.load-from-url-dest}}'}
+      - name: upload-model
+        template: upload-model
+        dependencies: [convert-model-to-onnx]
+        arguments:
+          parameters:
+          - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
+          - {name: model_version, value: '{{inputs.parameters.model_version}}'}
+          artifacts:
+          - {name: convert-model-to-onnx-onnx_model, from: '{{tasks.convert-model-to-onnx.outputs.artifacts.convert-model-to-onnx-onnx_model}}'}
+  - name: convert-model-to-onnx
+    container:
+      args: [--model, /tmp/inputs/model/data, --model-format, pt, --quantize, '{{inputs.parameters.quantize_onnx}}',
+        --onnx-model, /tmp/outputs/onnx_model/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def convert_model_to_onnx(
+            model,
+            model_format,
+            onnx_model,
+            quantize = "",
+        ):
+            import subprocess
+            import shutil
+            import os
+
+            # export.py uses the file name to determine the type of model
+            # mode is an input path where the name is generated by kubeflow
+            # We need to control the name that is used...
+            named_model = f"/tmp/{os.path.basename(model)}.{model_format}"
+            os.symlink(model, named_model)
+
+            quantize_param = f"--{quantize}" if quantize else ""
+
+            subprocess.run(
+                f"python export.py --img 640 --include=onnx  {quantize_param} "
+                f"--data /dataset/data.yaml --weights {named_model} --device=cpu ",
+                check=True,
+                cwd="/yolov5",
+                shell=True,
+            )
+
+            shutil.copyfile(f"/tmp/{os.path.basename(model)}.onnx", onnx_model)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Convert model to onnx', description='')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--quantize", dest="quantize", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--onnx-model", dest="onnx_model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = convert_model_to_onnx(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+    inputs:
+      parameters:
+      - {name: quantize_onnx}
+      artifacts:
+      - {name: train-model-model, path: /tmp/inputs/model/data}
+    outputs:
+      artifacts:
+      - {name: convert-model-to-onnx-onnx_model, path: /tmp/outputs/onnx_model/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--model", {"inputPath": "model"}, "--model-format", {"inputValue":
+          "model_format"}, {"if": {"cond": {"isPresent": "quantize"}, "then": ["--quantize",
+          {"inputValue": "quantize"}]}}, "--onnx-model", {"outputPath": "onnx_model"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
+          file_path\n\ndef convert_model_to_onnx(\n    model,\n    model_format,\n    onnx_model,\n    quantize
+          = \"\",\n):\n    import subprocess\n    import shutil\n    import os\n\n    #
+          export.py uses the file name to determine the type of model\n    # mode
+          is an input path where the name is generated by kubeflow\n    # We need
+          to control the name that is used...\n    named_model = f\"/tmp/{os.path.basename(model)}.{model_format}\"\n    os.symlink(model,
+          named_model)\n\n    quantize_param = f\"--{quantize}\" if quantize else
+          \"\"\n\n    subprocess.run(\n        f\"python export.py --img 640 --include=onnx  {quantize_param}
+          \"\n        f\"--data /dataset/data.yaml --weights {named_model} --device=cpu
+          \",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    shutil.copyfile(f\"/tmp/{os.path.basename(model)}.onnx\",
+          onnx_model)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Convert
+          model to onnx'', description='''')\n_parser.add_argument(\"--model\", dest=\"model\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--quantize\",
+          dest=\"quantize\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model\",
+          dest=\"onnx_model\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          "inputs": [{"name": "model", "type": "String"}, {"name": "model_format",
+          "type": "String"}, {"default": "", "name": "quantize", "optional": true,
+          "type": "String"}], "name": "Convert model to onnx", "outputs": [{"name":
+          "onnx_model", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"model_format": "pt", "quantize":
+          "{{inputs.parameters.quantize_onnx}}"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: deploy-inference-service
+    container:
+      args:
+      - --name
+      - bee
+      - --storage-uri
+      - s3://{{workflow.namespace}}-bee/onnx
+      - --minio-url
+      - '{{inputs.parameters.minio_url}}'
+      - --rm-existing
+      - "True"
+      - --minio-credential-secret
+      - mlpipeline-minio-artifact
+      - --predictor-gpu-allocation
+      - '0'
+      - --predictor-protocol
+      - v2
+      - --triton-runtime-version
+      - 22.03-py3
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n\
+        \    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
+        ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n  \
+        \  predictor_max_replicas = None,\n    predictor_gpu_allocation = 0,\n   \
+        \ predictor_protocol = \"v2\",  # or grpc-v2\n    triton_runtime_version =\
+        \ \"22.03-py3\",\n    transformer_specification = None,\n):\n    import os\n\
+        \    import subprocess\n    import yaml\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+        \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
+        \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
+        \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
+        \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
+        \n    # It happens that the credentials for the minio user name and password\
+        \ are already in a secret\n    # This just loads them so that we can create\
+        \ our own secret to store the S3 connection information\n    # for the Inference\
+        \ service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\"\
+        , minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n\
+        \        check=True,\n        text=True,\n    )\n    secret = yaml.safe_load(r.stdout)\n\
+        \n    s3_credentials_spec = f\"\"\"\n    apiVersion: v1\n    kind: Secret\n\
+        \    metadata:\n      name: minio-credentials\n      annotations:\n      \
+        \  serving.kserve.io/s3-endpoint: {minio_url} \n        serving.kserve.io/s3-usehttps:\
+        \ \"0\"\n        serving.kserve.io/s3-region: \"us-west1\"\n        serving.kserve.io/s3-useanoncredential:\
+        \ \"false\"\n    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
+        \      AWS_SECRET_ACCESS_KEY: {secret['data']['secretkey']}\n    \"\"\"\n\n\
+        \    print(s3_credentials_spec)\n    subprocess.run(\n        [\"kubectl\"\
+        , \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n       \
+        \ check=True,\n        text=True,\n    )\n\n    sa_spec = \"\"\"\n    apiVersion:\
+        \ v1\n    kind: ServiceAccount\n    metadata:\n      name: kserve-inference-sa\n\
+        \    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n\
+        \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
+        \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
+        \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
+        \ check=False)\n\n    ####### Inference Service template #######\n    if transformer_specification:\n\
+        \        transform_spec = f\"\"\"\n      transformer:\n        {t_min_replicas}\n\
+        \        {t_max_replicas}\n        serviceAccountName: kserve-inference-sa\n\
+        \        containers:\n        - image: \"{transformer_specification[\"image\"\
+        ]}\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
+        ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
+        \            - name: CLASS_LABELS\n              value: |\n              \
+        \      {transformer_specification.get(\"labels\")}\n          \"\"\"\n   \
+        \ else:\n        transform_spec = \"\"\n\n    gpu_resources = (\n        f\"\
+        nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if predictor_gpu_allocation\n\
+        \        else \"\"\n    )\n\n    min_p_replicas = (\n        f\"minReplicas:\
+        \ {predictor_min_replicas}\"\n        if predictor_min_replicas is not None\n\
+        \        else \"\"\n    )\n    max_p_replicas = (\n        f\"maxReplicas:\
+        \ {predictor_max_replicas}\"\n        if predictor_max_replicas is not None\n\
+        \        else \"\"\n    )\n\n    predictor_port_spec = (\n        '[{\"containerPort\"\
+        : 9000, \"name\": \"h2c\", \"protocol\": \"TCP\"}]'\n        if predictor_protocol\
+        \ == \"grpc-v2\"\n        else \"\"\n    )\n\n    if concurrency_target:\n\
+        \        autoscaling_target=f'''\n        autoscaling.knative.dev/target:\
+        \ \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\
+        \n        '''\n    else:\n        autoscaling_target=''\n\n    service_spec\
+        \ = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
+        \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
+        \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+        \        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n     \
+        \ predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n       \
+        \ serviceAccountName: kserve-inference-sa\n        triton:\n          runtimeVersion:\
+        \ {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
+        ]\n          storageUri: {storage_uri}\n          ports: {predictor_port_spec}\n\
+        \          env:\n          - name: OMP_NUM_THREADS\n            value: \"\
+        1\"\n          resources:\n            limits:\n               {gpu_resources}\n\
+        \    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\"\
+        , \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n \
+        \   )\n\n    print(\"Waiting for inference service to become available\")\n\
+        \    subprocess.run(\n        [\n            \"kubectl\",\n            \"\
+        wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
+        ,\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\
+        \ndef _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n\
+        \    return strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
+        \ inference service', description='')\n_parser.add_argument(\"--name\", dest=\"\
+        name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --storage-uri\", dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--minio-url\", dest=\"minio_url\", type=str, required=True,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\", dest=\"\
+        rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--minio-credential-secret\", dest=\"minio_credential_secret\"\
+        , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --concurrency-target\", dest=\"concurrency_target\", type=int, required=False,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-min-replicas\"\
+        , dest=\"predictor_min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--predictor-max-replicas\", dest=\"predictor_max_replicas\"\
+        , type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --predictor-gpu-allocation\", dest=\"predictor_gpu_allocation\", type=int,\
+        \ required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-protocol\"\
+        , dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--triton-runtime-version\", dest=\"triton_runtime_version\"\
+        , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --transformer-specification\", dest=\"transformer_specification\", type=json.loads,\
+        \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
+        \n_outputs = deploy_inference_service(**_parsed_args)\n"
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: minio_url}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--name", {"inputValue": "name"}, "--storage-uri", {"inputValue":
+          "storage_uri"}, "--minio-url", {"inputValue": "minio_url"}, {"if": {"cond":
+          {"isPresent": "rm_existing"}, "then": ["--rm-existing", {"inputValue": "rm_existing"}]}},
+          {"if": {"cond": {"isPresent": "minio_credential_secret"}, "then": ["--minio-credential-secret",
+          {"inputValue": "minio_credential_secret"}]}}, {"if": {"cond": {"isPresent":
+          "concurrency_target"}, "then": ["--concurrency-target", {"inputValue": "concurrency_target"}]}},
+          {"if": {"cond": {"isPresent": "predictor_min_replicas"}, "then": ["--predictor-min-replicas",
+          {"inputValue": "predictor_min_replicas"}]}}, {"if": {"cond": {"isPresent":
+          "predictor_max_replicas"}, "then": ["--predictor-max-replicas", {"inputValue":
+          "predictor_max_replicas"}]}}, {"if": {"cond": {"isPresent": "predictor_gpu_allocation"},
+          "then": ["--predictor-gpu-allocation", {"inputValue": "predictor_gpu_allocation"}]}},
+          {"if": {"cond": {"isPresent": "predictor_protocol"}, "then": ["--predictor-protocol",
+          {"inputValue": "predictor_protocol"}]}}, {"if": {"cond": {"isPresent": "triton_runtime_version"},
+          "then": ["--triton-runtime-version", {"inputValue": "triton_runtime_version"}]}},
+          {"if": {"cond": {"isPresent": "transformer_specification"}, "then": ["--transformer-specification",
+          {"inputValue": "transformer_specification"}]}}], "command": ["sh", "-ec",
+          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n    rm_existing
+          = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\",\n    concurrency_target
+          = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas
+          = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\",  #
+          or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_specification
+          = None,\n):\n    import os\n    import subprocess\n    import yaml\n\n    #
+          https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
+          https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n    #
+          https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n    #
+          https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n    #
+          https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\n    #
+          It happens that the credentials for the minio user name and password are
+          already in a secret\n    # This just loads them so that we can create our
+          own secret to store the S3 connection information\n    # for the Inference
+          service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\",
+          minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n    )\n    secret
+          = yaml.safe_load(r.stdout)\n\n    s3_credentials_spec = f\"\"\"\n    apiVersion:
+          v1\n    kind: Secret\n    metadata:\n      name: minio-credentials\n      annotations:\n        serving.kserve.io/s3-endpoint:
+          {minio_url} \n        serving.kserve.io/s3-usehttps: \"0\"\n        serving.kserve.io/s3-region:
+          \"us-west1\"\n        serving.kserve.io/s3-useanoncredential: \"false\"\n    type:
+          Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret[''data''][''accesskey'']}\n      AWS_SECRET_ACCESS_KEY:
+          {secret[''data''][''secretkey'']}\n    \"\"\"\n\n    print(s3_credentials_spec)\n    subprocess.run(\n        [\"kubectl\",
+          \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n        check=True,\n        text=True,\n    )\n\n    sa_spec
+          = \"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n    metadata:\n      name:
+          kserve-inference-sa\n    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n    subprocess.run(\n        [\"kubectl\",
+          \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    ###
+          Remove Existing\n    if rm_existing:\n        subprocess.run([\"kubectl\",
+          \"delete\", \"inferenceservice\", name], check=False)\n\n    ####### Inference
+          Service template #######\n    if transformer_specification:\n        transform_spec
+          = f\"\"\"\n      transformer:\n        {t_min_replicas}\n        {t_max_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\n          name:
+          \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
+          ''[\"python\", \"transform.py\"]'')}\n          args: [\"--protocol={predictor_protocol}\"]\n          env:\n            -
+          name: STORAGE_URI\n              value: {storage_uri}\n            - name:
+          CLASS_LABELS\n              value: |\n                    {transformer_specification.get(\"labels\")}\n          \"\"\"\n    else:\n        transform_spec
+          = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if
+          predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas
+          = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas
+          is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"maxReplicas:
+          {predictor_max_replicas}\"\n        if predictor_max_replicas is not None\n        else
+          \"\"\n    )\n\n    predictor_port_spec = (\n        ''[{\"containerPort\":
+          9000, \"name\": \"h2c\", \"protocol\": \"TCP\"}]''\n        if predictor_protocol
+          == \"grpc-v2\"\n        else \"\"\n    )\n\n    if concurrency_target:\n        autoscaling_target=f''''''\n        autoscaling.knative.dev/target:
+          \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\n        ''''''\n    else:\n        autoscaling_target=''''\n\n    service_spec
+          = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n      name:
+          {name}\n      annotations:\n        sidecar.istio.io/inject: \"false\"\n        #
+          https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n      predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          args:
+          [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n          ports:
+          {predictor_port_spec}\n          env:\n          - name: OMP_NUM_THREADS\n            value:
+          \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
+          \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n    )\n\n    print(\"Waiting
+          for inference service to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
+          _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
+          strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Deploy
+          inference service'', description='''')\n_parser.add_argument(\"--name\",
+          dest=\"name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--storage-uri\",
+          dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
+          dest=\"minio_url\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\",
+          dest=\"rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-credential-secret\",
+          dest=\"minio_credential_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--concurrency-target\",
+          dest=\"concurrency_target\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-min-replicas\",
+          dest=\"predictor_min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-max-replicas\",
+          dest=\"predictor_max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-gpu-allocation\",
+          dest=\"predictor_gpu_allocation\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-protocol\",
+          dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--triton-runtime-version\",
+          dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\",
+          dest=\"transformer_specification\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "name", "type": "String"}, {"name": "storage_uri", "type":
+          "String"}, {"name": "minio_url", "type": "String"}, {"default": "False",
+          "name": "rm_existing", "optional": true, "type": "Boolean"}, {"default":
+          "mlpipeline-minio-artifact", "name": "minio_credential_secret", "optional":
+          true}, {"name": "concurrency_target", "optional": true, "type": "Integer"},
+          {"name": "predictor_min_replicas", "optional": true, "type": "Integer"},
+          {"name": "predictor_max_replicas", "optional": true, "type": "Integer"},
+          {"default": "0", "name": "predictor_gpu_allocation", "optional": true, "type":
+          "Integer"}, {"default": "v2", "name": "predictor_protocol", "optional":
+          true, "type": "String"}, {"default": "22.03-py3", "name": "triton_runtime_version",
+          "optional": true, "type": "String"}, {"name": "transformer_specification",
+          "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
+          "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "8b89e82d18a951f64d5b1a66187e34e7705a4e857d96b85700b676fd59375d93", "url":
+          "./deploy_inference_service_component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
+          "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
+          "name": "bee", "predictor_gpu_allocation": "0", "predictor_protocol": "v2",
+          "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee/onnx",
+          "triton_runtime_version": "22.03-py3"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: evaluate-model
+    container:
+      args: [--model, /tmp/inputs/model/data, --model-format, onnx, --conf-thres,
+        '0.001', --iou-thres, '0.6', --max-det, '300', --results, /tmp/outputs/results/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def evaluate_model(
+            results,
+            model,
+            model_format = "onnx",  # onnx, pt, tf ....
+            conf_thres = 0.001,
+            iou_thres = 0.6,
+            max_det = 300,
+        ):
+            import subprocess
+            import os
+            import torch
+            from ruamel.yaml import YAML
+            import pathlib
+            import shutil
+
+            print(f"The size of the model is {os.path.getsize(model)}")
+
+            if model_format == "onnx" and not torch.cuda.is_available():
+                # the base image is built with an onnxruntime for GPU
+                # This should work for both CPU and GPU, but val.py
+                # does it's own checking for CPU onnxruntime only
+                # Since that's not installed and not on pypl for ppc64le,
+                # The script won't work unless we change up the version
+                subprocess.run(
+                    "mamba install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y",
+                    check=True,
+                    shell=True,
+                )
+
+            # valy.py uses the file name to determine the type of model
+            # mode is an input path where the name is generated by kubeflow
+            # We need to control the name that is used...
+            named_model = f"/tmp/{os.path.basename(model)}.{model_format}"
+            os.symlink(model, named_model)
+
+            subprocess.run(
+                f"python val.py --weights {named_model} --data /dataset/data.yaml --img 640 "
+                f"--conf-thres {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 ",
+                check=True,
+                shell=True,
+                cwd="/yolov5",
+            )
+
+            os.makedirs(os.path.dirname(results), exist_ok=True)
+            shutil.copytree("/yolov5/runs/val/exp", results)
+            # subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--conf-thres", dest="conf_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--iou-thres", dest="iou_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--max-det", dest="max_det", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--results", dest="results", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = evaluate_model(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, readOnly: true, subPath: '{{inputs.parameters.data_vol_subpath}}'}
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      artifacts:
+      - {name: convert-model-to-onnx-onnx_model, path: /tmp/inputs/model/data}
+    outputs:
+      artifacts:
+      - {name: evaluate-model-results, path: /tmp/outputs/results/data}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate ONNX, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--model", {"inputPath": "model"}, {"if": {"cond":
+          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
+          "model_format"}]}}, {"if": {"cond": {"isPresent": "conf_thres"}, "then":
+          ["--conf-thres", {"inputValue": "conf_thres"}]}}, {"if": {"cond": {"isPresent":
+          "iou_thres"}, "then": ["--iou-thres", {"inputValue": "iou_thres"}]}}, {"if":
+          {"cond": {"isPresent": "max_det"}, "then": ["--max-det", {"inputValue":
+          "max_det"}]}}, "--results", {"outputPath": "results"}], "command": ["sh",
+          "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
+          file_path\n\ndef evaluate_model(\n    results,\n    model,\n    model_format
+          = \"onnx\",  # onnx, pt, tf ....\n    conf_thres = 0.001,\n    iou_thres
+          = 0.6,\n    max_det = 300,\n):\n    import subprocess\n    import os\n    import
+          torch\n    from ruamel.yaml import YAML\n    import pathlib\n    import
+          shutil\n\n    print(f\"The size of the model is {os.path.getsize(model)}\")\n\n    if
+          model_format == \"onnx\" and not torch.cuda.is_available():\n        # the
+          base image is built with an onnxruntime for GPU\n        # This should work
+          for both CPU and GPU, but val.py\n        # does it''s own checking for
+          CPU onnxruntime only\n        # Since that''s not installed and not on pypl
+          for ppc64le,\n        # The script won''t work unless we change up the version\n        subprocess.run(\n            \"mamba
+          install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y\",\n            check=True,\n            shell=True,\n        )\n\n    #
+          valy.py uses the file name to determine the type of model\n    # mode is
+          an input path where the name is generated by kubeflow\n    # We need to
+          control the name that is used...\n    named_model = f\"/tmp/{os.path.basename(model)}.{model_format}\"\n    os.symlink(model,
+          named_model)\n\n    subprocess.run(\n        f\"python val.py --weights
+          {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
+          {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    os.makedirs(os.path.dirname(results),
+          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n    #
+          subprocess.run(\"find . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
+          dest=\"conf_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--iou-thres\",
+          dest=\"iou_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-det\",
+          dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
+          dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
+          "model_format", "optional": true, "type": "String"}, {"default": "0.001",
+          "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
+          "name": "iou_thres", "optional": true, "type": "Float"}, {"default": "300",
+          "name": "max_det", "optional": true, "type": "Integer"}], "name": "Evaluate
+          model", "outputs": [{"name": "results", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"conf_thres": "0.001", "iou_thres":
+          "0.6", "max_det": "300", "model_format": "onnx"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
+  - name: evaluate-model-2
+    container:
+      args: [--model, /tmp/inputs/model/data, --model-format, pt, --conf-thres, '0.001',
+        --iou-thres, '0.6', --max-det, '300', --results, /tmp/outputs/results/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def evaluate_model(
+            results,
+            model,
+            model_format = "onnx",  # onnx, pt, tf ....
+            conf_thres = 0.001,
+            iou_thres = 0.6,
+            max_det = 300,
+        ):
+            import subprocess
+            import os
+            import torch
+            from ruamel.yaml import YAML
+            import pathlib
+            import shutil
+
+            print(f"The size of the model is {os.path.getsize(model)}")
+
+            if model_format == "onnx" and not torch.cuda.is_available():
+                # the base image is built with an onnxruntime for GPU
+                # This should work for both CPU and GPU, but val.py
+                # does it's own checking for CPU onnxruntime only
+                # Since that's not installed and not on pypl for ppc64le,
+                # The script won't work unless we change up the version
+                subprocess.run(
+                    "mamba install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y",
+                    check=True,
+                    shell=True,
+                )
+
+            # valy.py uses the file name to determine the type of model
+            # mode is an input path where the name is generated by kubeflow
+            # We need to control the name that is used...
+            named_model = f"/tmp/{os.path.basename(model)}.{model_format}"
+            os.symlink(model, named_model)
+
+            subprocess.run(
+                f"python val.py --weights {named_model} --data /dataset/data.yaml --img 640 "
+                f"--conf-thres {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 ",
+                check=True,
+                shell=True,
+                cwd="/yolov5",
+            )
+
+            os.makedirs(os.path.dirname(results), exist_ok=True)
+            shutil.copytree("/yolov5/runs/val/exp", results)
+            # subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--conf-thres", dest="conf_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--iou-thres", dest="iou_thres", type=float, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--max-det", dest="max_det", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--results", dest="results", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = evaluate_model(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, readOnly: true, subPath: '{{inputs.parameters.data_vol_subpath}}'}
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      artifacts:
+      - {name: train-model-model, path: /tmp/inputs/model/data}
+    outputs:
+      artifacts:
+      - {name: evaluate-model-2-results, path: /tmp/outputs/results/data}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate with best weights,
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, {"if": {"cond":
+          {"isPresent": "conf_thres"}, "then": ["--conf-thres", {"inputValue": "conf_thres"}]}},
+          {"if": {"cond": {"isPresent": "iou_thres"}, "then": ["--iou-thres", {"inputValue":
+          "iou_thres"}]}}, {"if": {"cond": {"isPresent": "max_det"}, "then": ["--max-det",
+          {"inputValue": "max_det"}]}}, "--results", {"outputPath": "results"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
+          file_path\n\ndef evaluate_model(\n    results,\n    model,\n    model_format
+          = \"onnx\",  # onnx, pt, tf ....\n    conf_thres = 0.001,\n    iou_thres
+          = 0.6,\n    max_det = 300,\n):\n    import subprocess\n    import os\n    import
+          torch\n    from ruamel.yaml import YAML\n    import pathlib\n    import
+          shutil\n\n    print(f\"The size of the model is {os.path.getsize(model)}\")\n\n    if
+          model_format == \"onnx\" and not torch.cuda.is_available():\n        # the
+          base image is built with an onnxruntime for GPU\n        # This should work
+          for both CPU and GPU, but val.py\n        # does it''s own checking for
+          CPU onnxruntime only\n        # Since that''s not installed and not on pypl
+          for ppc64le,\n        # The script won''t work unless we change up the version\n        subprocess.run(\n            \"mamba
+          install -c rocketce onnxruntime=1.13.1=hea80eff_cpu_py39_pb3.19_1 -y\",\n            check=True,\n            shell=True,\n        )\n\n    #
+          valy.py uses the file name to determine the type of model\n    # mode is
+          an input path where the name is generated by kubeflow\n    # We need to
+          control the name that is used...\n    named_model = f\"/tmp/{os.path.basename(model)}.{model_format}\"\n    os.symlink(model,
+          named_model)\n\n    subprocess.run(\n        f\"python val.py --weights
+          {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
+          {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    os.makedirs(os.path.dirname(results),
+          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n    #
+          subprocess.run(\"find . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
+          dest=\"conf_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--iou-thres\",
+          dest=\"iou_thres\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-det\",
+          dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
+          dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
+          "model_format", "optional": true, "type": "String"}, {"default": "0.001",
+          "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
+          "name": "iou_thres", "optional": true, "type": "Float"}, {"default": "300",
+          "name": "max_det", "optional": true, "type": "Integer"}], "name": "Evaluate
+          model", "outputs": [{"name": "results", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"conf_thres": "0.001", "iou_thres":
+          "0.6", "max_det": "300", "model_format": "pt"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
+  - name: load-from-url
+    container:
+      args: [--source, '{{inputs.parameters.model_config_url}}', --dest, /tmp/outputs/dest/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def load_from_url(
+            source,
+            dest,
+        ):
+            import os
+            import shutil
+            from urllib.request import urlretrieve
+            from urllib.parse import urlparse
+
+            # Make target directories if needed
+            parent_dirs = os.path.basename(dest)
+            if not os.path.exists(parent_dirs):
+                os.makedirs(parent_dirs)
+
+            # Option to use an empty file to indicate no weights
+            if not source:
+                with open(dest, "w") as _:
+                    pass
+
+            source_details = urlparse(source)
+
+            if source_details.scheme == "file":
+                if os.path.isdir(source_details.path):
+                    shutil.copytree(source_details.path, dest)
+                else:
+                    shutil.copyfile(source_details.path, dest)
+            elif source_details.scheme in ("http", "https", "ftp", "ftps"):
+                urlretrieve(source, filename=dest)
+            else:
+                raise ValueError(f"source does not use a supported url scheme")
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Load from url', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = load_from_url(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+    inputs:
+      parameters:
+      - {name: model_config_url}
+    outputs:
+      artifacts:
+      - {name: load-from-url-dest, path: /tmp/outputs/dest/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
+          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
+          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
+          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
+          os\n    import shutil\n    from urllib.request import urlretrieve\n    from
+          urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
+          = os.path.basename(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    #
+          Option to use an empty file to indicate no weights\n    if not source:\n        with
+          open(dest, \"w\") as _:\n            pass\n\n    source_details = urlparse(source)\n\n    if
+          source_details.scheme == \"file\":\n        if os.path.isdir(source_details.path):\n            shutil.copytree(source_details.path,
+          dest)\n        else:\n            shutil.copyfile(source_details.path, dest)\n    elif
+          source_details.scheme in (\"http\", \"https\", \"ftp\", \"ftps\"):\n        urlretrieve(source,
+          filename=dest)\n    else:\n        raise ValueError(f\"source does not use
+          a supported url scheme\")\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
+          from url'', description='''')\n_parser.add_argument(\"--source\", dest=\"source\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
+          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.model_config_url}}"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: load-from-url-2
+    container:
+      args: [--source, '{{inputs.parameters.initial_weights_url}}', --dest, /tmp/outputs/dest/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def load_from_url(
+            source,
+            dest,
+        ):
+            import os
+            import shutil
+            from urllib.request import urlretrieve
+            from urllib.parse import urlparse
+
+            # Make target directories if needed
+            parent_dirs = os.path.basename(dest)
+            if not os.path.exists(parent_dirs):
+                os.makedirs(parent_dirs)
+
+            # Option to use an empty file to indicate no weights
+            if not source:
+                with open(dest, "w") as _:
+                    pass
+
+            source_details = urlparse(source)
+
+            if source_details.scheme == "file":
+                if os.path.isdir(source_details.path):
+                    shutil.copytree(source_details.path, dest)
+                else:
+                    shutil.copyfile(source_details.path, dest)
+            elif source_details.scheme in ("http", "https", "ftp", "ftps"):
+                urlretrieve(source, filename=dest)
+            else:
+                raise ValueError(f"source does not use a supported url scheme")
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Load from url', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = load_from_url(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+    inputs:
+      parameters:
+      - {name: initial_weights_url}
+    outputs:
+      artifacts:
+      - {name: load-from-url-2-dest, path: /tmp/outputs/dest/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
+          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
+          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
+          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
+          os\n    import shutil\n    from urllib.request import urlretrieve\n    from
+          urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
+          = os.path.basename(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    #
+          Option to use an empty file to indicate no weights\n    if not source:\n        with
+          open(dest, \"w\") as _:\n            pass\n\n    source_details = urlparse(source)\n\n    if
+          source_details.scheme == \"file\":\n        if os.path.isdir(source_details.path):\n            shutil.copytree(source_details.path,
+          dest)\n        else:\n            shutil.copyfile(source_details.path, dest)\n    elif
+          source_details.scheme in (\"http\", \"https\", \"ftp\", \"ftps\"):\n        urlretrieve(source,
+          filename=dest)\n    else:\n        raise ValueError(f\"source does not use
+          a supported url scheme\")\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
+          from url'', description='''')\n_parser.add_argument(\"--source\", dest=\"source\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
+          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.initial_weights_url}}"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: train-model
+    container:
+      args: [--model-cfg, /tmp/inputs/model_cfg/data, --initial-weights, /tmp/inputs/initial_weights/data,
+        --epochs, '{{inputs.parameters.epochs}}', --model, /tmp/outputs/model/data,
+        --results, /tmp/outputs/results/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def train_model(
+            model,
+            results,
+            model_cfg,
+            initial_weights,
+            epochs,
+        ):
+            import subprocess
+            import pathlib
+            from ruamel.yaml import YAML
+            import os
+            import shutil
+
+            # Option to pass an empty file to train from scratch
+            weights = initial_weights if os.path.getsize(initial_weights) > 0 else ""
+
+            subprocess.run(
+                f"python train.py --img 640 --batch -1 --noplots --epochs {epochs} --cache /home/jovyan/cache --cfg={model_cfg} "
+                f"--data /dataset/data.yaml --weights {weights} --workers=0 --device=0 --optimizer=Adam",
+                check=True,
+                cwd="/yolov5",
+                shell=True,
+            )
+
+            os.makedirs(os.path.dirname(model), exist_ok=True)
+            os.makedirs(os.path.dirname(results), exist_ok=True)
+
+            shutil.copyfile("/yolov5/runs/train/exp/weights/best.pt", model)
+            shutil.copyfile("/yolov5/runs/train/exp/results.csv", results)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Train model', description='')
+        _parser.add_argument("--model-cfg", dest="model_cfg", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--initial-weights", dest="initial_weights", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--epochs", dest="epochs", type=int, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model", dest="model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--results", dest="results", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = train_model(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      resources:
+        limits: {nvidia.com/gpu: 1, memory: 30G}
+      volumeMounts:
+      - {mountPath: /dataset, name: vol, readOnly: true, subPath: '{{inputs.parameters.data_vol_subpath}}'}
+    inputs:
+      parameters:
+      - {name: data_vol_pvc_name}
+      - {name: data_vol_subpath}
+      - {name: epochs}
+      artifacts:
+      - {name: load-from-url-2-dest, path: /tmp/inputs/initial_weights/data}
+      - {name: load-from-url-dest, path: /tmp/inputs/model_cfg/data}
+    outputs:
+      artifacts:
+      - {name: train-model-model, path: /tmp/outputs/model/data}
+      - {name: train-model-results, path: /tmp/outputs/results/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--model-cfg", {"inputPath": "model_cfg"}, "--initial-weights",
+          {"inputPath": "initial_weights"}, "--epochs", {"inputValue": "epochs"},
+          "--model", {"outputPath": "model"}, "--results", {"outputPath": "results"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
+          file_path\n\ndef train_model(\n    model,\n    results,\n    model_cfg,\n    initial_weights,\n    epochs,\n):\n    import
+          subprocess\n    import pathlib\n    from ruamel.yaml import YAML\n    import
+          os\n    import shutil\n\n    # Option to pass an empty file to train from
+          scratch\n    weights = initial_weights if os.path.getsize(initial_weights)
+          > 0 else \"\"\n\n    subprocess.run(\n        f\"python train.py --img 640
+          --batch -1 --noplots --epochs {epochs} --cache /home/jovyan/cache --cfg={model_cfg}
+          \"\n        f\"--data /dataset/data.yaml --weights {weights} --workers=0
+          --device=0 --optimizer=Adam\",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    os.makedirs(os.path.dirname(model),
+          exist_ok=True)\n    os.makedirs(os.path.dirname(results), exist_ok=True)\n\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.pt\",
+          model)\n    shutil.copyfile(\"/yolov5/runs/train/exp/results.csv\", results)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Train model'', description='''')\n_parser.add_argument(\"--model-cfg\",
+          dest=\"model_cfg\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--initial-weights\",
+          dest=\"initial_weights\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--epochs\",
+          dest=\"epochs\", type=int, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
+          dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
+          default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = train_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          "inputs": [{"name": "model_cfg", "type": "String"}, {"name": "initial_weights",
+          "type": "String"}, {"name": "epochs", "type": "Integer"}], "name": "Train
+          model", "outputs": [{"name": "model", "type": "String"}, {"name": "results",
+          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"epochs":
+          "{{inputs.parameters.epochs}}"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: vol
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
+  - name: upload-model
+    container:
+      args: [--model, /tmp/inputs/model/data, --minio-url, '{{inputs.parameters.minio_url}}',
+        --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-bee',
+        --model-name, bee, --model-version, '{{inputs.parameters.model_version}}',
+        --model-format, onnx, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def upload_model(
+            model,
+            model_config = None,
+            minio_url = "minio-service.kubeflow:9000",
+            minio_secret = "mlpipeline-minio-artifact",
+            export_bucket = "models",
+            model_name = "my-model",
+            model_version = 1,
+            model_format = "onnx",
+        ):
+            """Uploads a model file to MinIO artifact store."""
+
+            from collections import namedtuple
+            from kubernetes import client, config
+            import logging
+            from minio import Minio
+            import sys
+
+            logging.basicConfig(
+                stream=sys.stdout,
+                level=logging.INFO,
+                format="%(levelname)s %(asctime)s: %(message)s",
+            )
+            logger = logging.getLogger()
+
+            def get_minio_client(minio_secret):
+                import base64
+                from kubernetes.client.rest import ApiException
+
+                def get_current_namespace():
+                    SA_NAMESPACE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+                    with open(SA_NAMESPACE) as f:
+                        return f.read()
+
+                def decode(text):
+                    return base64.b64decode(text).decode("utf-8")
+
+                config.load_incluster_config()
+                api_client = client.ApiClient()
+
+                try:
+                    secret = client.CoreV1Api(api_client).read_namespaced_secret(
+                        minio_secret, get_current_namespace()
+                    )
+
+                    minio_user = decode(secret.data["accesskey"])
+                    minio_pass = decode(secret.data["secretkey"])
+
+                    return Minio(
+                        minio_url, access_key=minio_user, secret_key=minio_pass, secure=False
+                    )
+                except ApiException as e:
+                    if e.status == 404:
+                        logger.error(
+                            "Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!"
+                        )
+                    raise Exception(e)
+
+            logger.info(f"Establishing MinIO connection to '{minio_url}'...")
+            minio_client = get_minio_client(minio_secret)
+
+            # Create export bucket if it does not yet exist
+            response = minio_client.list_buckets()
+            export_bucket_exists = False
+            for bucket in response:
+                if bucket.name == export_bucket:
+                    export_bucket_exists = True
+
+            if not export_bucket_exists:
+                logger.info(f"Creating bucket '{export_bucket}'...")
+                minio_client.make_bucket(bucket_name=export_bucket)
+
+            model_path = f"{model_name}/{model_version}/model.{model_format}"
+            s3_address = f"s3://{minio_url}/{export_bucket}/{model_format}"
+            triton_s3_address = f"{s3_address}/{model_path}"
+
+            logger.info(f"Saving onnx file to MinIO (s3 address: {s3_address})...")
+            minio_client.fput_object(
+                bucket_name=export_bucket,  # bucket name in Minio
+                object_name=f"{model_format}/{model_path}",  # file name in bucket of Minio / for Triton name MUST be model.onnx!
+                file_path=model,  # file path / name in local system
+            )
+
+            if model_config:
+                logger.info("Saving model config for triton to MinIO")
+                # The config is above the version in the directory tree
+                # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
+                model_config_path = f"{model_name}/config.pbtxt"
+                minio_client.fput_object(
+                    bucket_name=export_bucket,  # bucket name in Minio
+                    object_name=f"{model_format}/{model_config_path}",
+                    file_path=model_config,  # file path / name in local system
+                )
+
+            logger.info("Finished.")
+            out_tuple = namedtuple("UploadOutput", ["s3_address", "triton_s3_address"])
+            return out_tuple(s3_address, triton_s3_address)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(
+                    str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Upload model', description='Uploads a model file to MinIO artifact store.')
+        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-config", dest="model_config", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--minio-url", dest="minio_url", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--minio-secret", dest="minio_secret", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--export-bucket", dest="export_bucket", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-name", dest="model_name", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-version", dest="model_version", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = upload_model(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: minio_url}
+      - {name: model_version}
+      artifacts:
+      - {name: convert-model-to-onnx-onnx_model, path: /tmp/inputs/model/data}
+    outputs:
+      artifacts:
+      - {name: upload-model-s3_address, path: /tmp/outputs/s3_address/data}
+      - {name: upload-model-triton_s3_address, path: /tmp/outputs/triton_s3_address/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uploads
+          a model file to MinIO artifact store.", "implementation": {"container":
+          {"args": ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent":
+          "model_config"}, "then": ["--model-config", {"inputPath": "model_config"}]}},
+          {"if": {"cond": {"isPresent": "minio_url"}, "then": ["--minio-url", {"inputValue":
+          "minio_url"}]}}, {"if": {"cond": {"isPresent": "minio_secret"}, "then":
+          ["--minio-secret", {"inputValue": "minio_secret"}]}}, {"if": {"cond": {"isPresent":
+          "export_bucket"}, "then": ["--export-bucket", {"inputValue": "export_bucket"}]}},
+          {"if": {"cond": {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue":
+          "model_name"}]}}, {"if": {"cond": {"isPresent": "model_version"}, "then":
+          ["--model-version", {"inputValue": "model_version"}]}}, {"if": {"cond":
+          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
+          "model_format"}]}}, "----output-paths", {"outputPath": "s3_address"}, {"outputPath":
+          "triton_s3_address"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def upload_model(\n    model,\n    model_config = None,\n    minio_url
+          = \"minio-service.kubeflow:9000\",\n    minio_secret = \"mlpipeline-minio-artifact\",\n    export_bucket
+          = \"models\",\n    model_name = \"my-model\",\n    model_version = 1,\n    model_format
+          = \"onnx\",\n):\n    \"\"\"Uploads a model file to MinIO artifact store.\"\"\"\n\n    from
+          collections import namedtuple\n    from kubernetes import client, config\n    import
+          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=\"%(levelname)s
+          %(asctime)s: %(message)s\",\n    )\n    logger = logging.getLogger()\n\n    def
+          get_minio_client(minio_secret):\n        import base64\n        from kubernetes.client.rest
+          import ApiException\n\n        def get_current_namespace():\n            SA_NAMESPACE
+          = \"/var/run/secrets/kubernetes.io/serviceaccount/namespace\"\n            with
+          open(SA_NAMESPACE) as f:\n                return f.read()\n\n        def
+          decode(text):\n            return base64.b64decode(text).decode(\"utf-8\")\n\n        config.load_incluster_config()\n        api_client
+          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(\n                minio_secret,
+          get_current_namespace()\n            )\n\n            minio_user = decode(secret.data[\"accesskey\"])\n            minio_pass
+          = decode(secret.data[\"secretkey\"])\n\n            return Minio(\n                minio_url,
+          access_key=minio_user, secret_key=minio_pass, secure=False\n            )\n        except
+          ApiException as e:\n            if e.status == 404:\n                logger.error(\n                    \"Failed
+          to get secret ''mlpipeline-minio-artifact'', which is needed for communicating
+          with MinIO!\"\n                )\n            raise Exception(e)\n\n    logger.info(f\"Establishing
+          MinIO connection to ''{minio_url}''...\")\n    minio_client = get_minio_client(minio_secret)\n\n    #
+          Create export bucket if it does not yet exist\n    response = minio_client.list_buckets()\n    export_bucket_exists
+          = False\n    for bucket in response:\n        if bucket.name == export_bucket:\n            export_bucket_exists
+          = True\n\n    if not export_bucket_exists:\n        logger.info(f\"Creating
+          bucket ''{export_bucket}''...\")\n        minio_client.make_bucket(bucket_name=export_bucket)\n\n    model_path
+          = f\"{model_name}/{model_version}/model.{model_format}\"\n    s3_address
+          = f\"s3://{minio_url}/{export_bucket}/{model_format}\"\n    triton_s3_address
+          = f\"{s3_address}/{model_path}\"\n\n    logger.info(f\"Saving onnx file
+          to MinIO (s3 address: {s3_address})...\")\n    minio_client.fput_object(\n        bucket_name=export_bucket,  #
+          bucket name in Minio\n        object_name=f\"{model_format}/{model_path}\",  #
+          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=model,  #
+          file path / name in local system\n    )\n\n    if model_config:\n        logger.info(\"Saving
+          model config for triton to MinIO\")\n        # The config is above the version
+          in the directory tree\n        # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout\n        model_config_path
+          = f\"{model_name}/config.pbtxt\"\n        minio_client.fput_object(\n            bucket_name=export_bucket,  #
+          bucket name in Minio\n            object_name=f\"{model_format}/{model_config_path}\",\n            file_path=model_config,  #
+          file path / name in local system\n        )\n\n    logger.info(\"Finished.\")\n    out_tuple
+          = namedtuple(\"UploadOutput\", [\"s3_address\", \"triton_s3_address\"])\n    return
+          out_tuple(s3_address, triton_s3_address)\n\ndef _serialize_str(str_value:
+          str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError(''Value
+          \"{}\" has type \"{}\" instead of str.''.format(\n            str(str_value),
+          str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Upload model'', description=''Uploads a
+          model file to MinIO artifact store.'')\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-config\",
+          dest=\"model_config\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
+          dest=\"minio_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-secret\",
+          dest=\"minio_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--export-bucket\",
+          dest=\"export_bucket\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-name\",
+          dest=\"model_name\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-version\",
+          dest=\"model_version\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = upload_model(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx,
+          output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "model", "type": "String"}, {"name": "model_config",
+          "optional": true, "type": "String"}, {"default": "minio-service.kubeflow:9000",
+          "name": "minio_url", "optional": true, "type": "String"}, {"default": "mlpipeline-minio-artifact",
+          "name": "minio_secret", "optional": true, "type": "String"}, {"default":
+          "models", "name": "export_bucket", "optional": true, "type": "String"},
+          {"default": "my-model", "name": "model_name", "optional": true, "type":
+          "String"}, {"default": "1", "name": "model_version", "optional": true, "type":
+          "Integer"}, {"default": "onnx", "name": "model_format", "optional": true,
+          "type": "String"}], "name": "Upload model", "outputs": [{"name": "s3_address",
+          "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "6da225cd49bc4c67005599df5513903975e1aa6837d1a1e41c503d7b793253c6", "url":
+          "/home/jovyan/components/model-building/upload-model/component.yaml"}',
+        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-bee",
+          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
+          "model_format": "onnx", "model_name": "bee", "model_version": "{{inputs.parameters.model_version}}"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+  arguments:
+    parameters:
+    - {name: data_vol_pvc_name}
+    - {name: data_vol_subpath}
+    - {name: epochs, value: '750'}
+    - {name: model_config_url, value: 'https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml'}
+    - {name: initial_weights_url, value: 'https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.pt'}
+    - {name: quantize_onnx, value: int8}
+    - {name: minio_url, value: 'minio-service.kubeflow:9000'}
+    - {name: model_version, value: '1'}
+  serviceAccountName: pipeline-runner
