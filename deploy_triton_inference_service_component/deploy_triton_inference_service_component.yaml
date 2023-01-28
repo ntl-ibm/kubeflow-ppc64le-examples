@@ -14,7 +14,8 @@ inputs:
 - {name: predictor_gpu_allocation, type: Integer, default: '0', optional: true}
 - {name: predictor_protocol, type: String, default: v2, optional: true}
 - {name: triton_runtime_version, type: String, default: 22.03-py3, optional: true}
-- {name: transformer_spec, type: 'typing.Dict[str, typing.Union[str, int]]', optional: true}
+- {name: transformer_specification, type: 'typing.Dict[str, typing.Union[str, int]]',
+  optional: true}
 implementation:
   container:
     image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
@@ -28,10 +29,10 @@ implementation:
     - "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n\
       \    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
       ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas\
-      \ = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = 'v2',\
-      \ # or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_spec\
-      \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n\n   \
-      \ # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+      \ = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\"\
+      ,  # or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_specification\
+      \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import\
+      \ base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
       \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
       \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
       \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
@@ -56,22 +57,42 @@ implementation:
       \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
       \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
       \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
-      \ check=False)\n\n    ####### Inference Service template #######\n    gpu_resources\
-      \ = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\" if predictor_gpu_allocation\
-      \ else \"\"\n    )\n\n    min_p_replicas = (\n        f\"minReplicas: {predictor_min_replicas}\"\
-      \n        if min_predictor_replicas is not None\n        else \"\"\n    )\n\
-      \    max_p_replicas = (\n        f\"maxReplicas: {predictor_min_replicas}\"\n\
-      \        if max_predictor_replicas is not None\n        else \"\"\n    )\n\n\
-      \    predictor_port_spec = '[{\"containerPort\": 9000, \"name\": \"h2c\", \"\
-      protocol\": \"TCP\"}]' if predictor_protocol == \"grpc-v2\" else \"\"\n\n  \
-      \  service_spec = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind:\
-      \ InferenceService\n    metadata:\n      name: {name}\n      annotations:\n\
-      \        sidecar.istio.io/inject: \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
-      \        autoscaling.knative.dev/target: \"{concurrency_target}\"\n        autoscaling.knative.dev/metric:\
-      \ \"concurrency\"\n    spec:\n      predictor:\n        {min_p_replicas}\n \
-      \       {max_p_replicas}\n        serviceAccountName: kserve-inference-sa\n\
-      \        triton:\n          runtimeVersion: {triton_runtime_version}\n     \
-      \     args: [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n\
+      \ check=False)\n\n    ####### Inference Service template #######\n    min_t_replicas\
+      \ = (\n        (\"minReplicas: \" + transformer_specification[\"min_replicas\"\
+      ])\n        if \"min_replicas\" in transformer_specification\n        else \"\
+      \"\n    )\n    max_t_replicas = (\n        (\"maxReplicas: \" + transformer_specification[\"\
+      max_replicas\"])\n        if \"min_replicas\" in transformer_specification\n\
+      \        else \"\"\n    )\n\n    # There is a bug in the pipeline that prevents\
+      \ passing\n    # json serialized strings in some instances, workaround\n   \
+      \ # was to use base64 encoded json strings\n    if \"labels\" in transformer_specification:\n\
+      \        labels = base64.b64decode(transformer_specification[\"labels\"]).decode(\"\
+      utf-8\")\n    else:\n        labels = \"\"\n\n    if transformer_specification:\n\
+      \        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n\
+      \        {max_t_replicas}\n        serviceAccountName: kserve-inference-sa\n\
+      \        containers:\n        - image: \"{transformer_specification[\"image\"\
+      ]}\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+      command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
+      ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
+      \            - name: CLASS_LABELS\n              value: |\n                \
+      \    {labels}\n          \"\"\"\n    else:\n        transform_spec = \"\"\n\n\
+      \    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
+      \n        if predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas\
+      \ = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas\
+      \ is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"\
+      maxReplicas: {predictor_max_replicas}\"\n        if predictor_max_replicas is\
+      \ not None\n        else \"\"\n    )\n\n    predictor_port_spec = (\n      \
+      \  '[{\"containerPort\": 9000, \"name\": \"h2c\", \"protocol\": \"TCP\"}]'\n\
+      \        if predictor_protocol == \"grpc-v2\"\n        else \"\"\n    )\n\n\
+      \    if concurrency_target:\n        autoscaling_target = f\"\"\"\n        autoscaling.knative.dev/target:\
+      \ \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\
+      \n        \"\"\"\n    else:\n        autoscaling_target = \"\"\n\n    service_spec\
+      \ = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
+      \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
+      \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+      \        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n      predictor:\n\
+      \        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:\
+      \ kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n\
+      \          args: [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n\
       \          ports: {predictor_port_spec}\n          env:\n          - name: OMP_NUM_THREADS\n\
       \            value: \"1\"\n          resources:\n            limits:\n     \
       \          {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n\
@@ -100,9 +121,9 @@ implementation:
       , dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n\
       _parser.add_argument(\"--triton-runtime-version\", dest=\"triton_runtime_version\"\
       , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-      --transformer-spec\", dest=\"transformer_spec\", type=json.loads, required=False,\
-      \ default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n\
-      _outputs = deploy_inference_service(**_parsed_args)\n"
+      --transformer-specification\", dest=\"transformer_specification\", type=json.loads,\
+      \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
+      \n_outputs = deploy_inference_service(**_parsed_args)\n"
     args:
     - --name
     - {inputValue: name}
@@ -151,7 +172,7 @@ implementation:
         - --triton-runtime-version
         - {inputValue: triton_runtime_version}
     - if:
-        cond: {isPresent: transformer_spec}
+        cond: {isPresent: transformer_specification}
         then:
-        - --transformer-spec
-        - {inputValue: transformer_spec}
+        - --transformer-specification
+        - {inputValue: transformer_specification}
