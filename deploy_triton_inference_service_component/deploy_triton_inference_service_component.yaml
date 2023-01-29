@@ -67,9 +67,9 @@ implementation:
       \        # If a variable is defined by both env and envFrom,\n        # env\
       \ takes precedance. If a variable is defined twice\n        # in env from, then\
       \ the last one wins.\n        if \"env_configmap\" in transformer_specification:\n\
-      \            envs = f'''\n          envFrom:\n            - configMapRef:\n\
+      \            envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
       \                name: {transformer_specification[\"env_configmap\"]}\n    \
-      \      '''\n        else:\n            envs = \"\"\n\n        transform_spec\
+      \      \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
       \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
       \        serviceAccountName: kserve-inference-sa\n        containers:\n    \
       \    - image: \"{transformer_specification[\"image\"]}\"\n          name: \"\

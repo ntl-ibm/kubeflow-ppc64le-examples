@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T20:27:51.005933',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T20:43:31.553312',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -120,13 +120,11 @@ spec:
             from kubernetes import client, config
 
             config.load_incluster_config()
-            api = client.ApiClient()
 
             with open(class_names, "r") as f:
                 class_names_json = f.read()
 
             metadata = client.V1ObjectMeta(name=name, namespace=namespace)
-
             # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md
             configmap = client.V1ConfigMap(
                 api_version="v1",
@@ -135,7 +133,8 @@ spec:
                 data={"CLASS_NAMES": class_names_json},
             )
 
-            api.create_namespaced_config_map(
+            api_instance = client.CoreV1Api(client.ApiClient())
+            api_instance.create_namespaced_config_map(
                 namespace=namespace,
                 body=configmap,
             )
@@ -164,12 +163,11 @@ spec:
           "namespace"}, "--class-names", {"inputPath": "class_names"}], "command":
           ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
           -u \"$program_path\" \"$@\"\n", "def create_config_map(name, namespace,
-          class_names):\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n    api
-          = client.ApiClient()\n\n    with open(class_names, \"r\") as f:\n        class_names_json
-          = f.read()\n\n    metadata = client.V1ObjectMeta(name=name, namespace=namespace)\n\n    #
-          https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md\n    configmap
+          class_names):\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n\n    with
+          open(class_names, \"r\") as f:\n        class_names_json = f.read()\n\n    metadata
+          = client.V1ObjectMeta(name=name, namespace=namespace)\n    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md\n    configmap
           = client.V1ConfigMap(\n        api_version=\"v1\",\n        kind=\"ConfigMap\",\n        metadata=metadata,\n        data={\"CLASS_NAMES\":
-          class_names_json},\n    )\n\n    api.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
+          class_names_json},\n    )\n\n    api_instance = client.CoreV1Api(client.ApiClient())\n    api_instance.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
           argparse\n_parser = argparse.ArgumentParser(prog=''Create config map'',
           description='''')\n_parser.add_argument(\"--name\", dest=\"name\", type=str,
           required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--namespace\",
@@ -259,9 +257,9 @@ spec:
         \ variable is defined by both env and envFrom,\n        # env takes precedance.\
         \ If a variable is defined twice\n        # in env from, then the last one\
         \ wins.\n        if \"env_configmap\" in transformer_specification:\n    \
-        \        envs = f'''\n          envFrom:\n            - configMapRef:\n  \
-        \              name: {transformer_specification[\"env_configmap\"]}\n    \
-        \      '''\n        else:\n            envs = \"\"\n\n        transform_spec\
+        \        envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
+        \                name: {transformer_specification[\"env_configmap\"]}\n  \
+        \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
         \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
         \        serviceAccountName: kserve-inference-sa\n        containers:\n  \
         \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
@@ -384,8 +382,8 @@ spec:
           EnvFrom allows all vars to be read from a config map\n        # If a variable
           is defined by both env and envFrom,\n        # env takes precedance. If
           a variable is defined twice\n        # in env from, then the last one wins.\n        if
-          \"env_configmap\" in transformer_specification:\n            envs = f''''''\n          envFrom:\n            -
-          configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          ''''''\n        else:\n            envs
+          \"env_configmap\" in transformer_specification:\n            envFrom = f\"\"\"\n          envFrom:\n            -
+          configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
           = \"\"\n\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
           kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\"\n          name:
           \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
@@ -440,7 +438,7 @@ spec:
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "5ce066764e9fc9bb41d12c21e81de7a5199882f20d53ee5f87b55a3e2dc84278", "url":
+          "025ce9958153a1f11a40a6a2e84a1101ee26142404faea206b780a28518693e3", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "4",
           "minio_credential_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
