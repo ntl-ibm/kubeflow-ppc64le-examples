@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T20:50:23.227605',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T21:02:25.355353',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -134,6 +134,11 @@ spec:
             )
 
             api_instance = client.CoreV1Api(client.ApiClient())
+            try:
+                api_instance.delete_namespaced_config_map(name=name, namespace=namespace)
+            except Exception as ex:
+                pass
+
             api_instance.create_namespaced_config_map(
                 namespace=namespace,
                 body=configmap,
@@ -167,7 +172,8 @@ spec:
           open(class_names, \"r\") as f:\n        class_names_json = f.read()\n\n    metadata
           = client.V1ObjectMeta(name=name, namespace=namespace)\n    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md\n    configmap
           = client.V1ConfigMap(\n        api_version=\"v1\",\n        kind=\"ConfigMap\",\n        metadata=metadata,\n        data={\"CLASS_LABELS\":
-          class_names_json},\n    )\n\n    api_instance = client.CoreV1Api(client.ApiClient())\n    api_instance.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
+          class_names_json},\n    )\n\n    api_instance = client.CoreV1Api(client.ApiClient())\n    try:\n        api_instance.delete_namespaced_config_map(name=name,
+          namespace=namespace)\n    except Exception as ex:\n        pass\n\n    api_instance.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
           argparse\n_parser = argparse.ArgumentParser(prog=''Create config map'',
           description='''')\n_parser.add_argument(\"--name\", dest=\"name\", type=str,
           required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--namespace\",
