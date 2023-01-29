@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-28T01:00:11.421772',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T20:27:51.005933',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -104,6 +104,83 @@ spec:
           to onnx", "outputs": [{"name": "onnx_model_dir", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
           "d7a79d9da2486fe842613ed02ddceeb6255f0e7a2b52f62c9fe13e81e761a939", "url":
           "/home/jovyan/components/model-building/convert-to-onnx/component.yaml"}'}
+  - name: create-config-map
+    container:
+      args: [--name, '{{inputs.parameters.model_name}}-transformer-env', --namespace,
+        '{{workflow.namespace}}', --class-names, /tmp/inputs/class_names/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def create_config_map(name, namespace, class_names):
+            from kubernetes import client, config
+
+            config.load_incluster_config()
+            api = client.ApiClient()
+
+            with open(class_names, "r") as f:
+                class_names_json = f.read()
+
+            metadata = client.V1ObjectMeta(name=name, namespace=namespace)
+
+            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md
+            configmap = client.V1ConfigMap(
+                api_version="v1",
+                kind="ConfigMap",
+                metadata=metadata,
+                data={"CLASS_NAMES": class_names_json},
+            )
+
+            api.create_namespaced_config_map(
+                namespace=namespace,
+                body=configmap,
+            )
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Create config map', description='')
+        _parser.add_argument("--name", dest="name", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--namespace", dest="namespace", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--class-names", dest="class_names", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = create_config_map(**_parsed_args)
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: model_name}
+      artifacts:
+      - {name: load-test-train-dataset-for-tf-class_names, path: /tmp/inputs/class_names/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--name", {"inputValue": "name"}, "--namespace", {"inputValue":
+          "namespace"}, "--class-names", {"inputPath": "class_names"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def create_config_map(name, namespace,
+          class_names):\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n    api
+          = client.ApiClient()\n\n    with open(class_names, \"r\") as f:\n        class_names_json
+          = f.read()\n\n    metadata = client.V1ObjectMeta(name=name, namespace=namespace)\n\n    #
+          https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md\n    configmap
+          = client.V1ConfigMap(\n        api_version=\"v1\",\n        kind=\"ConfigMap\",\n        metadata=metadata,\n        data={\"CLASS_NAMES\":
+          class_names_json},\n    )\n\n    api.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Create config map'',
+          description='''')\n_parser.add_argument(\"--name\", dest=\"name\", type=str,
+          required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--namespace\",
+          dest=\"namespace\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-names\",
+          dest=\"class_names\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = create_config_map(**_parsed_args)\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "name", "type": "String"}, {"name": "namespace", "type":
+          "String"}, {"name": "class_names", "type": "String"}], "name": "Create config
+          map"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"name":
+          "{{inputs.parameters.model_name}}-transformer-env", "namespace": "{{workflow.namespace}}"}'}
   - name: deploy-inference-service
     container:
       args:
@@ -130,8 +207,9 @@ spec:
       - --triton-runtime-version
       - 21.08-py3-gpu
       - --transformer-specification
-      - '{"image": "quay.io/ntlawrence/monkeytransform:latest", "labels": "{{inputs.parameters.load-test-train-dataset-for-tf-class_names}}",
-        "maxReplicas": 4, "minReplicas": 1}'
+      - '{"env_configmap": "{{inputs.parameters.model_name}}-transformer-env", "image":
+        "quay.io/ntlawrence/monkeytransform:latest", "maxReplicas": 4, "minReplicas":
+        1}'
       command:
       - sh
       - -ec
@@ -170,25 +248,28 @@ spec:
         \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
         \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
         \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
-        \ check=False)\n\n    ####### Inference Service template #######\n    min_t_replicas\
-        \ = (\n        (\"minReplicas: \" + transformer_specification[\"min_replicas\"\
-        ])\n        if \"min_replicas\" in transformer_specification\n        else\
-        \ \"\"\n    )\n    max_t_replicas = (\n        (\"maxReplicas: \" + transformer_specification[\"\
-        max_replicas\"])\n        if \"min_replicas\" in transformer_specification\n\
-        \        else \"\"\n    )\n\n    # There is a bug in the pipeline that prevents\
-        \ passing\n    # json serialized strings in some instances, workaround\n \
-        \   # was to use base64 encoded json strings\n    if \"labels\" in transformer_specification:\n\
-        \        labels = base64.b64decode(transformer_specification[\"labels\"]).decode(\"\
-        utf-8\")\n    else:\n        labels = \"\"\n\n    if transformer_specification:\n\
-        \        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n\
-        \        {max_t_replicas}\n        serviceAccountName: kserve-inference-sa\n\
-        \        containers:\n        - image: \"{transformer_specification[\"image\"\
-        ]}\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        \ check=False)\n\n    ####### Inference Service template #######\n\n    if\
+        \ transformer_specification:\n        min_t_replicas = (\n            (\"\
+        minReplicas: \" + transformer_specification[\"min_replicas\"])\n         \
+        \   if \"min_replicas\" in transformer_specification\n            else \"\"\
+        \n        )\n        max_t_replicas = (\n            (\"maxReplicas: \" +\
+        \ transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
+        \ in transformer_specification\n            else \"\"\n        )\n\n     \
+        \   # EnvFrom allows all vars to be read from a config map\n        # If a\
+        \ variable is defined by both env and envFrom,\n        # env takes precedance.\
+        \ If a variable is defined twice\n        # in env from, then the last one\
+        \ wins.\n        if \"env_configmap\" in transformer_specification:\n    \
+        \        envs = f'''\n          envFrom:\n            - configMapRef:\n  \
+        \              name: {transformer_specification[\"env_configmap\"]}\n    \
+        \      '''\n        else:\n            envs = \"\"\n\n        transform_spec\
+        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
+        \        serviceAccountName: kserve-inference-sa\n        containers:\n  \
+        \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
+        \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
         command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
         ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
-        \            - name: CLASS_LABELS\n              value: |\n              \
-        \      {labels}\n          \"\"\"\n    else:\n        transform_spec = \"\"\
-        \n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
+        \          {envFrom}\n          \"\"\"\n    else:\n        transform_spec\
+        \ = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
         \n        if predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas\
         \ = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas\
         \ is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"\
@@ -242,7 +323,6 @@ spec:
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
     inputs:
       parameters:
-      - {name: load-test-train-dataset-for-tf-class_names}
       - {name: minio_url}
       - {name: model_name}
     metadata:
@@ -296,21 +376,21 @@ spec:
           \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    ###
           Remove Existing\n    if rm_existing:\n        subprocess.run([\"kubectl\",
           \"delete\", \"inferenceservice\", name], check=False)\n\n    ####### Inference
-          Service template #######\n    min_t_replicas = (\n        (\"minReplicas:
-          \" + transformer_specification[\"min_replicas\"])\n        if \"min_replicas\"
-          in transformer_specification\n        else \"\"\n    )\n    max_t_replicas
-          = (\n        (\"maxReplicas: \" + transformer_specification[\"max_replicas\"])\n        if
-          \"min_replicas\" in transformer_specification\n        else \"\"\n    )\n\n    #
-          There is a bug in the pipeline that prevents passing\n    # json serialized
-          strings in some instances, workaround\n    # was to use base64 encoded json
-          strings\n    if \"labels\" in transformer_specification:\n        labels
-          = base64.b64decode(transformer_specification[\"labels\"]).decode(\"utf-8\")\n    else:\n        labels
-          = \"\"\n\n    if transformer_specification:\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
-          kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\n          name:
+          Service template #######\n\n    if transformer_specification:\n        min_t_replicas
+          = (\n            (\"minReplicas: \" + transformer_specification[\"min_replicas\"])\n            if
+          \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n        max_t_replicas
+          = (\n            (\"maxReplicas: \" + transformer_specification[\"max_replicas\"])\n            if
+          \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n\n        #
+          EnvFrom allows all vars to be read from a config map\n        # If a variable
+          is defined by both env and envFrom,\n        # env takes precedance. If
+          a variable is defined twice\n        # in env from, then the last one wins.\n        if
+          \"env_configmap\" in transformer_specification:\n            envs = f''''''\n          envFrom:\n            -
+          configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          ''''''\n        else:\n            envs
+          = \"\"\n\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\"\n          name:
           \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
           ''[\"python\", \"transform.py\"]'')}\n          args: [\"--protocol={predictor_protocol}\"]\n          env:\n            -
-          name: STORAGE_URI\n              value: {storage_uri}\n            - name:
-          CLASS_LABELS\n              value: |\n                    {labels}\n          \"\"\"\n    else:\n        transform_spec
+          name: STORAGE_URI\n              value: {storage_uri}\n          {envFrom}\n          \"\"\"\n    else:\n        transform_spec
           = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if
           predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas
           = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas
@@ -360,17 +440,16 @@ spec:
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "f21ccbc1efb65dae24ea3beba13c1f5716ffd67f0d2f235ec0ce6cdd6f293a1e", "url":
+          "5ce066764e9fc9bb41d12c21e81de7a5199882f20d53ee5f87b55a3e2dc84278", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "4",
           "minio_credential_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "name": "{{inputs.parameters.model_name}}", "predictor_gpu_allocation":
           "1", "predictor_max_replicas": "4", "predictor_min_replicas": "1", "predictor_protocol":
           "grpc-v2", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/",
-          "transformer_specification": "{\"image\": \"quay.io/ntlawrence/monkeytransform:latest\",
-          \"labels\": \"{{inputs.parameters.load-test-train-dataset-for-tf-class_names}}\",
-          \"maxReplicas\": 4, \"minReplicas\": 1}", "triton_runtime_version": "21.08-py3-gpu"}',
-        pipelines.kubeflow.org/max_cache_staleness: P0D}
+          "transformer_specification": "{\"env_configmap\": \"{{inputs.parameters.model_name}}-transformer-env\",
+          \"image\": \"quay.io/ntlawrence/monkeytransform:latest\", \"maxReplicas\":
+          4, \"minReplicas\": 1}", "triton_runtime_version": "21.08-py3-gpu"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:
       parameters:
@@ -385,12 +464,19 @@ spec:
         arguments:
           artifacts:
           - {name: train-model-model_dir, from: '{{tasks.train-model.outputs.artifacts.train-model-model_dir}}'}
-      - name: deploy-inference-service
-        template: deploy-inference-service
-        dependencies: [load-test-train-dataset-for-tf, upload-model]
+      - name: create-config-map
+        template: create-config-map
+        dependencies: [load-test-train-dataset-for-tf]
         arguments:
           parameters:
-          - {name: load-test-train-dataset-for-tf-class_names, value: '{{tasks.load-test-train-dataset-for-tf.outputs.parameters.load-test-train-dataset-for-tf-class_names}}'}
+          - {name: model_name, value: '{{inputs.parameters.model_name}}'}
+          artifacts:
+          - {name: load-test-train-dataset-for-tf-class_names, from: '{{tasks.load-test-train-dataset-for-tf.outputs.artifacts.load-test-train-dataset-for-tf-class_names}}'}
+      - name: deploy-inference-service
+        template: deploy-inference-service
+        dependencies: [create-config-map, upload-model]
+        arguments:
+          parameters:
           - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
           - {name: model_name, value: '{{inputs.parameters.model_name}}'}
       - name: evaluate-model
@@ -534,7 +620,7 @@ spec:
       args: [--dataset-url, Lehrig/Monkey-Species-Collection, --dataset-configuration,
         downsized, --train-dataset-dir, /tmp/outputs/train_dataset_dir/data, --validation-dataset-dir,
         /tmp/outputs/validation_dataset_dir/data, --test-dataset-dir, /tmp/outputs/test_dataset_dir/data,
-        '----output-paths', /tmp/outputs/class_names/data]
+        --class-names, /tmp/outputs/class_names/data]
       command:
       - sh
       - -ec
@@ -552,6 +638,7 @@ spec:
             train_dataset_dir,
             validation_dataset_dir,
             test_dataset_dir,
+            class_names,
             dataset_url="Lehrig/Monkey-Species-Collection",
             dataset_configuration="downsized",
         ):
@@ -571,8 +658,7 @@ spec:
                 return examples
 
             def save_as_tf_dataset(dataset, directory):
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
+                os.makedirs(directory, exist_ok=True)
                 tf.data.experimental.save(
                     dataset.to_tf_dataset(
                         batch_size=16, columns=["image"], label_cols=["label"]
@@ -615,16 +701,9 @@ spec:
             save_as_tf_dataset(dev_test_dataset["train"], validation_dataset_dir)
             save_as_tf_dataset(dev_test_dataset["test"], test_dataset_dir)
 
-            # return as b64 encoded json, there is a bug when serializing
-            # pipeline parameters that prevents us from returning simple
-            # json
-            return (base64.b64encode(json.dumps(CLASSES).encode("utf-8")).decode('utf-8'),)
-
-        def _serialize_str(str_value: str) -> str:
-            if not isinstance(str_value, str):
-                raise TypeError('Value "{}" has type "{}" instead of str.'.format(
-                    str(str_value), str(type(str_value))))
-            return str_value
+            os.makedirs(os.path.dirname(class_names), exist_ok=True)
+            with open(class_names, "w") as f:
+                json.dump(CLASSES, f)
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Load test train dataset for tf', description='')
@@ -633,30 +712,12 @@ spec:
         _parser.add_argument("--train-dataset-dir", dest="train_dataset_dir", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--validation-dataset-dir", dest="validation_dataset_dir", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--test-dataset-dir", dest="test_dataset_dir", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parser.add_argument("--class-names", dest="class_names", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parsed_args = vars(_parser.parse_args())
-        _output_files = _parsed_args.pop("_output_paths", [])
 
         _outputs = load_test_train_dataset_for_tf(**_parsed_args)
-
-        _output_serializers = [
-            _serialize_str,
-
-        ]
-
-        import os
-        for idx, output_file in enumerate(_output_files):
-            try:
-                os.makedirs(os.path.dirname(output_file))
-            except OSError:
-                pass
-            with open(output_file, 'w') as f:
-                f.write(_output_serializers[idx](_outputs[idx]))
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
     outputs:
-      parameters:
-      - name: load-test-train-dataset-for-tf-class_names
-        valueFrom: {path: /tmp/outputs/class_names/data}
       artifacts:
       - {name: load-test-train-dataset-for-tf-class_names, path: /tmp/outputs/class_names/data}
       - {name: load-test-train-dataset-for-tf-test_dataset_dir, path: /tmp/outputs/test_dataset_dir/data}
@@ -673,17 +734,17 @@ spec:
           "then": ["--dataset-configuration", {"inputValue": "dataset_configuration"}]}},
           "--train-dataset-dir", {"outputPath": "train_dataset_dir"}, "--validation-dataset-dir",
           {"outputPath": "validation_dataset_dir"}, "--test-dataset-dir", {"outputPath":
-          "test_dataset_dir"}, "----output-paths", {"outputPath": "class_names"}],
-          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
-          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          "test_dataset_dir"}, "--class-names", {"outputPath": "class_names"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
           str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
-          file_path\n\ndef load_test_train_dataset_for_tf(\n    train_dataset_dir,\n    validation_dataset_dir,\n    test_dataset_dir,\n    dataset_url=\"Lehrig/Monkey-Species-Collection\",\n    dataset_configuration=\"downsized\",\n):\n    import
+          file_path\n\ndef load_test_train_dataset_for_tf(\n    train_dataset_dir,\n    validation_dataset_dir,\n    test_dataset_dir,\n    class_names,\n    dataset_url=\"Lehrig/Monkey-Species-Collection\",\n    dataset_configuration=\"downsized\",\n):\n    import
           os\n\n    import datasets\n    import json\n    import numpy as np\n    import
           tensorflow as tf\n    import base64\n\n    def process(examples):\n        examples[\"image\"]
           = [np.array(img) for img in examples[\"image\"]]\n\n        examples[\"label\"]
           = [ONE_HOT_MATRIX[label] for label in examples[\"label\"]]\n\n        return
-          examples\n\n    def save_as_tf_dataset(dataset, directory):\n        if
-          not os.path.exists(directory):\n            os.makedirs(directory)\n        tf.data.experimental.save(\n            dataset.to_tf_dataset(\n                batch_size=16,
+          examples\n\n    def save_as_tf_dataset(dataset, directory):\n        os.makedirs(directory,
+          exist_ok=True)\n        tf.data.experimental.save(\n            dataset.to_tf_dataset(\n                batch_size=16,
           columns=[\"image\"], label_cols=[\"label\"]\n            ),\n            directory,\n        )\n\n    dataset
           = datasets.load_dataset(dataset_url, dataset_configuration)\n\n    CLASSES
           = dataset[\"train\"].features[\"label\"].names\n    ONE_HOT_MATRIX = np.identity(len(CLASSES))\n\n    dataset
@@ -700,26 +761,20 @@ spec:
           = dataset[\"test\"].train_test_split(test_size=0.5, shuffle=False)\n\n    save_as_tf_dataset(dataset[\"train\"],
           train_dataset_dir)\n    save_as_tf_dataset(dev_test_dataset[\"train\"],
           validation_dataset_dir)\n    save_as_tf_dataset(dev_test_dataset[\"test\"],
-          test_dataset_dir)\n\n    # return as b64 encoded json, there is a bug when
-          serializing\n    # pipeline parameters that prevents us from returning simple\n    #
-          json\n    return (base64.b64encode(json.dumps(CLASSES).encode(\"utf-8\")).decode(''utf-8''),)\n\ndef
-          _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value,
-          str):\n        raise TypeError(''Value \"{}\" has type \"{}\" instead of
-          str.''.format(\n            str(str_value), str(type(str_value))))\n    return
-          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load
-          test train dataset for tf'', description='''')\n_parser.add_argument(\"--dataset-url\",
-          dest=\"dataset_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dataset-configuration\",
+          test_dataset_dir)\n\n    os.makedirs(os.path.dirname(class_names), exist_ok=True)\n    with
+          open(class_names, \"w\") as f:\n        json.dump(CLASSES, f)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Load test train dataset
+          for tf'', description='''')\n_parser.add_argument(\"--dataset-url\", dest=\"dataset_url\",
+          type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dataset-configuration\",
           dest=\"dataset_configuration\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--train-dataset-dir\",
           dest=\"train_dataset_dir\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--validation-dataset-dir\",
           dest=\"validation_dataset_dir\", type=_make_parent_dirs_and_return_path,
           required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--test-dataset-dir\",
           dest=\"test_dataset_dir\", type=_make_parent_dirs_and_return_path, required=True,
-          default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\",
-          type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
-          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = load_test_train_dataset_for_tf(**_parsed_args)\n\n_output_serializers
-          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
-          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-names\", dest=\"class_names\",
+          type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = load_test_train_dataset_for_tf(**_parsed_args)\n"],
           "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
           "inputs": [{"default": "Lehrig/Monkey-Species-Collection", "name": "dataset_url",
           "optional": true}, {"default": "downsized", "name": "dataset_configuration",
