@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-04T22:48:36.094975',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T21:02:25.355353',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -10,7 +10,7 @@ metadata:
       "type": "Integer"}, {"default": "minio-service.kubeflow:9000", "name": "minio_url",
       "optional": true, "type": "String"}], "name": "End-to-end monkey species classification
       pipeline"}'}
-  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
 spec:
   entrypoint: end-to-end-monkey-species-classification-pipeline
   templates:
@@ -76,7 +76,7 @@ spec:
       - {name: convert-model-to-onnx-onnx_model_dir, path: /tmp/outputs/onnx_model_dir/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Converts
@@ -104,6 +104,87 @@ spec:
           to onnx", "outputs": [{"name": "onnx_model_dir", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
           "d7a79d9da2486fe842613ed02ddceeb6255f0e7a2b52f62c9fe13e81e761a939", "url":
           "/home/jovyan/components/model-building/convert-to-onnx/component.yaml"}'}
+  - name: create-config-map
+    container:
+      args: [--name, '{{inputs.parameters.model_name}}-transformer-env', --namespace,
+        '{{workflow.namespace}}', --class-names, /tmp/inputs/class_names/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def create_config_map(name, namespace, class_names):
+            from kubernetes import client, config
+
+            config.load_incluster_config()
+
+            with open(class_names, "r") as f:
+                class_names_json = f.read()
+
+            metadata = client.V1ObjectMeta(name=name, namespace=namespace)
+            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md
+            configmap = client.V1ConfigMap(
+                api_version="v1",
+                kind="ConfigMap",
+                metadata=metadata,
+                data={"CLASS_LABELS": class_names_json},
+            )
+
+            api_instance = client.CoreV1Api(client.ApiClient())
+            try:
+                api_instance.delete_namespaced_config_map(name=name, namespace=namespace)
+            except Exception as ex:
+                pass
+
+            api_instance.create_namespaced_config_map(
+                namespace=namespace,
+                body=configmap,
+            )
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Create config map', description='')
+        _parser.add_argument("--name", dest="name", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--namespace", dest="namespace", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--class-names", dest="class_names", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = create_config_map(**_parsed_args)
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: model_name}
+      artifacts:
+      - {name: load-test-train-dataset-for-tf-class_names, path: /tmp/inputs/class_names/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--name", {"inputValue": "name"}, "--namespace", {"inputValue":
+          "namespace"}, "--class-names", {"inputPath": "class_names"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def create_config_map(name, namespace,
+          class_names):\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n\n    with
+          open(class_names, \"r\") as f:\n        class_names_json = f.read()\n\n    metadata
+          = client.V1ObjectMeta(name=name, namespace=namespace)\n    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ConfigMap.md\n    configmap
+          = client.V1ConfigMap(\n        api_version=\"v1\",\n        kind=\"ConfigMap\",\n        metadata=metadata,\n        data={\"CLASS_LABELS\":
+          class_names_json},\n    )\n\n    api_instance = client.CoreV1Api(client.ApiClient())\n    try:\n        api_instance.delete_namespaced_config_map(name=name,
+          namespace=namespace)\n    except Exception as ex:\n        pass\n\n    api_instance.create_namespaced_config_map(\n        namespace=namespace,\n        body=configmap,\n    )\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Create config map'',
+          description='''')\n_parser.add_argument(\"--name\", dest=\"name\", type=str,
+          required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--namespace\",
+          dest=\"namespace\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-names\",
+          dest=\"class_names\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = create_config_map(**_parsed_args)\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "name", "type": "String"}, {"name": "namespace", "type":
+          "String"}, {"name": "class_names", "type": "String"}], "name": "Create config
+          map"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"name":
+          "{{inputs.parameters.model_name}}-transformer-env", "namespace": "{{workflow.namespace}}"}'}
   - name: deploy-inference-service
     container:
       args:
@@ -113,24 +194,26 @@ spec:
       - s3://{{workflow.namespace}}-models/onnx/
       - --minio-url
       - '{{inputs.parameters.minio_url}}'
-      - --class-labels
-      - /tmp/inputs/class_labels/data
-      - --transformer-image
-      - quay.io/ntlawrence/monkeytransform:latest
       - --rm-existing
       - "True"
       - --minio-credential-secret
       - mlpipeline-minio-artifact
-      - --min-replicas
-      - '1'
-      - --max-replicas
-      - '4'
-      - --pred-gpus
-      - '1'
       - --concurrency-target
       - '4'
+      - --predictor-min-replicas
+      - '1'
+      - --predictor-max-replicas
+      - '4'
+      - --predictor-gpu-allocation
+      - '1'
+      - --predictor-protocol
+      - grpc-v2
       - --triton-runtime-version
       - 21.08-py3-gpu
+      - --transformer-specification
+      - '{"env_configmap": "{{inputs.parameters.model_name}}-transformer-env", "image":
+        "quay.io/ntlawrence/monkeytransform:latest", "maxReplicas": 4, "minReplicas":
+        1}'
       command:
       - sh
       - -ec
@@ -139,14 +222,16 @@ spec:
         printf "%s" "$0" > "$program_path"
         python3 -u "$program_path" "$@"
       - "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n\
-        \    class_labels,\n    transformer_image = \"quay.io/ntlawrence/monkeytransform:latest\"\
-        ,\n    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
-        ,\n    min_replicas = None,\n    max_replicas = None,\n    pred_gpus = 0,\n\
-        \    concurrency_target = 1,\n    triton_runtime_version = \"22.03-py3\",\n\
-        ):\n    import os\n    import subprocess\n    import yaml\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+        \    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
+        ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n  \
+        \  predictor_max_replicas = None,\n    predictor_gpu_allocation = 0,\n   \
+        \ predictor_protocol = \"v2\",  # or grpc-v2\n    triton_runtime_version =\
+        \ \"22.03-py3\",\n    transformer_specification = None,\n):\n    import os\n\
+        \    import subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
         \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
         \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
+        \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
         \n    # It happens that the credentials for the minio user name and password\
         \ are already in a secret\n    # This just loads them so that we can create\
         \ our own secret to store the S3 connection information\n    # for the Inference\
@@ -165,94 +250,119 @@ spec:
         \ v1\n    kind: ServiceAccount\n    metadata:\n      name: kserve-inference-sa\n\
         \    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n\
         \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
-        \ check=True, text=True\n    )\n\n    if rm_existing:\n        subprocess.run([\"\
-        kubectl\", \"delete\", \"inferenceservice\", name], check=False)\n\n    with\
-        \ open(class_labels, \"r\") as clf:\n        labels_json = clf.read()\n\n\
-        \    gpu_resources = f\"nvidia.com/gpu: {pred_gpus}\" if pred_gpus else \"\
-        \"\n\n    minReplicas = f\"minReplicas: {min_replicas}\" if min_replicas is\
-        \ not None else \"\"\n    maxReplicas = f\"maxReplicas: {max_replicas}\" if\
-        \ max_replicas else \"\"\n\n    service_spec = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n\
-        \    kind: InferenceService\n    metadata:\n      name: {name}\n      annotations:\n\
-        \        sidecar.istio.io/inject: \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+        \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
+        \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
+        \ check=False)\n\n    ####### Inference Service template #######\n\n    if\
+        \ transformer_specification:\n        min_t_replicas = (\n            (\"\
+        minReplicas: \" + transformer_specification[\"min_replicas\"])\n         \
+        \   if \"min_replicas\" in transformer_specification\n            else \"\"\
+        \n        )\n        max_t_replicas = (\n            (\"maxReplicas: \" +\
+        \ transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
+        \ in transformer_specification\n            else \"\"\n        )\n\n     \
+        \   # EnvFrom allows all vars to be read from a config map\n        # If a\
+        \ variable is defined by both env and envFrom,\n        # env takes precedance.\
+        \ If a variable is defined twice\n        # in env from, then the last one\
+        \ wins.\n        if \"env_configmap\" in transformer_specification:\n    \
+        \        envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
+        \                name: {transformer_specification[\"env_configmap\"]}\n  \
+        \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
+        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
+        \        serviceAccountName: kserve-inference-sa\n        containers:\n  \
+        \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
+        \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
+        ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
+        \          {envFrom}\n          \"\"\"\n    else:\n        transform_spec\
+        \ = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
+        \n        if predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas\
+        \ = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas\
+        \ is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"\
+        maxReplicas: {predictor_max_replicas}\"\n        if predictor_max_replicas\
+        \ is not None\n        else \"\"\n    )\n\n    predictor_port_spec = (\n \
+        \       '[{\"containerPort\": 9000, \"name\": \"h2c\", \"protocol\": \"TCP\"\
+        }]'\n        if predictor_protocol == \"grpc-v2\"\n        else \"\"\n   \
+        \ )\n\n    if concurrency_target:\n        autoscaling_target = f\"\"\"\n\
         \        autoscaling.knative.dev/target: \"{concurrency_target}\"\n      \
-        \  autoscaling.knative.dev/metric: \"concurrency\"\n    spec:\n      transformer:\n\
-        \        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:\
-        \ kserve-inference-sa\n        containers:\n        - image: \"{transformer_image}\"\
-        \n          name: {name}-transformer\n          command: [\"python\", \"transform.py\"\
-        ]\n          args: [\"--protocol=grpc-v2\"]\n          env:\n            -\
-        \ name: STORAGE_URI\n              value: {storage_uri}\n            - name:\
-        \ CLASS_LABELS\n              value: |\n                     {labels_json}\n\
-        \n      predictor:\n        {minReplicas}\n        {maxReplicas}\n       \
+        \  autoscaling.knative.dev/metric: \"concurrency\"\n        \"\"\"\n    else:\n\
+        \        autoscaling_target = \"\"\n\n    service_spec = f\"\"\"\n    apiVersion:\
+        \ serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n \
+        \     name: {name}\n      annotations:\n        sidecar.istio.io/inject: \"\
+        false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+        \        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n     \
+        \ predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n       \
         \ serviceAccountName: kserve-inference-sa\n        triton:\n          runtimeVersion:\
         \ {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
-        ]\n          storageUri: {storage_uri}\n          ports:\n          - containerPort:\
-        \ 9000\n            name: h2c\n            protocol: TCP\n          env:\n\
-        \          - name: OMP_NUM_THREADS\n            value: \"1\"\n          resources:\n\
-        \            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n\
-        \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec,\
-        \ check=True, text=True\n    )\n\n    print(\"Waiting for inference service\
-        \ to become available\")\n    subprocess.run(\n        [\n            \"kubectl\"\
-        ,\n            \"wait\",\n            \"--for=condition=Ready\",\n       \
-        \     f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n   \
-        \     ],\n        check=True,\n    )\n\ndef _deserialize_bool(s) -> bool:\n\
-        \    from distutils.util import strtobool\n    return strtobool(s) == 1\n\n\
-        import argparse\n_parser = argparse.ArgumentParser(prog='Deploy inference\
-        \ service', description='')\n_parser.add_argument(\"--name\", dest=\"name\"\
-        , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        ]\n          storageUri: {storage_uri}\n          ports: {predictor_port_spec}\n\
+        \          env:\n          - name: OMP_NUM_THREADS\n            value: \"\
+        1\"\n          resources:\n            limits:\n               {gpu_resources}\n\
+        \    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\"\
+        , \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n \
+        \   )\n\n    print(\"Waiting for inference service to become available\")\n\
+        \    subprocess.run(\n        [\n            \"kubectl\",\n            \"\
+        wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
+        ,\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\
+        \ndef _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n\
+        \    return strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
+        \ inference service', description='')\n_parser.add_argument(\"--name\", dest=\"\
+        name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
         --storage-uri\", dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n\
         _parser.add_argument(\"--minio-url\", dest=\"minio_url\", type=str, required=True,\
-        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-labels\", dest=\"\
-        class_labels\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-        --transformer-image\", dest=\"transformer_image\", type=str, required=False,\
         \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\", dest=\"\
         rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n\
         _parser.add_argument(\"--minio-credential-secret\", dest=\"minio_credential_secret\"\
         , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-        --min-replicas\", dest=\"min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n\
-        _parser.add_argument(\"--max-replicas\", dest=\"max_replicas\", type=int,\
-        \ required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--pred-gpus\"\
-        , dest=\"pred_gpus\", type=int, required=False, default=argparse.SUPPRESS)\n\
-        _parser.add_argument(\"--concurrency-target\", dest=\"concurrency_target\"\
+        --concurrency-target\", dest=\"concurrency_target\", type=int, required=False,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-min-replicas\"\
+        , dest=\"predictor_min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--predictor-max-replicas\", dest=\"predictor_max_replicas\"\
         , type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-        --triton-runtime-version\", dest=\"triton_runtime_version\", type=str, required=False,\
-        \ default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n\
-        _outputs = deploy_inference_service(**_parsed_args)\n"
+        --predictor-gpu-allocation\", dest=\"predictor_gpu_allocation\", type=int,\
+        \ required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-protocol\"\
+        , dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--triton-runtime-version\", dest=\"triton_runtime_version\"\
+        , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --transformer-specification\", dest=\"transformer_specification\", type=json.loads,\
+        \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
+        \n_outputs = deploy_inference_service(**_parsed_args)\n"
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
     inputs:
       parameters:
       - {name: minio_url}
       - {name: model_name}
-      artifacts:
-      - {name: load-test-train-dataset-for-tf-class_names, path: /tmp/inputs/class_labels/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
           {"args": ["--name", {"inputValue": "name"}, "--storage-uri", {"inputValue":
-          "storage_uri"}, "--minio-url", {"inputValue": "minio_url"}, "--class-labels",
-          {"inputPath": "class_labels"}, {"if": {"cond": {"isPresent": "transformer_image"},
-          "then": ["--transformer-image", {"inputValue": "transformer_image"}]}},
-          {"if": {"cond": {"isPresent": "rm_existing"}, "then": ["--rm-existing",
-          {"inputValue": "rm_existing"}]}}, {"if": {"cond": {"isPresent": "minio_credential_secret"},
-          "then": ["--minio-credential-secret", {"inputValue": "minio_credential_secret"}]}},
-          {"if": {"cond": {"isPresent": "min_replicas"}, "then": ["--min-replicas",
-          {"inputValue": "min_replicas"}]}}, {"if": {"cond": {"isPresent": "max_replicas"},
-          "then": ["--max-replicas", {"inputValue": "max_replicas"}]}}, {"if": {"cond":
-          {"isPresent": "pred_gpus"}, "then": ["--pred-gpus", {"inputValue": "pred_gpus"}]}},
-          {"if": {"cond": {"isPresent": "concurrency_target"}, "then": ["--concurrency-target",
-          {"inputValue": "concurrency_target"}]}}, {"if": {"cond": {"isPresent": "triton_runtime_version"},
-          "then": ["--triton-runtime-version", {"inputValue": "triton_runtime_version"}]}}],
-          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
-          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n    class_labels,\n    transformer_image
-          = \"quay.io/ntlawrence/monkeytransform:latest\",\n    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\",\n    min_replicas
-          = None,\n    max_replicas = None,\n    pred_gpus = 0,\n    concurrency_target
-          = 1,\n    triton_runtime_version = \"22.03-py3\",\n):\n    import os\n    import
-          subprocess\n    import yaml\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
+          "storage_uri"}, "--minio-url", {"inputValue": "minio_url"}, {"if": {"cond":
+          {"isPresent": "rm_existing"}, "then": ["--rm-existing", {"inputValue": "rm_existing"}]}},
+          {"if": {"cond": {"isPresent": "minio_credential_secret"}, "then": ["--minio-credential-secret",
+          {"inputValue": "minio_credential_secret"}]}}, {"if": {"cond": {"isPresent":
+          "concurrency_target"}, "then": ["--concurrency-target", {"inputValue": "concurrency_target"}]}},
+          {"if": {"cond": {"isPresent": "predictor_min_replicas"}, "then": ["--predictor-min-replicas",
+          {"inputValue": "predictor_min_replicas"}]}}, {"if": {"cond": {"isPresent":
+          "predictor_max_replicas"}, "then": ["--predictor-max-replicas", {"inputValue":
+          "predictor_max_replicas"}]}}, {"if": {"cond": {"isPresent": "predictor_gpu_allocation"},
+          "then": ["--predictor-gpu-allocation", {"inputValue": "predictor_gpu_allocation"}]}},
+          {"if": {"cond": {"isPresent": "predictor_protocol"}, "then": ["--predictor-protocol",
+          {"inputValue": "predictor_protocol"}]}}, {"if": {"cond": {"isPresent": "triton_runtime_version"},
+          "then": ["--triton-runtime-version", {"inputValue": "triton_runtime_version"}]}},
+          {"if": {"cond": {"isPresent": "transformer_specification"}, "then": ["--transformer-specification",
+          {"inputValue": "transformer_specification"}]}}], "command": ["sh", "-ec",
+          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n    rm_existing
+          = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\",\n    concurrency_target
+          = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas
+          = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\",  #
+          or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_specification
+          = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import
+          base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
           https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n    #
-          https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\n    #
+          https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n    #
+          https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\n    #
           It happens that the credentials for the minio user name and password are
           already in a secret\n    # This just loads them so that we can create our
           own secret to store the S3 connection information\n    # for the Inference
@@ -267,64 +377,83 @@ spec:
           \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n        check=True,\n        text=True,\n    )\n\n    sa_spec
           = \"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n    metadata:\n      name:
           kserve-inference-sa\n    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n    subprocess.run(\n        [\"kubectl\",
-          \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    if
-          rm_existing:\n        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\",
-          name], check=False)\n\n    with open(class_labels, \"r\") as clf:\n        labels_json
-          = clf.read()\n\n    gpu_resources = f\"nvidia.com/gpu: {pred_gpus}\" if
-          pred_gpus else \"\"\n\n    minReplicas = f\"minReplicas: {min_replicas}\"
-          if min_replicas is not None else \"\"\n    maxReplicas = f\"maxReplicas:
-          {max_replicas}\" if max_replicas else \"\"\n\n    service_spec = f\"\"\"\n    apiVersion:
-          serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n      name:
-          {name}\n      annotations:\n        sidecar.istio.io/inject: \"false\"\n        #
-          https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        autoscaling.knative.dev/target:
-          \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\n    spec:\n      transformer:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
-          kserve-inference-sa\n        containers:\n        - image: \"{transformer_image}\"\n          name:
-          {name}-transformer\n          command: [\"python\", \"transform.py\"]\n          args:
-          [\"--protocol=grpc-v2\"]\n          env:\n            - name: STORAGE_URI\n              value:
-          {storage_uri}\n            - name: CLASS_LABELS\n              value: |\n                     {labels_json}\n\n      predictor:\n        {minReplicas}\n        {maxReplicas}\n        serviceAccountName:
+          \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    ###
+          Remove Existing\n    if rm_existing:\n        subprocess.run([\"kubectl\",
+          \"delete\", \"inferenceservice\", name], check=False)\n\n    ####### Inference
+          Service template #######\n\n    if transformer_specification:\n        min_t_replicas
+          = (\n            (\"minReplicas: \" + transformer_specification[\"min_replicas\"])\n            if
+          \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n        max_t_replicas
+          = (\n            (\"maxReplicas: \" + transformer_specification[\"max_replicas\"])\n            if
+          \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n\n        #
+          EnvFrom allows all vars to be read from a config map\n        # If a variable
+          is defined by both env and envFrom,\n        # env takes precedance. If
+          a variable is defined twice\n        # in env from, then the last one wins.\n        if
+          \"env_configmap\" in transformer_specification:\n            envFrom = f\"\"\"\n          envFrom:\n            -
+          configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
+          = \"\"\n\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\"\n          name:
+          \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
+          ''[\"python\", \"transform.py\"]'')}\n          args: [\"--protocol={predictor_protocol}\"]\n          env:\n            -
+          name: STORAGE_URI\n              value: {storage_uri}\n          {envFrom}\n          \"\"\"\n    else:\n        transform_spec
+          = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if
+          predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas
+          = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas
+          is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"maxReplicas:
+          {predictor_max_replicas}\"\n        if predictor_max_replicas is not None\n        else
+          \"\"\n    )\n\n    predictor_port_spec = (\n        ''[{\"containerPort\":
+          9000, \"name\": \"h2c\", \"protocol\": \"TCP\"}]''\n        if predictor_protocol
+          == \"grpc-v2\"\n        else \"\"\n    )\n\n    if concurrency_target:\n        autoscaling_target
+          = f\"\"\"\n        autoscaling.knative.dev/target: \"{concurrency_target}\"\n        autoscaling.knative.dev/metric:
+          \"concurrency\"\n        \"\"\"\n    else:\n        autoscaling_target =
+          \"\"\n\n    service_spec = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind:
+          InferenceService\n    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:
+          \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n      predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:
           kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          args:
-          [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n          ports:\n          -
-          containerPort: 9000\n            name: h2c\n            protocol: TCP\n          env:\n          -
-          name: OMP_NUM_THREADS\n            value: \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
+          [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n          ports:
+          {predictor_port_spec}\n          env:\n          - name: OMP_NUM_THREADS\n            value:
+          \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
           \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n    )\n\n    print(\"Waiting
           for inference service to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
           _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
-          strtobool(s) == 1\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Deploy
+          strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Deploy
           inference service'', description='''')\n_parser.add_argument(\"--name\",
           dest=\"name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--storage-uri\",
           dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
-          dest=\"minio_url\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-labels\",
-          dest=\"class_labels\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-image\",
-          dest=\"transformer_image\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\",
+          dest=\"minio_url\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\",
           dest=\"rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-credential-secret\",
-          dest=\"minio_credential_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--min-replicas\",
-          dest=\"min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-replicas\",
-          dest=\"max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--pred-gpus\",
-          dest=\"pred_gpus\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--concurrency-target\",
-          dest=\"concurrency_target\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--triton-runtime-version\",
-          dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n_parsed_args
+          dest=\"minio_credential_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--concurrency-target\",
+          dest=\"concurrency_target\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-min-replicas\",
+          dest=\"predictor_min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-max-replicas\",
+          dest=\"predictor_max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-gpu-allocation\",
+          dest=\"predictor_gpu_allocation\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-protocol\",
+          dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--triton-runtime-version\",
+          dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\",
+          dest=\"transformer_specification\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"],
           "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
           "inputs": [{"name": "name", "type": "String"}, {"name": "storage_uri", "type":
-          "String"}, {"name": "minio_url", "type": "String"}, {"name": "class_labels",
-          "type": "String"}, {"default": "quay.io/ntlawrence/monkeytransform:latest",
-          "name": "transformer_image", "optional": true, "type": "String"}, {"default":
-          "False", "name": "rm_existing", "optional": true, "type": "Boolean"}, {"default":
+          "String"}, {"name": "minio_url", "type": "String"}, {"default": "False",
+          "name": "rm_existing", "optional": true, "type": "Boolean"}, {"default":
           "mlpipeline-minio-artifact", "name": "minio_credential_secret", "optional":
-          true}, {"name": "min_replicas", "optional": true, "type": "Integer"}, {"name":
-          "max_replicas", "optional": true, "type": "Integer"}, {"default": "0", "name":
-          "pred_gpus", "optional": true, "type": "Integer"}, {"default": "1", "name":
-          "concurrency_target", "optional": true, "type": "Integer"}, {"default":
-          "22.03-py3", "name": "triton_runtime_version", "optional": true, "type":
-          "String"}], "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "269dde8547434daa80201db54e1c3e22bcff5b2c2a1e76f705258317c86a8b3e", "url":
-          "./deploy_inference_service_component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target":
-          "4", "max_replicas": "4", "min_replicas": "1", "minio_credential_secret":
-          "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
-          "name": "{{inputs.parameters.model_name}}", "pred_gpus": "1", "rm_existing":
-          "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/", "transformer_image":
-          "quay.io/ntlawrence/monkeytransform:latest", "triton_runtime_version": "21.08-py3-gpu"}',
-        pipelines.kubeflow.org/max_cache_staleness: P0D}
+          true}, {"name": "concurrency_target", "optional": true, "type": "Integer"},
+          {"name": "predictor_min_replicas", "optional": true, "type": "Integer"},
+          {"name": "predictor_max_replicas", "optional": true, "type": "Integer"},
+          {"default": "0", "name": "predictor_gpu_allocation", "optional": true, "type":
+          "Integer"}, {"default": "v2", "name": "predictor_protocol", "optional":
+          true, "type": "String"}, {"default": "22.03-py3", "name": "triton_runtime_version",
+          "optional": true, "type": "String"}, {"name": "transformer_specification",
+          "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
+          "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "025ce9958153a1f11a40a6a2e84a1101ee26142404faea206b780a28518693e3", "url":
+          "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
+        pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "4",
+          "minio_credential_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
+          "name": "{{inputs.parameters.model_name}}", "predictor_gpu_allocation":
+          "1", "predictor_max_replicas": "4", "predictor_min_replicas": "1", "predictor_protocol":
+          "grpc-v2", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-models/onnx/",
+          "transformer_specification": "{\"env_configmap\": \"{{inputs.parameters.model_name}}-transformer-env\",
+          \"image\": \"quay.io/ntlawrence/monkeytransform:latest\", \"maxReplicas\":
+          4, \"minReplicas\": 1}", "triton_runtime_version": "21.08-py3-gpu"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:
       parameters:
@@ -339,15 +468,21 @@ spec:
         arguments:
           artifacts:
           - {name: train-model-model_dir, from: '{{tasks.train-model.outputs.artifacts.train-model-model_dir}}'}
+      - name: create-config-map
+        template: create-config-map
+        dependencies: [load-test-train-dataset-for-tf]
+        arguments:
+          parameters:
+          - {name: model_name, value: '{{inputs.parameters.model_name}}'}
+          artifacts:
+          - {name: load-test-train-dataset-for-tf-class_names, from: '{{tasks.load-test-train-dataset-for-tf.outputs.artifacts.load-test-train-dataset-for-tf-class_names}}'}
       - name: deploy-inference-service
         template: deploy-inference-service
-        dependencies: [load-test-train-dataset-for-tf, upload-model]
+        dependencies: [create-config-map, upload-model]
         arguments:
           parameters:
           - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
           - {name: model_name, value: '{{inputs.parameters.model_name}}'}
-          artifacts:
-          - {name: load-test-train-dataset-for-tf-class_names, from: '{{tasks.load-test-train-dataset-for-tf.outputs.artifacts.load-test-train-dataset-for-tf-class_names}}'}
       - name: evaluate-model
         template: evaluate-model
         dependencies: [load-test-train-dataset-for-tf, train-model]
@@ -437,7 +572,7 @@ spec:
                 pass
             with open(output_file, 'w') as f:
                 f.write(_output_serializers[idx](_outputs[idx]))
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
     inputs:
       artifacts:
       - {name: train-model-model_dir, path: /tmp/inputs/model_dir/data}
@@ -447,7 +582,7 @@ spec:
       - {name: mlpipeline-metrics, path: /tmp/outputs/mlpipeline_metrics/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Loads
@@ -478,7 +613,7 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = evaluate_model(**_parsed_args)\n\n_output_serializers
           = [\n    str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
           "inputs": [{"name": "test_dataset_dir", "type": "String"}, {"name": "model_dir",
           "type": "String"}, {"default": "20", "name": "batch_size", "optional": true,
           "type": "Integer"}], "name": "Evaluate model", "outputs": [{"name": "mlpipeline_metrics",
@@ -517,6 +652,7 @@ spec:
             import json
             import numpy as np
             import tensorflow as tf
+            import base64
 
             def process(examples):
                 examples["image"] = [np.array(img) for img in examples["image"]]
@@ -526,8 +662,7 @@ spec:
                 return examples
 
             def save_as_tf_dataset(dataset, directory):
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
+                os.makedirs(directory, exist_ok=True)
                 tf.data.experimental.save(
                     dataset.to_tf_dataset(
                         batch_size=16, columns=["image"], label_cols=["label"]
@@ -570,6 +705,7 @@ spec:
             save_as_tf_dataset(dev_test_dataset["train"], validation_dataset_dir)
             save_as_tf_dataset(dev_test_dataset["test"], test_dataset_dir)
 
+            os.makedirs(os.path.dirname(class_names), exist_ok=True)
             with open(class_names, "w") as f:
                 json.dump(CLASSES, f)
 
@@ -584,7 +720,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = load_test_train_dataset_for_tf(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
     outputs:
       artifacts:
       - {name: load-test-train-dataset-for-tf-class_names, path: /tmp/outputs/class_names/data}
@@ -593,7 +729,7 @@ spec:
       - {name: load-test-train-dataset-for-tf-validation_dataset_dir, path: /tmp/outputs/validation_dataset_dir/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
@@ -608,11 +744,11 @@ spec:
           str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
           file_path\n\ndef load_test_train_dataset_for_tf(\n    train_dataset_dir,\n    validation_dataset_dir,\n    test_dataset_dir,\n    class_names,\n    dataset_url=\"Lehrig/Monkey-Species-Collection\",\n    dataset_configuration=\"downsized\",\n):\n    import
           os\n\n    import datasets\n    import json\n    import numpy as np\n    import
-          tensorflow as tf\n\n    def process(examples):\n        examples[\"image\"]
+          tensorflow as tf\n    import base64\n\n    def process(examples):\n        examples[\"image\"]
           = [np.array(img) for img in examples[\"image\"]]\n\n        examples[\"label\"]
           = [ONE_HOT_MATRIX[label] for label in examples[\"label\"]]\n\n        return
-          examples\n\n    def save_as_tf_dataset(dataset, directory):\n        if
-          not os.path.exists(directory):\n            os.makedirs(directory)\n        tf.data.experimental.save(\n            dataset.to_tf_dataset(\n                batch_size=16,
+          examples\n\n    def save_as_tf_dataset(dataset, directory):\n        os.makedirs(directory,
+          exist_ok=True)\n        tf.data.experimental.save(\n            dataset.to_tf_dataset(\n                batch_size=16,
           columns=[\"image\"], label_cols=[\"label\"]\n            ),\n            directory,\n        )\n\n    dataset
           = datasets.load_dataset(dataset_url, dataset_configuration)\n\n    CLASSES
           = dataset[\"train\"].features[\"label\"].names\n    ONE_HOT_MATRIX = np.identity(len(CLASSES))\n\n    dataset
@@ -629,10 +765,11 @@ spec:
           = dataset[\"test\"].train_test_split(test_size=0.5, shuffle=False)\n\n    save_as_tf_dataset(dataset[\"train\"],
           train_dataset_dir)\n    save_as_tf_dataset(dev_test_dataset[\"train\"],
           validation_dataset_dir)\n    save_as_tf_dataset(dev_test_dataset[\"test\"],
-          test_dataset_dir)\n\n    with open(class_names, \"w\") as f:\n        json.dump(CLASSES,
-          f)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Load test
-          train dataset for tf'', description='''')\n_parser.add_argument(\"--dataset-url\",
-          dest=\"dataset_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dataset-configuration\",
+          test_dataset_dir)\n\n    os.makedirs(os.path.dirname(class_names), exist_ok=True)\n    with
+          open(class_names, \"w\") as f:\n        json.dump(CLASSES, f)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Load test train dataset
+          for tf'', description='''')\n_parser.add_argument(\"--dataset-url\", dest=\"dataset_url\",
+          type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dataset-configuration\",
           dest=\"dataset_configuration\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--train-dataset-dir\",
           dest=\"train_dataset_dir\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--validation-dataset-dir\",
@@ -642,7 +779,7 @@ spec:
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--class-names\", dest=\"class_names\",
           type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = load_test_train_dataset_for_tf(**_parsed_args)\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
           "inputs": [{"default": "Lehrig/Monkey-Species-Collection", "name": "dataset_url",
           "optional": true}, {"default": "downsized", "name": "dataset_configuration",
           "optional": true}], "name": "Load test train dataset for tf", "outputs":
@@ -778,7 +915,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = train_model(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
       resources:
         limits: {nvidia.com/gpu: 1}
     inputs:
@@ -790,7 +927,7 @@ spec:
       - {name: train-model-model_dir, path: /tmp/outputs/model_dir/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uses
@@ -837,7 +974,7 @@ spec:
           dest=\"batch_size\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-dir\",
           dest=\"model_dir\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = train_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          = train_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
           "inputs": [{"name": "train_dataset_dir", "type": "String"}, {"name": "validation_dataset_dir",
           "type": "String"}, {"default": "100", "name": "epochs", "optional": true,
           "type": "Integer"}, {"default": "32", "name": "batch_size", "optional":
@@ -1005,7 +1142,7 @@ spec:
       - {name: upload-model-triton_s3_address, path: /tmp/outputs/triton_s3_address/data}
     metadata:
       labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uploads
