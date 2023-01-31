@@ -1,0 +1,104 @@
+name: Train
+inputs:
+- {name: preprocess_dir, type: String}
+outputs:
+- {name: onnx_model, type: String}
+implementation:
+  container:
+    image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+    command:
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp)
+      printf "%s" "$0" > "$program_path"
+      python3 -u "$program_path" "$@"
+    - |
+      def _make_parent_dirs_and_return_path(file_path: str):
+          import os
+          os.makedirs(os.path.dirname(file_path), exist_ok=True)
+          return file_path
+
+      def train(preprocess_dir, onnx_model):
+
+          import os
+          from datasets import load_from_disk
+          from transformers import (
+              AutoTokenizer,
+              DefaultDataCollator,
+              AutoModelForQuestionAnswering,
+              TrainingArguments,
+              Trainer,
+          )
+          import datetime
+          import shutil
+          import sys
+          import runpy
+
+          tokenized_squad = load_from_disk(preprocess_dir)
+
+          data_collator = DefaultDataCollator()
+
+          tokenizer = AutoTokenizer.from_pretrained(
+              "distilbert-base-uncased", torchscript=True
+          )
+
+          model = AutoModelForQuestionAnswering.from_pretrained("distilbert-base-uncased")
+
+          checkpoint_dir = "/mnt/checkpoint"
+          os.makedirs(checkpoint_dir, exist_ok=True)
+
+          logging_dir = "/mnt/logs/tb/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+          os.makedirs(logging_dir, exist_ok=True)
+          print("logging_dir:", logging_dir)
+
+          training_args = TrainingArguments(
+              output_dir=checkpoint_dir,
+              evaluation_strategy="epoch",
+              learning_rate=2e-5,
+              per_device_train_batch_size=16,
+              per_device_eval_batch_size=16,
+              num_train_epochs=20,
+              weight_decay=0.01,
+              logging_dir=logging_dir,
+          )
+
+          trainer = Trainer(
+              model=model,
+              args=training_args,
+              train_dataset=tokenized_squad["train"].select(range(1000)),
+              eval_dataset=tokenized_squad["validation"].select(range(1000)),
+              tokenizer=tokenizer,
+              data_collator=data_collator,
+          )
+
+          trainer.train()
+
+          # Convert saved model to ONNX
+          model_dir = "/mnt/models/question-answering/pytorch/"
+          os.makedirs(model_dir, exist_ok=True)
+          trainer.save_model(model_dir)
+          sys.argv = [
+              "dummy_sysargs.py",
+              f"--model={model_dir}",
+              "--feature=question-answering",
+              "--cache_dir=/tmp/cache",
+              f"/mnt/models/question-answering/onnx/",
+          ]
+          runpy.run_module("transformers.onnx", run_name="__main__")
+
+          os.makedirs(os.path.dirname(onnx_model), exist_ok=True)
+          shutil.copyfile("/mnt/models/question-answering/1/model.onnx", onnx_model)
+
+      import argparse
+      _parser = argparse.ArgumentParser(prog='Train', description='')
+      _parser.add_argument("--preprocess-dir", dest="preprocess_dir", type=str, required=True, default=argparse.SUPPRESS)
+      _parser.add_argument("--onnx-model", dest="onnx_model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+      _parsed_args = vars(_parser.parse_args())
+
+      _outputs = train(**_parsed_args)
+    args:
+    - --preprocess-dir
+    - {inputPath: preprocess_dir}
+    - --onnx-model
+    - {outputPath: onnx_model}
