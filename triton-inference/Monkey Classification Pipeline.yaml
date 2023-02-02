@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-01T23:26:52.278692',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-02T21:37:18.218957',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -507,7 +507,7 @@ spec:
   - name: evaluate-model
     container:
       args: [--test-dataset-dir, /tmp/inputs/test_dataset_dir/data, --model-dir, /tmp/inputs/model_dir/data,
-        --batch-size, '20', '----output-paths', /tmp/outputs/mlpipeline_metrics/data]
+        --batch-size, '20', --mlpipeline-ui-metadata, /tmp/outputs/mlpipeline_ui_metadata/data]
       command:
       - sh
       - -ec
@@ -516,15 +516,22 @@ spec:
         printf "%s" "$0" > "$program_path"
         python3 -u "$program_path" "$@"
       - |
-        def evaluate_model(
-            test_dataset_dir, model_dir, batch_size = 20
-        ):
-            """Loads a saved model from file and uses a pre-downloaded dataset for evaluation.
-            Model metrics are persisted to `{metrics_path}` for Kubeflow Pipelines metadata."""
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
 
-            from collections import namedtuple
+        def evaluate_model(
+            test_dataset_dir,
+            mlpipeline_ui_metadata_path,
+            model_dir,
+            batch_size = 20,
+        ):
+
+            # from collections import namedtuple
             import json
             import tensorflow as tf
+            import os
 
             test_dataset = tf.data.experimental.load(test_dataset_dir)
             model = tf.keras.models.load_model(model_dir)
@@ -534,41 +541,43 @@ spec:
 
             metrics = {
                 "metrics": [
-                    {"name": "loss", "numberValue": str(loss), "format": "RAW"},
-                    {"name": "accuracy", "numberValue": str(accuracy), "format": "PERCENTAGE"},
+                    #       {"name": "loss", "numberValue": str(loss), "format": "RAW"},
+                    {"name": "accuracy", "numberValue": float(accuracy)},
                 ]
             }
 
-            out_tuple = namedtuple("EvaluationOutput", ["mlpipeline_metrics"])
+            metadata = {
+                "outputs": [
+                    {
+                        "type": "table",
+                        "storage": "inline",
+                        "format": "csv",
+                        "header": ["Loss", "Accuracy"],
+                        "source": f"{loss},{accuracy}",
+                    }
+                ]
+            }
 
-            json_metrics = json.dumps(metrics)
-            print(json_metrics)
-            return out_tuple(json_metrics)
+            # nt = namedtuple("Outputs", ["mlpipeline_metrics"])
+            # return [json.dumps(metrics)]
+
+            # return (json.dumps(metrics),)
+            # out_tuple = namedtuple("EvaluationOutput", ["mlpipeline_metrics"])
+
+            # json_metrics = json.dumps(metrics)
+            # os.makedirs(os.path.dirname(mlpipeline_metrics_path), exist_ok=True)
+            with open(mlpipeline_ui_metadata_path, "w") as f:
+                json.dump(metadata, f)
 
         import argparse
-        _parser = argparse.ArgumentParser(prog='Evaluate model', description='Loads a saved model from file and uses a pre-downloaded dataset for evaluation.')
+        _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
         _parser.add_argument("--test-dataset-dir", dest="test_dataset_dir", type=str, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--model-dir", dest="model_dir", type=str, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--batch-size", dest="batch_size", type=int, required=False, default=argparse.SUPPRESS)
-        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parser.add_argument("--mlpipeline-ui-metadata", dest="mlpipeline_ui_metadata_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
         _parsed_args = vars(_parser.parse_args())
-        _output_files = _parsed_args.pop("_output_paths", [])
 
         _outputs = evaluate_model(**_parsed_args)
-
-        _output_serializers = [
-            str,
-
-        ]
-
-        import os
-        for idx, output_file in enumerate(_output_files):
-            try:
-                os.makedirs(os.path.dirname(output_file))
-            except OSError:
-                pass
-            with open(output_file, 'w') as f:
-                f.write(_output_serializers[idx](_outputs[idx]))
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
     inputs:
       artifacts:
@@ -576,46 +585,50 @@ spec:
       - {name: load-test-train-dataset-for-tf-test_dataset_dir, path: /tmp/inputs/test_dataset_dir/data}
     outputs:
       artifacts:
-      - {name: mlpipeline-metrics, path: /tmp/outputs/mlpipeline_metrics/data}
+      - {name: mlpipeline-ui-metadata, path: /tmp/outputs/mlpipeline_ui_metadata/data}
     metadata:
+      annotations:
+        tekton.dev/track_step_artifact: "true"
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--test-dataset-dir", {"inputPath": "test_dataset_dir"}, "--model-dir",
+          {"inputPath": "model_dir"}, {"if": {"cond": {"isPresent": "batch_size"},
+          "then": ["--batch-size", {"inputValue": "batch_size"}]}}, "--mlpipeline-ui-metadata",
+          {"outputPath": "mlpipeline_ui_metadata"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef evaluate_model(\n    test_dataset_dir,\n    mlpipeline_ui_metadata_path,\n    model_dir,\n    batch_size
+          = 20,\n):\n\n    # from collections import namedtuple\n    import json\n    import
+          tensorflow as tf\n    import os\n\n    test_dataset = tf.data.experimental.load(test_dataset_dir)\n    model
+          = tf.keras.models.load_model(model_dir)\n    (loss, accuracy) = model.evaluate(test_dataset)\n\n    print((loss,
+          accuracy))\n\n    metrics = {\n        \"metrics\": [\n            #       {\"name\":
+          \"loss\", \"numberValue\": str(loss), \"format\": \"RAW\"},\n            {\"name\":
+          \"accuracy\", \"numberValue\": float(accuracy)},\n        ]\n    }\n\n    metadata
+          = {\n        \"outputs\": [\n            {\n                \"type\": \"table\",\n                \"storage\":
+          \"inline\",\n                \"format\": \"csv\",\n                \"header\":
+          [\"Loss\", \"Accuracy\"],\n                \"source\": f\"{loss},{accuracy}\",\n            }\n        ]\n    }\n\n    #
+          nt = namedtuple(\"Outputs\", [\"mlpipeline_metrics\"])\n    # return [json.dumps(metrics)]\n\n    #
+          return (json.dumps(metrics),)\n    # out_tuple = namedtuple(\"EvaluationOutput\",
+          [\"mlpipeline_metrics\"])\n\n    # json_metrics = json.dumps(metrics)\n    #
+          os.makedirs(os.path.dirname(mlpipeline_metrics_path), exist_ok=True)\n    with
+          open(mlpipeline_ui_metadata_path, \"w\") as f:\n        json.dump(metadata,
+          f)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate
+          model'', description='''')\n_parser.add_argument(\"--test-dataset-dir\",
+          dest=\"test_dataset_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-dir\",
+          dest=\"model_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--batch-size\",
+          dest=\"batch_size\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--mlpipeline-ui-metadata\",
+          dest=\"mlpipeline_ui_metadata_path\", type=_make_parent_dirs_and_return_path,
+          required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "test_dataset_dir", "type": "String"}, {"name": "model_dir",
+          "type": "String"}, {"default": "20", "name": "batch_size", "optional": true,
+          "type": "Integer"}], "name": "Evaluate model", "outputs": [{"name": "mlpipeline_ui_metadata",
+          "type": "String"}]}'
+        pipelines.kubeflow.org/component_ref: '{}'
+        pipelines.kubeflow.org/arguments.parameters: '{"batch_size": "20"}'
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
-      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Loads
-          a saved model from file and uses a pre-downloaded dataset for evaluation.",
-          "implementation": {"container": {"args": ["--test-dataset-dir", {"inputPath":
-          "test_dataset_dir"}, "--model-dir", {"inputPath": "model_dir"}, {"if": {"cond":
-          {"isPresent": "batch_size"}, "then": ["--batch-size", {"inputValue": "batch_size"}]}},
-          "----output-paths", {"outputPath": "mlpipeline_metrics"}], "command": ["sh",
-          "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
-          -u \"$program_path\" \"$@\"\n", "def evaluate_model(\n    test_dataset_dir,
-          model_dir, batch_size = 20\n):\n    \"\"\"Loads a saved model from file
-          and uses a pre-downloaded dataset for evaluation.\n    Model metrics are
-          persisted to `{metrics_path}` for Kubeflow Pipelines metadata.\"\"\"\n\n    from
-          collections import namedtuple\n    import json\n    import tensorflow as
-          tf\n\n    test_dataset = tf.data.experimental.load(test_dataset_dir)\n    model
-          = tf.keras.models.load_model(model_dir)\n    (loss, accuracy) = model.evaluate(test_dataset)\n\n    print((loss,
-          accuracy))\n\n    metrics = {\n        \"metrics\": [\n            {\"name\":
-          \"loss\", \"numberValue\": str(loss), \"format\": \"RAW\"},\n            {\"name\":
-          \"accuracy\", \"numberValue\": str(accuracy), \"format\": \"PERCENTAGE\"},\n        ]\n    }\n\n    out_tuple
-          = namedtuple(\"EvaluationOutput\", [\"mlpipeline_metrics\"])\n\n    json_metrics
-          = json.dumps(metrics)\n    print(json_metrics)\n    return out_tuple(json_metrics)\n\nimport
-          argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate model'', description=''Loads
-          a saved model from file and uses a pre-downloaded dataset for evaluation.'')\n_parser.add_argument(\"--test-dataset-dir\",
-          dest=\"test_dataset_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-dir\",
-          dest=\"model_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--batch-size\",
-          dest=\"batch_size\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
-          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
-          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = evaluate_model(**_parsed_args)\n\n_output_serializers
-          = [\n    str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
-          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
-          "inputs": [{"name": "test_dataset_dir", "type": "String"}, {"name": "model_dir",
-          "type": "String"}, {"default": "20", "name": "batch_size", "optional": true,
-          "type": "Integer"}], "name": "Evaluate model", "outputs": [{"name": "mlpipeline_metrics",
-          "type": "Metrics"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"batch_size":
-          "20"}'}
   - name: load-test-train-dataset-for-tf
     container:
       args: [--dataset-url, Lehrig/Monkey-Species-Collection, --dataset-configuration,
