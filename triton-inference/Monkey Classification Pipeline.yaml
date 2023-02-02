@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T21:02:25.355353',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-01T23:26:52.278692',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -30,10 +30,7 @@ spec:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             return file_path
 
-        def convert_model_to_onnx(
-            model_dir,
-            onnx_model_dir
-        ):
+        def convert_model_to_onnx(model_dir, onnx_model_dir):
             """Converts a model to ONNX format. Supported input formats: Keras."""
 
             import logging
@@ -45,7 +42,7 @@ spec:
             logging.basicConfig(
                 stream=sys.stdout,
                 level=logging.INFO,
-                format='%(levelname)s %(asctime)s: %(message)s'
+                format="%(levelname)s %(asctime)s: %(message)s",
             )
             logger = logging.getLogger()
 
@@ -67,7 +64,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = convert_model_to_onnx(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:latest
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
     inputs:
       artifacts:
       - {name: train-model-model_dir, path: /tmp/inputs/model_dir/data}
@@ -85,11 +82,11 @@ spec:
           {"outputPath": "onnx_model_dir"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
           \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
           "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
-          exist_ok=True)\n    return file_path\n\ndef convert_model_to_onnx(\n    model_dir,\n    onnx_model_dir\n):\n    \"\"\"Converts
-          a model to ONNX format. Supported input formats: Keras.\"\"\"\n\n    import
-          logging\n    import onnx\n    import sys\n    import tensorflow as tf\n    import
-          tf2onnx\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=''%(levelname)s
-          %(asctime)s: %(message)s''\n    )\n    logger = logging.getLogger()\n\n    logger.info(f\"Loading
+          exist_ok=True)\n    return file_path\n\ndef convert_model_to_onnx(model_dir,
+          onnx_model_dir):\n    \"\"\"Converts a model to ONNX format. Supported input
+          formats: Keras.\"\"\"\n\n    import logging\n    import onnx\n    import
+          sys\n    import tensorflow as tf\n    import tf2onnx\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=\"%(levelname)s
+          %(asctime)s: %(message)s\",\n    )\n    logger = logging.getLogger()\n\n    logger.info(f\"Loading
           model from ''{model_dir}''...\")\n    keras_model = tf.keras.models.load_model(model_dir)\n\n    logger.info(\"Converting
           model to ONNX...\")\n    converted_model, _ = tf2onnx.convert.from_keras(keras_model)\n\n    logger.info(f\"Saving
           ONNX model to ''{onnx_model_dir}''...\")\n    onnx.save_model(converted_model,
@@ -99,10 +96,10 @@ spec:
           dest=\"model_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model-dir\",
           dest=\"onnx_model_dir\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:latest"}},
+          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
           "inputs": [{"name": "model_dir", "type": "String"}], "name": "Convert model
           to onnx", "outputs": [{"name": "onnx_model_dir", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "d7a79d9da2486fe842613ed02ddceeb6255f0e7a2b52f62c9fe13e81e761a939", "url":
+          "c05e8c3ed1e38d36f48b1418ce4f68c28b9a0ccb67e69ab8c595253d8841979f", "url":
           "/home/jovyan/components/model-building/convert-to-onnx/component.yaml"}'}
   - name: create-config-map
     container:
@@ -983,7 +980,7 @@ spec:
           "32", "epochs": "100"}'}
   - name: upload-model
     container:
-      args: [--model, /tmp/inputs/model/data, --minio-url, 'minio-service.kubeflow:9000',
+      args: [--file-dir, /tmp/inputs/file_dir/data, --minio-url, 'minio-service.kubeflow:9000',
         --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-models',
         --model-name, '{{inputs.parameters.model_name}}', --model-version, '{{inputs.parameters.model_version}}',
         --model-format, onnx, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
@@ -996,8 +993,7 @@ spec:
         python3 -u "$program_path" "$@"
       - |
         def upload_model(
-            model,
-            model_config = None,
+            file_dir,
             minio_url = "minio-service.kubeflow:9000",
             minio_secret = "mlpipeline-minio-artifact",
             export_bucket = "models",
@@ -1008,7 +1004,10 @@ spec:
             """Uploads a model file to MinIO artifact store."""
 
             from collections import namedtuple
-            from kubernetes import client, config
+            from kubernetes import (
+                client,
+                config
+            )
             import logging
             from minio import Minio
             import sys
@@ -1016,7 +1015,7 @@ spec:
             logging.basicConfig(
                 stream=sys.stdout,
                 level=logging.INFO,
-                format="%(levelname)s %(asctime)s: %(message)s",
+                format='%(levelname)s %(asctime)s: %(message)s'
             )
             logger = logging.getLogger()
 
@@ -1030,27 +1029,24 @@ spec:
                         return f.read()
 
                 def decode(text):
-                    return base64.b64decode(text).decode("utf-8")
+                    return base64.b64decode(text).decode('utf-8')
 
                 config.load_incluster_config()
                 api_client = client.ApiClient()
 
                 try:
-                    secret = client.CoreV1Api(api_client).read_namespaced_secret(
-                        minio_secret, get_current_namespace()
-                    )
+                    secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret, get_current_namespace())
 
-                    minio_user = decode(secret.data["accesskey"])
-                    minio_pass = decode(secret.data["secretkey"])
+                    minio_user = decode(secret.data['accesskey'])
+                    minio_pass = decode(secret.data['secretkey'])
 
-                    return Minio(
-                        minio_url, access_key=minio_user, secret_key=minio_pass, secure=False
-                    )
+                    return Minio(minio_url,
+                                 access_key=minio_user,
+                                 secret_key=minio_pass,
+                                 secure=False)
                 except ApiException as e:
                     if e.status == 404:
-                        logger.error(
-                            "Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!"
-                        )
+                        logger.error("Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!")
                     raise Exception(e)
 
             logger.info(f"Establishing MinIO connection to '{minio_url}'...")
@@ -1075,19 +1071,8 @@ spec:
             minio_client.fput_object(
                 bucket_name=export_bucket,  # bucket name in Minio
                 object_name=f"{model_format}/{model_path}",  # file name in bucket of Minio / for Triton name MUST be model.onnx!
-                file_path=model,  # file path / name in local system
+                file_path=file_dir,  # file path / name in local system
             )
-
-            if model_config:
-                logger.info("Saving model config for triton to MinIO")
-                # The config is above the version in the directory tree
-                # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
-                model_config_path = f"{model_name}/config.pbtxt"
-                minio_client.fput_object(
-                    bucket_name=export_bucket,  # bucket name in Minio
-                    object_name=f"{model_format}/{model_config_path}",
-                    file_path=model_config,  # file path / name in local system
-                )
 
             logger.info("Finished.")
             out_tuple = namedtuple("UploadOutput", ["s3_address", "triton_s3_address"])
@@ -1101,8 +1086,7 @@ spec:
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Upload model', description='Uploads a model file to MinIO artifact store.')
-        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--model-config", dest="model_config", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--file-dir", dest="file_dir", type=str, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--minio-url", dest="minio_url", type=str, required=False, default=argparse.SUPPRESS)
         _parser.add_argument("--minio-secret", dest="minio_secret", type=str, required=False, default=argparse.SUPPRESS)
         _parser.add_argument("--export-bucket", dest="export_bucket", type=str, required=False, default=argparse.SUPPRESS)
@@ -1129,13 +1113,13 @@ spec:
                 pass
             with open(output_file, 'w') as f:
                 f.write(_output_serializers[idx](_outputs[idx]))
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:latest
     inputs:
       parameters:
       - {name: model_name}
       - {name: model_version}
       artifacts:
-      - {name: convert-model-to-onnx-onnx_model_dir, path: /tmp/inputs/model/data}
+      - {name: convert-model-to-onnx-onnx_model_dir, path: /tmp/inputs/file_dir/data}
     outputs:
       artifacts:
       - {name: upload-model-s3_address, path: /tmp/outputs/s3_address/data}
@@ -1147,38 +1131,35 @@ spec:
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uploads
           a model file to MinIO artifact store.", "implementation": {"container":
-          {"args": ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent":
-          "model_config"}, "then": ["--model-config", {"inputPath": "model_config"}]}},
-          {"if": {"cond": {"isPresent": "minio_url"}, "then": ["--minio-url", {"inputValue":
-          "minio_url"}]}}, {"if": {"cond": {"isPresent": "minio_secret"}, "then":
-          ["--minio-secret", {"inputValue": "minio_secret"}]}}, {"if": {"cond": {"isPresent":
-          "export_bucket"}, "then": ["--export-bucket", {"inputValue": "export_bucket"}]}},
-          {"if": {"cond": {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue":
-          "model_name"}]}}, {"if": {"cond": {"isPresent": "model_version"}, "then":
-          ["--model-version", {"inputValue": "model_version"}]}}, {"if": {"cond":
-          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
-          "model_format"}]}}, "----output-paths", {"outputPath": "s3_address"}, {"outputPath":
-          "triton_s3_address"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
-          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
-          "def upload_model(\n    model,\n    model_config = None,\n    minio_url
+          {"args": ["--file-dir", {"inputPath": "file_dir"}, {"if": {"cond": {"isPresent":
+          "minio_url"}, "then": ["--minio-url", {"inputValue": "minio_url"}]}}, {"if":
+          {"cond": {"isPresent": "minio_secret"}, "then": ["--minio-secret", {"inputValue":
+          "minio_secret"}]}}, {"if": {"cond": {"isPresent": "export_bucket"}, "then":
+          ["--export-bucket", {"inputValue": "export_bucket"}]}}, {"if": {"cond":
+          {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue": "model_name"}]}},
+          {"if": {"cond": {"isPresent": "model_version"}, "then": ["--model-version",
+          {"inputValue": "model_version"}]}}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, "----output-paths",
+          {"outputPath": "s3_address"}, {"outputPath": "triton_s3_address"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def upload_model(\n    file_dir,\n    minio_url
           = \"minio-service.kubeflow:9000\",\n    minio_secret = \"mlpipeline-minio-artifact\",\n    export_bucket
           = \"models\",\n    model_name = \"my-model\",\n    model_version = 1,\n    model_format
           = \"onnx\",\n):\n    \"\"\"Uploads a model file to MinIO artifact store.\"\"\"\n\n    from
-          collections import namedtuple\n    from kubernetes import client, config\n    import
-          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=\"%(levelname)s
-          %(asctime)s: %(message)s\",\n    )\n    logger = logging.getLogger()\n\n    def
+          collections import namedtuple\n    from kubernetes import (\n        client,\n        config\n    )\n    import
+          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=''%(levelname)s
+          %(asctime)s: %(message)s''\n    )\n    logger = logging.getLogger()\n\n    def
           get_minio_client(minio_secret):\n        import base64\n        from kubernetes.client.rest
           import ApiException\n\n        def get_current_namespace():\n            SA_NAMESPACE
           = \"/var/run/secrets/kubernetes.io/serviceaccount/namespace\"\n            with
           open(SA_NAMESPACE) as f:\n                return f.read()\n\n        def
-          decode(text):\n            return base64.b64decode(text).decode(\"utf-8\")\n\n        config.load_incluster_config()\n        api_client
-          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(\n                minio_secret,
-          get_current_namespace()\n            )\n\n            minio_user = decode(secret.data[\"accesskey\"])\n            minio_pass
-          = decode(secret.data[\"secretkey\"])\n\n            return Minio(\n                minio_url,
-          access_key=minio_user, secret_key=minio_pass, secure=False\n            )\n        except
-          ApiException as e:\n            if e.status == 404:\n                logger.error(\n                    \"Failed
+          decode(text):\n            return base64.b64decode(text).decode(''utf-8'')\n\n        config.load_incluster_config()\n        api_client
+          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret,
+          get_current_namespace())\n\n            minio_user = decode(secret.data[''accesskey''])\n            minio_pass
+          = decode(secret.data[''secretkey''])\n\n            return Minio(minio_url,\n                         access_key=minio_user,\n                         secret_key=minio_pass,\n                         secure=False)\n        except
+          ApiException as e:\n            if e.status == 404:\n                logger.error(\"Failed
           to get secret ''mlpipeline-minio-artifact'', which is needed for communicating
-          with MinIO!\"\n                )\n            raise Exception(e)\n\n    logger.info(f\"Establishing
+          with MinIO!\")\n            raise Exception(e)\n\n    logger.info(f\"Establishing
           MinIO connection to ''{minio_url}''...\")\n    minio_client = get_minio_client(minio_secret)\n\n    #
           Create export bucket if it does not yet exist\n    response = minio_client.list_buckets()\n    export_bucket_exists
           = False\n    for bucket in response:\n        if bucket.name == export_bucket:\n            export_bucket_exists
@@ -1189,22 +1170,16 @@ spec:
           = f\"{s3_address}/{model_path}\"\n\n    logger.info(f\"Saving onnx file
           to MinIO (s3 address: {s3_address})...\")\n    minio_client.fput_object(\n        bucket_name=export_bucket,  #
           bucket name in Minio\n        object_name=f\"{model_format}/{model_path}\",  #
-          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=model,  #
-          file path / name in local system\n    )\n\n    if model_config:\n        logger.info(\"Saving
-          model config for triton to MinIO\")\n        # The config is above the version
-          in the directory tree\n        # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout\n        model_config_path
-          = f\"{model_name}/config.pbtxt\"\n        minio_client.fput_object(\n            bucket_name=export_bucket,  #
-          bucket name in Minio\n            object_name=f\"{model_format}/{model_config_path}\",\n            file_path=model_config,  #
-          file path / name in local system\n        )\n\n    logger.info(\"Finished.\")\n    out_tuple
+          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=file_dir,  #
+          file path / name in local system\n    )\n\n    logger.info(\"Finished.\")\n    out_tuple
           = namedtuple(\"UploadOutput\", [\"s3_address\", \"triton_s3_address\"])\n    return
           out_tuple(s3_address, triton_s3_address)\n\ndef _serialize_str(str_value:
           str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError(''Value
           \"{}\" has type \"{}\" instead of str.''.format(\n            str(str_value),
           str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser
           = argparse.ArgumentParser(prog=''Upload model'', description=''Uploads a
-          model file to MinIO artifact store.'')\n_parser.add_argument(\"--model\",
-          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-config\",
-          dest=\"model_config\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
+          model file to MinIO artifact store.'')\n_parser.add_argument(\"--file-dir\",
+          dest=\"file_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
           dest=\"minio_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-secret\",
           dest=\"minio_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--export-bucket\",
           dest=\"export_bucket\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-name\",
@@ -1216,9 +1191,8 @@ spec:
           = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx,
           output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
-          "inputs": [{"name": "model", "type": "String"}, {"name": "model_config",
-          "optional": true, "type": "String"}, {"default": "minio-service.kubeflow:9000",
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:latest"}}, "inputs":
+          [{"name": "file_dir", "type": "String"}, {"default": "minio-service.kubeflow:9000",
           "name": "minio_url", "optional": true, "type": "String"}, {"default": "mlpipeline-minio-artifact",
           "name": "minio_secret", "optional": true, "type": "String"}, {"default":
           "models", "name": "export_bucket", "optional": true, "type": "String"},
@@ -1227,7 +1201,7 @@ spec:
           "Integer"}, {"default": "onnx", "name": "model_format", "optional": true,
           "type": "String"}], "name": "Upload model", "outputs": [{"name": "s3_address",
           "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "6da225cd49bc4c67005599df5513903975e1aa6837d1a1e41c503d7b793253c6", "url":
+          "a2d50683fd032a165ddeab601c5b2d94403f7899fe0563f16ab45b39d762f058", "url":
           "/home/jovyan/components/model-building/upload-model/component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-models",
           "minio_secret": "mlpipeline-minio-artifact", "minio_url": "minio-service.kubeflow:9000",

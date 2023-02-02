@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: bee-yolov5-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-29T19:36:44.411940',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-02T00:00:36.614031',
     pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_vol_pvc_name",
       "type": "String"}, {"name": "data_vol_subpath", "type": "String"}, {"default":
       "750", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml",
@@ -179,7 +179,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = convert_model_to_onnx(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /tmp/inputs/model, name: data-storage, subPath: '{{inputs.parameters.train-model-model-subpath}}',
         readOnly: true}
@@ -219,7 +219,7 @@ spec:
           dest=\"quantize\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model\",
           dest=\"onnx_model\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
           "inputs": [{"name": "model", "type": "String"}, {"name": "model_format",
           "type": "String"}, {"default": "", "name": "quantize", "optional": true,
           "type": "String"}], "name": "Convert model to onnx", "outputs": [{"name":
@@ -258,7 +258,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = copy_data(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /src-vol, name: '{{inputs.parameters.data_vol_pvc_name}}', readOnly: true,
         subPath: '{{inputs.parameters.data_vol_subpath}}'}
@@ -286,10 +286,11 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = copy_data(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
-          [{"name": "source", "type": "String"}, {"name": "dest", "type": "String"}],
-          "name": "Copy data"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"dest":
-          "/dest-vol/dataset", "source": "/src-vol"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "inputs": [{"name": "source", "type": "String"}, {"name": "dest", "type":
+          "String"}], "name": "Copy data"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/dest-vol/dataset",
+          "source": "/src-vol"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
     volumes:
     - name: '{{inputs.parameters.data_vol_pvc_name}}'
       persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
@@ -420,20 +421,21 @@ spec:
         \n        )\n        max_t_replicas = (\n            (\"maxReplicas: \" +\
         \ transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
         \ in transformer_specification\n            else \"\"\n        )\n\n     \
-        \   # There is a bug in the pipeline that prevents passing\n        # json\
-        \ serialized strings in some instances, workaround\n        # was to use base64\
-        \ encoded json strings\n        if \"labels\" in transformer_specification:\n\
-        \            labels = base64.b64decode(transformer_specification[\"labels\"\
-        ]).decode(\"utf-8\")\n        else:\n            labels = \"\"\n\n       \
-        \ transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n\
-        \        {max_t_replicas}\n        serviceAccountName: kserve-inference-sa\n\
-        \        containers:\n        - image: \"{transformer_specification[\"image\"\
-        ]}\"\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        \   # EnvFrom allows all vars to be read from a config map\n        # If a\
+        \ variable is defined by both env and envFrom,\n        # env takes precedance.\
+        \ If a variable is defined twice\n        # in env from, then the last one\
+        \ wins.\n        if \"env_configmap\" in transformer_specification:\n    \
+        \        envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
+        \                name: {transformer_specification[\"env_configmap\"]}\n  \
+        \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
+        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
+        \        serviceAccountName: kserve-inference-sa\n        containers:\n  \
+        \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
+        \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
         command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
         ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
-        \            - name: CLASS_LABELS\n              value: |\n              \
-        \      {labels}\n          \"\"\"\n    else:\n        transform_spec = \"\"\
-        \n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
+        \          {envFrom}\n          \"\"\"\n    else:\n        transform_spec\
+        \ = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\
         \n        if predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas\
         \ = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas\
         \ is not None\n        else \"\"\n    )\n    max_p_replicas = (\n        f\"\
@@ -544,16 +546,16 @@ spec:
           \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n        max_t_replicas
           = (\n            (\"maxReplicas: \" + transformer_specification[\"max_replicas\"])\n            if
           \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n\n        #
-          There is a bug in the pipeline that prevents passing\n        # json serialized
-          strings in some instances, workaround\n        # was to use base64 encoded
-          json strings\n        if \"labels\" in transformer_specification:\n            labels
-          = base64.b64decode(transformer_specification[\"labels\"]).decode(\"utf-8\")\n        else:\n            labels
+          EnvFrom allows all vars to be read from a config map\n        # If a variable
+          is defined by both env and envFrom,\n        # env takes precedance. If
+          a variable is defined twice\n        # in env from, then the last one wins.\n        if
+          \"env_configmap\" in transformer_specification:\n            envFrom = f\"\"\"\n          envFrom:\n            -
+          configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
           = \"\"\n\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
           kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\"\n          name:
           \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
           ''[\"python\", \"transform.py\"]'')}\n          args: [\"--protocol={predictor_protocol}\"]\n          env:\n            -
-          name: STORAGE_URI\n              value: {storage_uri}\n            - name:
-          CLASS_LABELS\n              value: |\n                    {labels}\n          \"\"\"\n    else:\n        transform_spec
+          name: STORAGE_URI\n              value: {storage_uri}\n          {envFrom}\n          \"\"\"\n    else:\n        transform_spec
           = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if
           predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas
           = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas
@@ -603,7 +605,7 @@ spec:
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "81b8d89a57b8a4a73bea2d17005aeab226abea47a9ff6f1ce3fbc2e3052aee3e", "url":
+          "025ce9958153a1f11a40a6a2e84a1101ee26142404faea206b780a28518693e3", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
           "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
@@ -685,7 +687,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = evaluate_model(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /dataset, name: '{{workflow.name}}-dataset-pvc', readOnly: false,
         subPath: dataset}
@@ -737,7 +739,7 @@ spec:
           dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
           "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
           "model_format", "optional": true, "type": "String"}, {"default": "0.001",
           "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
@@ -828,7 +830,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = evaluate_model(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /dataset, name: '{{workflow.name}}-dataset-pvc', readOnly: false,
         subPath: dataset}
@@ -880,7 +882,7 @@ spec:
           dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
           "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
           "model_format", "optional": true, "type": "String"}, {"default": "0.001",
           "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
@@ -950,7 +952,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = load_from_url(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /tmp/outputs/dest, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-dest'}
     inputs:
@@ -984,9 +986,9 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
-          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
-          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "inputs": [{"name": "source", "type": "String"}], "name": "Load from url",
+          "outputs": [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.model_config_url}}"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: load-from-url-2
@@ -1043,7 +1045,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = load_from_url(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /tmp/outputs/dest, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-2-dest'}
     inputs:
@@ -1077,9 +1079,9 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
-          [{"name": "source", "type": "String"}], "name": "Load from url", "outputs":
-          [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "inputs": [{"name": "source", "type": "String"}], "name": "Load from url",
+          "outputs": [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.initial_weights_url}}"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: train-model
@@ -1141,7 +1143,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = train_model(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       resources:
         limits: {nvidia.com/gpu: 1, memory: 30G}
       volumeMounts:
@@ -1191,7 +1193,7 @@ spec:
           dest=\"model\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = train_model(**_parsed_args)\n"], "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
+          = train_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
           "inputs": [{"name": "model_cfg", "type": "String"}, {"name": "initial_weights",
           "type": "String"}, {"name": "epochs", "type": "Integer"}], "name": "Train
           model", "outputs": [{"name": "model", "type": "String"}, {"name": "results",
@@ -1202,7 +1204,7 @@ spec:
       persistentVolumeClaim: {claimName: '{{workflow.name}}-dataset-pvc'}
   - name: upload-model
     container:
-      args: [--model, /tmp/inputs/model/data, --minio-url, '{{inputs.parameters.minio_url}}',
+      args: [--file-dir, /tmp/inputs/file_dir/data, --minio-url, '{{inputs.parameters.minio_url}}',
         --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-bee',
         --model-name, bee, --model-version, '{{inputs.parameters.model_version}}',
         --model-format, onnx, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
@@ -1215,8 +1217,7 @@ spec:
         python3 -u "$program_path" "$@"
       - |
         def upload_model(
-            model,
-            model_config = None,
+            file_dir,
             minio_url = "minio-service.kubeflow:9000",
             minio_secret = "mlpipeline-minio-artifact",
             export_bucket = "models",
@@ -1227,7 +1228,10 @@ spec:
             """Uploads a model file to MinIO artifact store."""
 
             from collections import namedtuple
-            from kubernetes import client, config
+            from kubernetes import (
+                client,
+                config
+            )
             import logging
             from minio import Minio
             import sys
@@ -1235,7 +1239,7 @@ spec:
             logging.basicConfig(
                 stream=sys.stdout,
                 level=logging.INFO,
-                format="%(levelname)s %(asctime)s: %(message)s",
+                format='%(levelname)s %(asctime)s: %(message)s'
             )
             logger = logging.getLogger()
 
@@ -1249,27 +1253,24 @@ spec:
                         return f.read()
 
                 def decode(text):
-                    return base64.b64decode(text).decode("utf-8")
+                    return base64.b64decode(text).decode('utf-8')
 
                 config.load_incluster_config()
                 api_client = client.ApiClient()
 
                 try:
-                    secret = client.CoreV1Api(api_client).read_namespaced_secret(
-                        minio_secret, get_current_namespace()
-                    )
+                    secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret, get_current_namespace())
 
-                    minio_user = decode(secret.data["accesskey"])
-                    minio_pass = decode(secret.data["secretkey"])
+                    minio_user = decode(secret.data['accesskey'])
+                    minio_pass = decode(secret.data['secretkey'])
 
-                    return Minio(
-                        minio_url, access_key=minio_user, secret_key=minio_pass, secure=False
-                    )
+                    return Minio(minio_url,
+                                 access_key=minio_user,
+                                 secret_key=minio_pass,
+                                 secure=False)
                 except ApiException as e:
                     if e.status == 404:
-                        logger.error(
-                            "Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!"
-                        )
+                        logger.error("Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!")
                     raise Exception(e)
 
             logger.info(f"Establishing MinIO connection to '{minio_url}'...")
@@ -1294,19 +1295,8 @@ spec:
             minio_client.fput_object(
                 bucket_name=export_bucket,  # bucket name in Minio
                 object_name=f"{model_format}/{model_path}",  # file name in bucket of Minio / for Triton name MUST be model.onnx!
-                file_path=model,  # file path / name in local system
+                file_path=file_dir,  # file path / name in local system
             )
-
-            if model_config:
-                logger.info("Saving model config for triton to MinIO")
-                # The config is above the version in the directory tree
-                # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
-                model_config_path = f"{model_name}/config.pbtxt"
-                minio_client.fput_object(
-                    bucket_name=export_bucket,  # bucket name in Minio
-                    object_name=f"{model_format}/{model_config_path}",
-                    file_path=model_config,  # file path / name in local system
-                )
 
             logger.info("Finished.")
             out_tuple = namedtuple("UploadOutput", ["s3_address", "triton_s3_address"])
@@ -1320,8 +1310,7 @@ spec:
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Upload model', description='Uploads a model file to MinIO artifact store.')
-        _parser.add_argument("--model", dest="model", type=str, required=True, default=argparse.SUPPRESS)
-        _parser.add_argument("--model-config", dest="model_config", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--file-dir", dest="file_dir", type=str, required=True, default=argparse.SUPPRESS)
         _parser.add_argument("--minio-url", dest="minio_url", type=str, required=False, default=argparse.SUPPRESS)
         _parser.add_argument("--minio-secret", dest="minio_secret", type=str, required=False, default=argparse.SUPPRESS)
         _parser.add_argument("--export-bucket", dest="export_bucket", type=str, required=False, default=argparse.SUPPRESS)
@@ -1348,9 +1337,9 @@ spec:
                 pass
             with open(output_file, 'w') as f:
                 f.write(_output_serializers[idx](_outputs[idx]))
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:latest
       volumeMounts:
-      - {mountPath: /tmp/inputs/model, name: data-storage, subPath: '{{inputs.parameters.convert-model-to-onnx-onnx_model-subpath}}',
+      - {mountPath: /tmp/inputs/file_dir, name: data-storage, subPath: '{{inputs.parameters.convert-model-to-onnx-onnx_model-subpath}}',
         readOnly: true}
       - {mountPath: /tmp/outputs/s3_address, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/upload-model-s3_address'}
       - {mountPath: /tmp/outputs/triton_s3_address, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/upload-model-triton_s3_address'}
@@ -1370,38 +1359,35 @@ spec:
         pipelines.kubeflow.org/enable_caching: "true"
       annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uploads
           a model file to MinIO artifact store.", "implementation": {"container":
-          {"args": ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent":
-          "model_config"}, "then": ["--model-config", {"inputPath": "model_config"}]}},
-          {"if": {"cond": {"isPresent": "minio_url"}, "then": ["--minio-url", {"inputValue":
-          "minio_url"}]}}, {"if": {"cond": {"isPresent": "minio_secret"}, "then":
-          ["--minio-secret", {"inputValue": "minio_secret"}]}}, {"if": {"cond": {"isPresent":
-          "export_bucket"}, "then": ["--export-bucket", {"inputValue": "export_bucket"}]}},
-          {"if": {"cond": {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue":
-          "model_name"}]}}, {"if": {"cond": {"isPresent": "model_version"}, "then":
-          ["--model-version", {"inputValue": "model_version"}]}}, {"if": {"cond":
-          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
-          "model_format"}]}}, "----output-paths", {"outputPath": "s3_address"}, {"outputPath":
-          "triton_s3_address"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
-          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
-          "def upload_model(\n    model,\n    model_config = None,\n    minio_url
+          {"args": ["--file-dir", {"inputPath": "file_dir"}, {"if": {"cond": {"isPresent":
+          "minio_url"}, "then": ["--minio-url", {"inputValue": "minio_url"}]}}, {"if":
+          {"cond": {"isPresent": "minio_secret"}, "then": ["--minio-secret", {"inputValue":
+          "minio_secret"}]}}, {"if": {"cond": {"isPresent": "export_bucket"}, "then":
+          ["--export-bucket", {"inputValue": "export_bucket"}]}}, {"if": {"cond":
+          {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue": "model_name"}]}},
+          {"if": {"cond": {"isPresent": "model_version"}, "then": ["--model-version",
+          {"inputValue": "model_version"}]}}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, "----output-paths",
+          {"outputPath": "s3_address"}, {"outputPath": "triton_s3_address"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def upload_model(\n    file_dir,\n    minio_url
           = \"minio-service.kubeflow:9000\",\n    minio_secret = \"mlpipeline-minio-artifact\",\n    export_bucket
           = \"models\",\n    model_name = \"my-model\",\n    model_version = 1,\n    model_format
           = \"onnx\",\n):\n    \"\"\"Uploads a model file to MinIO artifact store.\"\"\"\n\n    from
-          collections import namedtuple\n    from kubernetes import client, config\n    import
-          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=\"%(levelname)s
-          %(asctime)s: %(message)s\",\n    )\n    logger = logging.getLogger()\n\n    def
+          collections import namedtuple\n    from kubernetes import (\n        client,\n        config\n    )\n    import
+          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=''%(levelname)s
+          %(asctime)s: %(message)s''\n    )\n    logger = logging.getLogger()\n\n    def
           get_minio_client(minio_secret):\n        import base64\n        from kubernetes.client.rest
           import ApiException\n\n        def get_current_namespace():\n            SA_NAMESPACE
           = \"/var/run/secrets/kubernetes.io/serviceaccount/namespace\"\n            with
           open(SA_NAMESPACE) as f:\n                return f.read()\n\n        def
-          decode(text):\n            return base64.b64decode(text).decode(\"utf-8\")\n\n        config.load_incluster_config()\n        api_client
-          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(\n                minio_secret,
-          get_current_namespace()\n            )\n\n            minio_user = decode(secret.data[\"accesskey\"])\n            minio_pass
-          = decode(secret.data[\"secretkey\"])\n\n            return Minio(\n                minio_url,
-          access_key=minio_user, secret_key=minio_pass, secure=False\n            )\n        except
-          ApiException as e:\n            if e.status == 404:\n                logger.error(\n                    \"Failed
+          decode(text):\n            return base64.b64decode(text).decode(''utf-8'')\n\n        config.load_incluster_config()\n        api_client
+          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret,
+          get_current_namespace())\n\n            minio_user = decode(secret.data[''accesskey''])\n            minio_pass
+          = decode(secret.data[''secretkey''])\n\n            return Minio(minio_url,\n                         access_key=minio_user,\n                         secret_key=minio_pass,\n                         secure=False)\n        except
+          ApiException as e:\n            if e.status == 404:\n                logger.error(\"Failed
           to get secret ''mlpipeline-minio-artifact'', which is needed for communicating
-          with MinIO!\"\n                )\n            raise Exception(e)\n\n    logger.info(f\"Establishing
+          with MinIO!\")\n            raise Exception(e)\n\n    logger.info(f\"Establishing
           MinIO connection to ''{minio_url}''...\")\n    minio_client = get_minio_client(minio_secret)\n\n    #
           Create export bucket if it does not yet exist\n    response = minio_client.list_buckets()\n    export_bucket_exists
           = False\n    for bucket in response:\n        if bucket.name == export_bucket:\n            export_bucket_exists
@@ -1412,22 +1398,16 @@ spec:
           = f\"{s3_address}/{model_path}\"\n\n    logger.info(f\"Saving onnx file
           to MinIO (s3 address: {s3_address})...\")\n    minio_client.fput_object(\n        bucket_name=export_bucket,  #
           bucket name in Minio\n        object_name=f\"{model_format}/{model_path}\",  #
-          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=model,  #
-          file path / name in local system\n    )\n\n    if model_config:\n        logger.info(\"Saving
-          model config for triton to MinIO\")\n        # The config is above the version
-          in the directory tree\n        # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout\n        model_config_path
-          = f\"{model_name}/config.pbtxt\"\n        minio_client.fput_object(\n            bucket_name=export_bucket,  #
-          bucket name in Minio\n            object_name=f\"{model_format}/{model_config_path}\",\n            file_path=model_config,  #
-          file path / name in local system\n        )\n\n    logger.info(\"Finished.\")\n    out_tuple
+          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=file_dir,  #
+          file path / name in local system\n    )\n\n    logger.info(\"Finished.\")\n    out_tuple
           = namedtuple(\"UploadOutput\", [\"s3_address\", \"triton_s3_address\"])\n    return
           out_tuple(s3_address, triton_s3_address)\n\ndef _serialize_str(str_value:
           str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError(''Value
           \"{}\" has type \"{}\" instead of str.''.format(\n            str(str_value),
           str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser
           = argparse.ArgumentParser(prog=''Upload model'', description=''Uploads a
-          model file to MinIO artifact store.'')\n_parser.add_argument(\"--model\",
-          dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-config\",
-          dest=\"model_config\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
+          model file to MinIO artifact store.'')\n_parser.add_argument(\"--file-dir\",
+          dest=\"file_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
           dest=\"minio_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-secret\",
           dest=\"minio_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--export-bucket\",
           dest=\"export_bucket\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-name\",
@@ -1439,9 +1419,8 @@ spec:
           = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx,
           output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
-          "inputs": [{"name": "model", "type": "String"}, {"name": "model_config",
-          "optional": true, "type": "String"}, {"default": "minio-service.kubeflow:9000",
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:latest"}}, "inputs":
+          [{"name": "file_dir", "type": "String"}, {"default": "minio-service.kubeflow:9000",
           "name": "minio_url", "optional": true, "type": "String"}, {"default": "mlpipeline-minio-artifact",
           "name": "minio_secret", "optional": true, "type": "String"}, {"default":
           "models", "name": "export_bucket", "optional": true, "type": "String"},
@@ -1450,7 +1429,7 @@ spec:
           "Integer"}, {"default": "onnx", "name": "model_format", "optional": true,
           "type": "String"}], "name": "Upload model", "outputs": [{"name": "s3_address",
           "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "6da225cd49bc4c67005599df5513903975e1aa6837d1a1e41c503d7b793253c6", "url":
+          "a2d50683fd032a165ddeab601c5b2d94403f7899fe0563f16ab45b39d762f058", "url":
           "/home/jovyan/components/model-building/upload-model/component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-bee",
           "minio_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
@@ -1487,7 +1466,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = write_artifact_to_path(**_parsed_args)
-      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
       volumeMounts:
       - {mountPath: /mnt, name: '{{inputs.parameters.artifact_vol_pvc_name}}', readOnly: false,
         subPath: '{{inputs.parameters.artifact_vol_subpath}}'}
@@ -1511,9 +1490,9 @@ spec:
           dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
-          [{"name": "source", "type": "String"}, {"name": "dest", "type": "<class
-          ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "inputs": [{"name": "source", "type": "String"}, {"name": "dest", "type":
+          "<class ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/onnx-results/{{workflow.name}}"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
       labels:

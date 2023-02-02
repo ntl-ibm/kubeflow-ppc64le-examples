@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-01-31T22:37:15.501311',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-01T22:15:39.668176',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "Lehrig/Monkey-Species-Collection", "name": "dataset_url", "optional":
@@ -12,8 +12,7 @@ metadata:
       "name": "model_name", "optional": true, "type": "String"}, {"default": "", "name":
       "cluster_configuration_secret", "optional": true, "type": "String"}, {"default":
       "1", "name": "training_gpus", "optional": true, "type": "Integer"}, {"default":
-      "1", "name": "number_of_workers", "optional": true, "type": "Integer"}, {"default":
-      "Job", "name": "distribution_type", "optional": true, "type": "String"}, {"default":
+      "2", "name": "number_of_workers", "optional": true, "type": "Integer"}, {"default":
       "", "name": "training_node_selector", "optional": true, "type": "String"}, {"default":
       "100", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "minio-service.kubeflow:9000",
       "name": "minio_url", "optional": true}], "name": "End-to-end monkey species
@@ -149,7 +148,7 @@ spec:
       - --name
       - '{{inputs.parameters.model_name}}'
       - --storage-uri
-      - s3://{{workflow.namespace}}-bee/onnx
+      - s3://{{workflow.namespace}}-{{inputs.parameters.model_name}}/onnx
       - --minio-url
       - '{{inputs.parameters.minio_url}}'
       - --rm-existing
@@ -397,7 +396,7 @@ spec:
         pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
           "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "name": "{{inputs.parameters.model_name}}", "predictor_gpu_allocation":
-          "0", "predictor_protocol": "v2", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee/onnx",
+          "0", "predictor_protocol": "v2", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-{{inputs.parameters.model_name}}/onnx",
           "triton_runtime_version": "22.03-py3"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:
@@ -406,7 +405,6 @@ spec:
       - {name: dataset_configuration}
       - {name: dataset_label_columns}
       - {name: dataset_url}
-      - {name: distribution_type}
       - {name: epochs}
       - {name: minio_url}
       - {name: model_name}
@@ -464,7 +462,6 @@ spec:
         arguments:
           parameters:
           - {name: cluster_configuration_secret, value: '{{inputs.parameters.cluster_configuration_secret}}'}
-          - {name: distribution_type, value: '{{inputs.parameters.distribution_type}}'}
           - {name: epochs, value: '{{inputs.parameters.epochs}}'}
           - {name: model_name, value: '{{inputs.parameters.model_name}}'}
           - {name: number_of_workers, value: '{{inputs.parameters.number_of_workers}}'}
@@ -477,6 +474,7 @@ spec:
         dependencies: [convert-model-to-onnx]
         arguments:
           parameters:
+          - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
           - {name: model_name, value: '{{inputs.parameters.model_name}}'}
           - {name: convert-model-to-onnx-onnx_model_dir-subpath, value: '{{tasks.convert-model-to-onnx.outputs.parameters.convert-model-to-onnx-onnx_model_dir-subpath}}'}
   - name: evaluate-model
@@ -1530,6 +1528,7 @@ spec:
                       ReduceLROnPlateau,
                       TensorBoard,
                   )
+                  from horovod.tensorflow.keras.callbacks import MetricAverageCallback
                   import tensorflow_datasets as tfds
                   import time
 
@@ -1620,6 +1619,8 @@ spec:
                   opt = hvd.DistributedOptimizer(opt)
 
                   print("Compiling model...")
+                  # Horovod: Specify `experimental_run_tf_function=False` to ensure TensorFlow
+                  # uses hvd.DistributedOptimizer() to compute gradients.
                   model.compile(
                       optimizer=opt,
                       loss="categorical_crossentropy",
@@ -1629,7 +1630,7 @@ spec:
 
                   print("Initializing training callbacks...")
                   callbacks = [
-                      EarlyStopping(monitor="val_loss", patience=20, verbose=0, mode="min"),
+                      MetricAverageCallback(),
                       ReduceLROnPlateau(
                           monitor="val_loss",
                           factor=0.1,
@@ -1638,6 +1639,7 @@ spec:
                           min_delta=0.0001,
                           mode="min",
                       ),
+                      EarlyStopping(monitor="val_loss", patience=20, verbose=1, mode="min"),
                       TensorBoard(
                           log_dir=f"s3://mlpipeline/tensorboard/{os.environ['JOB_NAME']}",
                           histogram_freq=1,
@@ -1681,7 +1683,7 @@ spec:
                       model.save(model_dir)
                       print(f"Model saved to: {model_dir}")
 
-                      print("Finished.")
+                  print(f"Finished. {hvd.rank()}")
 
               import argparse
               _parser = argparse.ArgumentParser(prog='Train distributed model', description='Uses transfer learning on a prepared dataset. Once trained, the model is persisted to `model_dir`.')
@@ -1732,8 +1734,7 @@ spec:
       - --cluster-configuration-secret
       - '{{inputs.parameters.cluster_configuration_secret}}'
       - --distribution-specification
-      - '{"distribution_type": "{{inputs.parameters.distribution_type}}", "number_of_workers":
-        "{{inputs.parameters.number_of_workers}}"}'
+      - '{"distribution_type": "MPI", "number_of_workers": "{{inputs.parameters.number_of_workers}}"}'
       - --model-dir
       - /tmp/outputs/model_dir/data
       command:
@@ -2274,7 +2275,7 @@ spec:
                     "job_name": job_name,
                     "is_upload": "True",
                 }
-                command, _, _ = initialize_command(command_specification, parameters)
+                command, _, _, _ = initialize_command(command_specification, parameters)
                 return command
 
             def create_pvc_spec(pvc_name, namespace_spec, access_mode, pvc_size):
@@ -3051,7 +3052,6 @@ spec:
     inputs:
       parameters:
       - {name: cluster_configuration_secret}
-      - {name: distribution_type}
       - {name: epochs}
       - {name: model_name}
       - {name: number_of_workers}
@@ -3321,7 +3321,7 @@ spec:
           = json.dumps(outputs)\n        parameters = {\n            \"cluster_configuration\":
           cluster_configuration_json,\n            \"inputs\": outputs_json,\n            \"job_name\":
           job_name,\n            \"is_upload\": \"True\",\n        }\n        command,
-          _, _ = initialize_command(command_specification, parameters)\n        return
+          _, _, _ = initialize_command(command_specification, parameters)\n        return
           command\n\n    def create_pvc_spec(pvc_name, namespace_spec, access_mode,
           pvc_size):\n        pvc_spec = f\"\"\"apiVersion: batch/v1\napiVersion:
           v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: {pvc_name}\n  {namespace_spec}\nspec:\n  accessModes:\n  -
@@ -3612,24 +3612,23 @@ spec:
           "optional": true, "type": "typing.Dict[str, str]"}], "name": "Train model
           job", "outputs": [{"description": "Target path where the model will be stored.",
           "name": "model_dir", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "fbcb6a54e6d0d9a497dcfcb1330e65159d582b80b7c30da21579988ab1557ba0", "url":
+          "c29ed30c3d44b4af3a27f741d7b565dad0b7ce33a6bae6f201d5a4438cda4091", "url":
           "/home/jovyan/components/model-building/train-model-job/component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"cluster_configuration_secret":
           "{{inputs.parameters.cluster_configuration_secret}}", "cpus": "", "distribution_specification":
-          "{\"distribution_type\": \"{{inputs.parameters.distribution_type}}\", \"number_of_workers\":
-          \"{{inputs.parameters.number_of_workers}}\"}", "gpus": "{{inputs.parameters.training_gpus}}",
-          "memory": "", "model_name": "{{inputs.parameters.model_name}}", "node_selector":
-          "{{inputs.parameters.training_node_selector}}", "pvc_name": "", "pvc_size":
-          "10Gi", "train_mount": "/train", "train_parameters": "{\"epochs\": \"{{inputs.parameters.epochs}}\",
-          \"model_dir\": \"model_dir\", \"train_dataset_dir\": \"train_dataset_dir\",
-          \"validation_dataset_dir\": \"validation_dataset_dir\"}", "train_specification":
-          "name: Train distributed model\ndescription: Uses transfer learning on a
-          prepared dataset. Once trained, the model\n  is persisted to `model_dir`.\ninputs:\n-
-          {name: train_dataset_dir, type: String}\n- {name: validation_dataset_dir,
-          type: String}\n- {name: epochs, type: Integer, default: ''100'', optional:
-          true}\n- {name: batch_size, type: Integer, default: ''32'', optional: true}\noutputs:\n-
-          {name: model_dir, type: String}\nimplementation:\n  container:\n    image:
-          quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0\n    command:\n    -
+          "{\"distribution_type\": \"MPI\", \"number_of_workers\": \"{{inputs.parameters.number_of_workers}}\"}",
+          "gpus": "{{inputs.parameters.training_gpus}}", "memory": "", "model_name":
+          "{{inputs.parameters.model_name}}", "node_selector": "{{inputs.parameters.training_node_selector}}",
+          "pvc_name": "", "pvc_size": "10Gi", "train_mount": "/train", "train_parameters":
+          "{\"epochs\": \"{{inputs.parameters.epochs}}\", \"model_dir\": \"model_dir\",
+          \"train_dataset_dir\": \"train_dataset_dir\", \"validation_dataset_dir\":
+          \"validation_dataset_dir\"}", "train_specification": "name: Train distributed
+          model\ndescription: Uses transfer learning on a prepared dataset. Once trained,
+          the model\n  is persisted to `model_dir`.\ninputs:\n- {name: train_dataset_dir,
+          type: String}\n- {name: validation_dataset_dir, type: String}\n- {name:
+          epochs, type: Integer, default: ''100'', optional: true}\n- {name: batch_size,
+          type: Integer, default: ''32'', optional: true}\noutputs:\n- {name: model_dir,
+          type: String}\nimplementation:\n  container:\n    image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0\n    command:\n    -
           sh\n    - -ec\n    - |\n      program_path=$(mktemp)\n      printf \"%s\"
           \"$0\" > \"$program_path\"\n      python3 -u \"$program_path\" \"$@\"\n    -
           |\n      def _make_parent_dirs_and_return_path(file_path: str):\n          import
@@ -3641,7 +3640,8 @@ spec:
           os\n          import tensorflow as tf\n          from tensorflow.keras import
           Sequential\n          from tensorflow.keras.applications import InceptionV3\n          from
           tensorflow.keras.layers import (\n              BatchNormalization,\n              Dense,\n              Dropout,\n              GlobalAveragePooling2D,\n          )\n          from
-          tensorflow.keras.callbacks import (\n              EarlyStopping,\n              ModelCheckpoint,\n              ReduceLROnPlateau,\n              TensorBoard,\n          )\n          import
+          tensorflow.keras.callbacks import (\n              EarlyStopping,\n              ModelCheckpoint,\n              ReduceLROnPlateau,\n              TensorBoard,\n          )\n          from
+          horovod.tensorflow.keras.callbacks import MetricAverageCallback\n          import
           tensorflow_datasets as tfds\n          import time\n\n          def load_datasets():\n              train_dataset
           = tf.data.experimental.load(train_dataset_dir)\n              validation_dataset
           = tf.data.experimental.load(validation_dataset_dir)\n              return
@@ -3681,9 +3681,11 @@ spec:
           model...\")\n          model = build_model(shape)\n          print(model.summary())\n\n          opt
           = tf.keras.optimizers.Adam(learning_rate=0.001 * hvd.size())\n          #
           Horovod: add Horovod DistributedOptimizer.\n          opt = hvd.DistributedOptimizer(opt)\n\n          print(\"Compiling
-          model...\")\n          model.compile(\n              optimizer=opt,\n              loss=\"categorical_crossentropy\",\n              metrics=[\"categorical_accuracy\"],\n              experimental_run_tf_function=False,\n          )\n\n          print(\"Initializing
-          training callbacks...\")\n          callbacks = [\n              EarlyStopping(monitor=\"val_loss\",
-          patience=20, verbose=0, mode=\"min\"),\n              ReduceLROnPlateau(\n                  monitor=\"val_loss\",\n                  factor=0.1,\n                  patience=7,\n                  verbose=1,\n                  min_delta=0.0001,\n                  mode=\"min\",\n              ),\n              TensorBoard(\n                  log_dir=f\"s3://mlpipeline/tensorboard/{os.environ[''JOB_NAME'']}\",\n                  histogram_freq=1,\n              ),\n              #
+          model...\")\n          # Horovod: Specify `experimental_run_tf_function=False`
+          to ensure TensorFlow\n          # uses hvd.DistributedOptimizer() to compute
+          gradients.\n          model.compile(\n              optimizer=opt,\n              loss=\"categorical_crossentropy\",\n              metrics=[\"categorical_accuracy\"],\n              experimental_run_tf_function=False,\n          )\n\n          print(\"Initializing
+          training callbacks...\")\n          callbacks = [\n              MetricAverageCallback(),\n              ReduceLROnPlateau(\n                  monitor=\"val_loss\",\n                  factor=0.1,\n                  patience=7,\n                  verbose=1,\n                  min_delta=0.0001,\n                  mode=\"min\",\n              ),\n              EarlyStopping(monitor=\"val_loss\",
+          patience=20, verbose=1, mode=\"min\"),\n              TensorBoard(\n                  log_dir=f\"s3://mlpipeline/tensorboard/{os.environ[''JOB_NAME'']}\",\n                  histogram_freq=1,\n              ),\n              #
           Horovod: broadcast initial variable states from rank 0 to all other processes.\n              #
           This is necessary to ensure consistent initialization of all workers when\n              #
           training is started with random weights or restored from a checkpoint.\n              hvd.callbacks.BroadcastGlobalVariablesCallback(0),\n          ]\n          #
@@ -3695,7 +3697,7 @@ spec:
           took \", time.time() - start, \"seconds\")\n\n              print(\"Model
           train history:\")\n              print(hist.history)\n\n              print(f\"Saving
           model to: {model_dir}\")\n              model.save(model_dir)\n              print(f\"Model
-          saved to: {model_dir}\")\n\n              print(\"Finished.\")\n\n      import
+          saved to: {model_dir}\")\n\n          print(f\"Finished. {hvd.rank()}\")\n\n      import
           argparse\n      _parser = argparse.ArgumentParser(prog=''Train distributed
           model'', description=''Uses transfer learning on a prepared dataset. Once
           trained, the model is persisted to `model_dir`.'')\n      _parser.add_argument(\"--train-dataset-dir\",
@@ -3713,9 +3715,9 @@ spec:
           batch_size}\n    - --model-dir\n    - {outputPath: model_dir}\n"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: upload-model
     container:
-      args: [--file-dir, /tmp/inputs/file_dir/data, --minio-url, 'minio-service.kubeflow:9000',
-        --minio-secret, mlpipeline-minio-artifact, --export-bucket, models, --model-name,
-        '{{inputs.parameters.model_name}}', --model-version, '1', --model-format,
+      args: [--file-dir, /tmp/inputs/file_dir/data, --minio-url, '{{inputs.parameters.minio_url}}',
+        --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-{{inputs.parameters.model_name}}',
+        --model-name, '{{inputs.parameters.model_name}}', --model-version, '1', --model-format,
         onnx, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
       command:
       - sh
@@ -3854,6 +3856,7 @@ spec:
       - {mountPath: /tmp/outputs/triton_s3_address, name: data-storage, subPath: 'artefacts/{{workflow.uid}}_{{pod.name}}/upload-model-triton_s3_address'}
     inputs:
       parameters:
+      - {name: minio_url}
       - {name: model_name}
       - {name: convert-model-to-onnx-onnx_model_dir-subpath}
     outputs:
@@ -3939,8 +3942,8 @@ spec:
           "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
           "a2d50683fd032a165ddeab601c5b2d94403f7899fe0563f16ab45b39d762f058", "url":
           "/home/jovyan/components/model-building/upload-model/component.yaml"}',
-        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "models",
-          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "minio-service.kubeflow:9000",
+        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-{{inputs.parameters.model_name}}",
+          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "model_format": "onnx", "model_name": "{{inputs.parameters.model_name}}",
           "model_version": "1"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   arguments:
@@ -3951,8 +3954,7 @@ spec:
     - {name: model_name, value: monkey-classification}
     - {name: cluster_configuration_secret, value: ''}
     - {name: training_gpus, value: '1'}
-    - {name: number_of_workers, value: '1'}
-    - {name: distribution_type, value: Job}
+    - {name: number_of_workers, value: '2'}
     - {name: training_node_selector, value: ''}
     - {name: epochs, value: '100'}
     - {name: minio_url, value: 'minio-service.kubeflow:9000'}
