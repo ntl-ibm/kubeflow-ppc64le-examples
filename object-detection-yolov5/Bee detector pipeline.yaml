@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: bee-yolov5-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-02T00:00:36.614031',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-02T00:11:30.708552',
     pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_vol_pvc_name",
       "type": "String"}, {"name": "data_vol_subpath", "type": "String"}, {"default":
       "750", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml",
@@ -179,7 +179,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = convert_model_to_onnx(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /tmp/inputs/model, name: data-storage, subPath: '{{inputs.parameters.train-model-model-subpath}}',
         readOnly: true}
@@ -219,7 +219,7 @@ spec:
           dest=\"quantize\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model\",
           dest=\"onnx_model\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "model", "type": "String"}, {"name": "model_format",
           "type": "String"}, {"default": "", "name": "quantize", "optional": true,
           "type": "String"}], "name": "Convert model to onnx", "outputs": [{"name":
@@ -258,7 +258,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = copy_data(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /src-vol, name: '{{inputs.parameters.data_vol_pvc_name}}', readOnly: true,
         subPath: '{{inputs.parameters.data_vol_subpath}}'}
@@ -286,7 +286,7 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = copy_data(**_parsed_args)\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "source", "type": "String"}, {"name": "dest", "type":
           "String"}], "name": "Copy data"}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"dest": "/dest-vol/dataset",
@@ -687,7 +687,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = evaluate_model(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /dataset, name: '{{workflow.name}}-dataset-pvc', readOnly: false,
         subPath: dataset}
@@ -739,7 +739,7 @@ spec:
           dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
           "model_format", "optional": true, "type": "String"}, {"default": "0.001",
           "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
@@ -830,7 +830,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = evaluate_model(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /dataset, name: '{{workflow.name}}-dataset-pvc', readOnly: false,
         subPath: dataset}
@@ -882,7 +882,7 @@ spec:
           dest=\"max_det\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          = evaluate_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "model", "type": "String"}, {"default": "onnx", "name":
           "model_format", "optional": true, "type": "String"}, {"default": "0.001",
           "name": "conf_thres", "optional": true, "type": "Float"}, {"default": "0.6",
@@ -952,7 +952,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = load_from_url(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /tmp/outputs/dest, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-dest'}
     inputs:
@@ -986,7 +986,7 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "source", "type": "String"}], "name": "Load from url",
           "outputs": [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.model_config_url}}"}',
@@ -1045,7 +1045,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = load_from_url(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /tmp/outputs/dest, name: data-storage, subPath: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-2-dest'}
     inputs:
@@ -1079,7 +1079,7 @@ spec:
           type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = load_from_url(**_parsed_args)\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "source", "type": "String"}], "name": "Load from url",
           "outputs": [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.initial_weights_url}}"}',
@@ -1143,7 +1143,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = train_model(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       resources:
         limits: {nvidia.com/gpu: 1, memory: 30G}
       volumeMounts:
@@ -1193,7 +1193,7 @@ spec:
           dest=\"model\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--results\",
           dest=\"results\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = train_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          = train_model(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "model_cfg", "type": "String"}, {"name": "initial_weights",
           "type": "String"}, {"name": "epochs", "type": "Integer"}], "name": "Train
           model", "outputs": [{"name": "model", "type": "String"}, {"name": "results",
@@ -1466,7 +1466,7 @@ spec:
         _parsed_args = vars(_parser.parse_args())
 
         _outputs = write_artifact_to_path(**_parsed_args)
-      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
       volumeMounts:
       - {mountPath: /mnt, name: '{{inputs.parameters.artifact_vol_pvc_name}}', readOnly: false,
         subPath: '{{inputs.parameters.artifact_vol_subpath}}'}
@@ -1490,7 +1490,7 @@ spec:
           dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
-          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.10.1-pt1.10.2-v0"}},
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}},
           "inputs": [{"name": "source", "type": "String"}, {"name": "dest", "type":
           "<class ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/onnx-results/{{workflow.name}}"}',
