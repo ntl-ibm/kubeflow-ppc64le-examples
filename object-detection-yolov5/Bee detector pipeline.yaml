@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: bee-yolov5-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-02T00:22:40.401473',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-03T16:50:55.922234',
     pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_vol_pvc_name",
       "type": "String"}, {"name": "data_vol_subpath", "type": "String"}, {"default":
       "750", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml",
@@ -35,15 +35,18 @@ spec:
       - {name: quantize_onnx}
     dag:
       tasks:
-      - name: condition-store-artifacts-1
-        template: condition-store-artifacts-1
+      - name: condition-store-onnx-metrics-1
+        template: condition-store-onnx-metrics-1
         when: '"{{inputs.parameters.artifact_vol_pvc_name}}" != ""'
-        dependencies: [deploy-inference-service, evaluate-model]
+        dependencies: [convert-model-to-onnx, evaluate-model, evaluate-model-2, train-model]
         arguments:
           parameters:
           - {name: artifact_vol_pvc_name, value: '{{inputs.parameters.artifact_vol_pvc_name}}'}
           - {name: artifact_vol_subpath, value: '{{inputs.parameters.artifact_vol_subpath}}'}
+          - {name: convert-model-to-onnx-onnx_model-subpath, value: '{{tasks.convert-model-to-onnx.outputs.parameters.convert-model-to-onnx-onnx_model-subpath}}'}
+          - {name: evaluate-model-2-results-subpath, value: '{{tasks.evaluate-model-2.outputs.parameters.evaluate-model-2-results-subpath}}'}
           - {name: evaluate-model-results-subpath, value: '{{tasks.evaluate-model.outputs.parameters.evaluate-model-results-subpath}}'}
+          - {name: train-model-model-subpath, value: '{{tasks.train-model.outputs.parameters.train-model-model-subpath}}'}
       - name: convert-model-to-onnx
         template: convert-model-to-onnx
         dependencies: [train-model]
@@ -53,14 +56,14 @@ spec:
           - {name: train-model-model-subpath, value: '{{tasks.train-model.outputs.parameters.train-model-model-subpath}}'}
       - name: copy-data
         template: copy-data
-        dependencies: [create-artefacts-blackboard, dataset-pvc]
+        dependencies: [create-artefacts-blackboard, create-pvc-for-dataset]
         arguments:
           parameters:
           - {name: data_vol_pvc_name, value: '{{inputs.parameters.data_vol_pvc_name}}'}
           - {name: data_vol_subpath, value: '{{inputs.parameters.data_vol_subpath}}'}
       - {name: create-artefacts-blackboard, template: create-artefacts-blackboard}
-      - name: dataset-pvc
-        template: dataset-pvc
+      - name: create-pvc-for-dataset
+        template: create-pvc-for-dataset
         arguments:
           parameters:
           - {name: dataset_size, value: '{{inputs.parameters.dataset_size}}'}
@@ -110,12 +113,15 @@ spec:
           - {name: minio_url, value: '{{inputs.parameters.minio_url}}'}
           - {name: model_version, value: '{{inputs.parameters.model_version}}'}
           - {name: convert-model-to-onnx-onnx_model-subpath, value: '{{tasks.convert-model-to-onnx.outputs.parameters.convert-model-to-onnx-onnx_model-subpath}}'}
-  - name: condition-store-artifacts-1
+  - name: condition-store-onnx-metrics-1
     inputs:
       parameters:
       - {name: artifact_vol_pvc_name}
       - {name: artifact_vol_subpath}
+      - {name: convert-model-to-onnx-onnx_model-subpath}
+      - {name: evaluate-model-2-results-subpath}
       - {name: evaluate-model-results-subpath}
+      - {name: train-model-model-subpath}
     dag:
       tasks:
       - name: write-artifact-to-path
@@ -125,6 +131,27 @@ spec:
           - {name: artifact_vol_pvc_name, value: '{{inputs.parameters.artifact_vol_pvc_name}}'}
           - {name: artifact_vol_subpath, value: '{{inputs.parameters.artifact_vol_subpath}}'}
           - {name: evaluate-model-results-subpath, value: '{{inputs.parameters.evaluate-model-results-subpath}}'}
+      - name: write-artifact-to-path-2
+        template: write-artifact-to-path-2
+        arguments:
+          parameters:
+          - {name: artifact_vol_pvc_name, value: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+          - {name: artifact_vol_subpath, value: '{{inputs.parameters.artifact_vol_subpath}}'}
+          - {name: evaluate-model-2-results-subpath, value: '{{inputs.parameters.evaluate-model-2-results-subpath}}'}
+      - name: write-artifact-to-path-3
+        template: write-artifact-to-path-3
+        arguments:
+          parameters:
+          - {name: artifact_vol_pvc_name, value: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+          - {name: artifact_vol_subpath, value: '{{inputs.parameters.artifact_vol_subpath}}'}
+          - {name: train-model-model-subpath, value: '{{inputs.parameters.train-model-model-subpath}}'}
+      - name: write-artifact-to-path-4
+        template: write-artifact-to-path-4
+        arguments:
+          parameters:
+          - {name: artifact_vol_pvc_name, value: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+          - {name: artifact_vol_subpath, value: '{{inputs.parameters.artifact_vol_subpath}}'}
+          - {name: convert-model-to-onnx-onnx_model-subpath, value: '{{inputs.parameters.convert-model-to-onnx-onnx_model-subpath}}'}
   - name: convert-model-to-onnx
     container:
       args: [--model, /tmp/inputs/model/data, --model-format, pt, --quantize, '{{inputs.parameters.quantize_onnx}}',
@@ -269,11 +296,8 @@ spec:
       - {name: data_vol_pvc_name}
       - {name: data_vol_subpath}
     metadata:
-      labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
-        pipelines.kubeflow.org/pipeline-sdk-type: kfp
-        pipelines.kubeflow.org/enable_caching: "true"
-      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+      annotations: {pipelines.kubeflow.org/task_display_name: Copy dataset to Pipeline
+          owed PVC, pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
           {"args": ["--source", {"inputValue": "source"}, "--dest", {"inputValue":
           "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
           \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
@@ -290,6 +314,10 @@ spec:
           [{"name": "source", "type": "String"}, {"name": "dest", "type": "String"}],
           "name": "Copy data"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"dest":
           "/dest-vol/dataset", "source": "/src-vol"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
     volumes:
     - name: '{{inputs.parameters.data_vol_pvc_name}}'
       persistentVolumeClaim: {claimName: '{{inputs.parameters.data_vol_pvc_name}}'}
@@ -324,7 +352,7 @@ spec:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
         pipelines.kubeflow.org/enable_caching: "true"
-  - name: dataset-pvc
+  - name: create-pvc-for-dataset
     resource:
       action: create
       setOwnerReference: true
@@ -344,11 +372,11 @@ spec:
       - {name: dataset_size}
     outputs:
       parameters:
-      - name: dataset-pvc-manifest
+      - name: create-pvc-for-dataset-manifest
         valueFrom: {jsonPath: '{}'}
-      - name: dataset-pvc-name
+      - name: create-pvc-for-dataset-name
         valueFrom: {jsonPath: '{.metadata.name}'}
-      - name: dataset-pvc-size
+      - name: create-pvc-for-dataset-size
         valueFrom: {jsonPath: '{.status.capacity.storage}'}
     metadata:
       annotations: {pipelines.kubeflow.org/max_cache_staleness: P0D}
@@ -375,6 +403,8 @@ spec:
       - v2
       - --triton-runtime-version
       - 22.03-py3
+      - --predictor-node-selector
+      - ''
       command:
       - sh
       - -ec
@@ -387,8 +417,9 @@ spec:
         ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n  \
         \  predictor_max_replicas = None,\n    predictor_gpu_allocation = 0,\n   \
         \ predictor_protocol = \"v2\",  # or grpc-v2\n    triton_runtime_version =\
-        \ \"22.03-py3\",\n    transformer_specification = None,\n):\n    import os\n\
-        \    import subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+        \ \"22.03-py3\",\n    predictor_node_selector = \"\",\n    transformer_specification\
+        \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n   \
+        \ import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
         \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
         \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
@@ -411,14 +442,15 @@ spec:
         \ v1\n    kind: ServiceAccount\n    metadata:\n      name: kserve-inference-sa\n\
         \    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n\
         \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
-        \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
-        \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
-        \ check=False)\n\n    ####### Inference Service template #######\n\n    if\
-        \ transformer_specification:\n        min_t_replicas = (\n            (\"\
-        minReplicas: \" + transformer_specification[\"min_replicas\"])\n         \
-        \   if \"min_replicas\" in transformer_specification\n            else \"\"\
-        \n        )\n        max_t_replicas = (\n            (\"maxReplicas: \" +\
-        \ transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
+        \ check=True, text=True\n    )\n\n    ### Remove Existing Inferenceservice,\
+        \ if requested\n    ### Ignores errrors if service does not already exist\n\
+        \    if rm_existing:\n        subprocess.run([\"kubectl\", \"delete\", \"\
+        inferenceservice\", name], check=False)\n\n    ####### Transformer Spec ######\n\
+        \    if transformer_specification:\n        min_t_replicas = (\n         \
+        \   (\"minReplicas: \" + transformer_specification[\"min_replicas\"])\n  \
+        \          if \"min_replicas\" in transformer_specification\n            else\
+        \ \"\"\n        )\n        max_t_replicas = (\n            (\"maxReplicas:\
+        \ \" + transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
         \ in transformer_specification\n            else \"\"\n        )\n\n     \
         \   # EnvFrom allows all vars to be read from a config map\n        # If a\
         \ variable is defined by both env and envFrom,\n        # env takes precedance.\
@@ -426,9 +458,14 @@ spec:
         \ wins.\n        if \"env_configmap\" in transformer_specification:\n    \
         \        envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
         \                name: {transformer_specification[\"env_configmap\"]}\n  \
-        \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
-        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
-        \        serviceAccountName: kserve-inference-sa\n        containers:\n  \
+        \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        # Node\
+        \ selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
+        \        if \"node_selector\" in transformer_specification:\n            t_node_selector\
+        \ = f'nodeSelector:\\n        {transformer_specification[\"node_selector\"\
+        ]}'\n        else:\n            t_node_selector = \"\"\n\n        #### Transformer\
+        \ specification ####\n        transform_spec = f\"\"\"\n      transformer:\n\
+        \        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:\
+        \ kserve-inference-sa\n        {t_node_selector}\n        containers:\n  \
         \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
         \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
         command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
@@ -445,14 +482,17 @@ spec:
         \ )\n\n    if concurrency_target:\n        autoscaling_target = f\"\"\"\n\
         \        autoscaling.knative.dev/target: \"{concurrency_target}\"\n      \
         \  autoscaling.knative.dev/metric: \"concurrency\"\n        \"\"\"\n    else:\n\
-        \        autoscaling_target = \"\"\n\n    service_spec = f\"\"\"\n    apiVersion:\
-        \ serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n \
-        \     name: {name}\n      annotations:\n        sidecar.istio.io/inject: \"\
-        false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
-        \        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n     \
-        \ predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n       \
-        \ serviceAccountName: kserve-inference-sa\n        triton:\n          runtimeVersion:\
-        \ {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
+        \        autoscaling_target = \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
+        \    if predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\\
+        n        {predictor_node_selector}\"\n    else:\n        p_node_selector =\
+        \ \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\
+        \n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
+        \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
+        \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+        \        {autoscaling_target}\n    spec:\n      {transform_spec}\n      predictor:\n\
+        \        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:\
+        \ kserve-inference-sa\n        {p_node_selector}\n        triton:\n      \
+        \    runtimeVersion: {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
         ]\n          storageUri: {storage_uri}\n          ports: {predictor_port_spec}\n\
         \          env:\n          - name: OMP_NUM_THREADS\n            value: \"\
         1\"\n          resources:\n            limits:\n               {gpu_resources}\n\
@@ -482,9 +522,10 @@ spec:
         , dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n\
         _parser.add_argument(\"--triton-runtime-version\", dest=\"triton_runtime_version\"\
         , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-        --transformer-specification\", dest=\"transformer_specification\", type=json.loads,\
-        \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
-        \n_outputs = deploy_inference_service(**_parsed_args)\n"
+        --predictor-node-selector\", dest=\"predictor_node_selector\", type=str, required=False,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\"\
+        , dest=\"transformer_specification\", type=json.loads, required=False, default=argparse.SUPPRESS)\n\
+        _parsed_args = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"
       image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
     inputs:
       parameters:
@@ -509,16 +550,18 @@ spec:
           {"if": {"cond": {"isPresent": "predictor_protocol"}, "then": ["--predictor-protocol",
           {"inputValue": "predictor_protocol"}]}}, {"if": {"cond": {"isPresent": "triton_runtime_version"},
           "then": ["--triton-runtime-version", {"inputValue": "triton_runtime_version"}]}},
-          {"if": {"cond": {"isPresent": "transformer_specification"}, "then": ["--transformer-specification",
-          {"inputValue": "transformer_specification"}]}}], "command": ["sh", "-ec",
-          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
-          -u \"$program_path\" \"$@\"\n", "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n    rm_existing
+          {"if": {"cond": {"isPresent": "predictor_node_selector"}, "then": ["--predictor-node-selector",
+          {"inputValue": "predictor_node_selector"}]}}, {"if": {"cond": {"isPresent":
+          "transformer_specification"}, "then": ["--transformer-specification", {"inputValue":
+          "transformer_specification"}]}}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def deploy_inference_service(\n    name,\n    storage_uri,\n    minio_url,\n    rm_existing
           = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\",\n    concurrency_target
           = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas
           = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\",  #
-          or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_specification
-          = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import
-          base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
+          or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    predictor_node_selector
+          = \"\",\n    transformer_specification = None,\n):\n    import os\n    import
+          subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
           https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n    #
           https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n    #
@@ -538,10 +581,11 @@ spec:
           = \"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n    metadata:\n      name:
           kserve-inference-sa\n    secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n    subprocess.run(\n        [\"kubectl\",
           \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    ###
-          Remove Existing\n    if rm_existing:\n        subprocess.run([\"kubectl\",
-          \"delete\", \"inferenceservice\", name], check=False)\n\n    ####### Inference
-          Service template #######\n\n    if transformer_specification:\n        min_t_replicas
-          = (\n            (\"minReplicas: \" + transformer_specification[\"min_replicas\"])\n            if
+          Remove Existing Inferenceservice, if requested\n    ### Ignores errrors
+          if service does not already exist\n    if rm_existing:\n        subprocess.run([\"kubectl\",
+          \"delete\", \"inferenceservice\", name], check=False)\n\n    ####### Transformer
+          Spec ######\n    if transformer_specification:\n        min_t_replicas =
+          (\n            (\"minReplicas: \" + transformer_specification[\"min_replicas\"])\n            if
           \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n        max_t_replicas
           = (\n            (\"maxReplicas: \" + transformer_specification[\"max_replicas\"])\n            if
           \"min_replicas\" in transformer_specification\n            else \"\"\n        )\n\n        #
@@ -550,11 +594,16 @@ spec:
           a variable is defined twice\n        # in env from, then the last one wins.\n        if
           \"env_configmap\" in transformer_specification:\n            envFrom = f\"\"\"\n          envFrom:\n            -
           configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
-          = \"\"\n\n        transform_spec = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
-          kserve-inference-sa\n        containers:\n        - image: \"{transformer_specification[\"image\"]}\"\n          name:
-          \"{name}-transformer\"\n          command: {transformer_specification.get(\"command\",
-          ''[\"python\", \"transform.py\"]'')}\n          args: [\"--protocol={predictor_protocol}\"]\n          env:\n            -
-          name: STORAGE_URI\n              value: {storage_uri}\n          {envFrom}\n          \"\"\"\n    else:\n        transform_spec
+          = \"\"\n\n        # Node selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n        if
+          \"node_selector\" in transformer_specification:\n            t_node_selector
+          = f''nodeSelector:\\n        {transformer_specification[\"node_selector\"]}''\n        else:\n            t_node_selector
+          = \"\"\n\n        #### Transformer specification ####\n        transform_spec
+          = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        {t_node_selector}\n        containers:\n        -
+          image: \"{transformer_specification[\"image\"]}\"\n          name: \"{name}-transformer\"\n          command:
+          {transformer_specification.get(\"command\", ''[\"python\", \"transform.py\"]'')}\n          args:
+          [\"--protocol={predictor_protocol}\"]\n          env:\n            - name:
+          STORAGE_URI\n              value: {storage_uri}\n          {envFrom}\n          \"\"\"\n    else:\n        transform_spec
           = \"\"\n\n    gpu_resources = (\n        f\"nvidia.com/gpu: {predictor_gpu_allocation}\"\n        if
           predictor_gpu_allocation\n        else \"\"\n    )\n\n    min_p_replicas
           = (\n        f\"minReplicas: {predictor_min_replicas}\"\n        if predictor_min_replicas
@@ -565,13 +614,16 @@ spec:
           == \"grpc-v2\"\n        else \"\"\n    )\n\n    if concurrency_target:\n        autoscaling_target
           = f\"\"\"\n        autoscaling.knative.dev/target: \"{concurrency_target}\"\n        autoscaling.knative.dev/metric:
           \"concurrency\"\n        \"\"\"\n    else:\n        autoscaling_target =
-          \"\"\n\n    service_spec = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind:
-          InferenceService\n    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:
-          \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n      predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:
-          kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n          args:
-          [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n          ports:
-          {predictor_port_spec}\n          env:\n          - name: OMP_NUM_THREADS\n            value:
-          \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
+          \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n    if
+          predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\n        {predictor_node_selector}\"\n    else:\n        p_node_selector
+          = \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\n    apiVersion:
+          serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n      name:
+          {name}\n      annotations:\n        sidecar.istio.io/inject: \"false\"\n        #
+          https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n        {autoscaling_target}\n    spec:\n      {transform_spec}\n      predictor:\n        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:
+          kserve-inference-sa\n        {p_node_selector}\n        triton:\n          runtimeVersion:
+          {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"]\n          storageUri:
+          {storage_uri}\n          ports: {predictor_port_spec}\n          env:\n          -
+          name: OMP_NUM_THREADS\n            value: \"1\"\n          resources:\n            limits:\n               {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\",
           \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n    )\n\n    print(\"Waiting
           for inference service to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
           _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
@@ -587,7 +639,8 @@ spec:
           dest=\"predictor_max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-gpu-allocation\",
           dest=\"predictor_gpu_allocation\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-protocol\",
           dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--triton-runtime-version\",
-          dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\",
+          dest=\"triton_runtime_version\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictor-node-selector\",
+          dest=\"predictor_node_selector\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\",
           dest=\"transformer_specification\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"],
           "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
@@ -601,15 +654,16 @@ spec:
           {"default": "0", "name": "predictor_gpu_allocation", "optional": true, "type":
           "Integer"}, {"default": "v2", "name": "predictor_protocol", "optional":
           true, "type": "String"}, {"default": "22.03-py3", "name": "triton_runtime_version",
+          "optional": true, "type": "String"}, {"default": "", "name": "predictor_node_selector",
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "025ce9958153a1f11a40a6a2e84a1101ee26142404faea206b780a28518693e3", "url":
+          "6f2ebe4cd10740f506e0bcf694d31a630d87842489ac66d608634904aee0a6af", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
           "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
-          "name": "bee", "predictor_gpu_allocation": "0", "predictor_protocol": "v2",
-          "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee/onnx",
+          "name": "bee", "predictor_gpu_allocation": "0", "predictor_node_selector":
+          "", "predictor_protocol": "v2", "rm_existing": "True", "storage_uri": "s3://{{workflow.namespace}}-bee/onnx",
           "triton_runtime_version": "22.03-py3"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: evaluate-model
     container:
@@ -673,7 +727,6 @@ spec:
 
             os.makedirs(os.path.dirname(results), exist_ok=True)
             shutil.copytree("/yolov5/runs/val/exp", results)
-            # subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
@@ -700,15 +753,15 @@ spec:
       parameters:
       - {name: evaluate-model-results-subpath, value: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/evaluate-model-results'}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate ONNX, pipelines.kubeflow.org/component_spec: '{"implementation":
-          {"container": {"args": ["--model", {"inputPath": "model"}, {"if": {"cond":
-          {"isPresent": "model_format"}, "then": ["--model-format", {"inputValue":
-          "model_format"}]}}, {"if": {"cond": {"isPresent": "conf_thres"}, "then":
-          ["--conf-thres", {"inputValue": "conf_thres"}]}}, {"if": {"cond": {"isPresent":
-          "iou_thres"}, "then": ["--iou-thres", {"inputValue": "iou_thres"}]}}, {"if":
-          {"cond": {"isPresent": "max_det"}, "then": ["--max-det", {"inputValue":
-          "max_det"}]}}, "--results", {"outputPath": "results"}], "command": ["sh",
-          "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate ONNX Model,
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, {"if": {"cond":
+          {"isPresent": "conf_thres"}, "then": ["--conf-thres", {"inputValue": "conf_thres"}]}},
+          {"if": {"cond": {"isPresent": "iou_thres"}, "then": ["--iou-thres", {"inputValue":
+          "iou_thres"}]}}, {"if": {"cond": {"isPresent": "max_det"}, "then": ["--max-det",
+          {"inputValue": "max_det"}]}}, "--results", {"outputPath": "results"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
           -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
           str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
           file_path\n\ndef evaluate_model(\n    results,\n    model,\n    model_format
@@ -728,8 +781,7 @@ spec:
           named_model)\n\n    subprocess.run(\n        f\"python val.py --weights
           {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
           {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    os.makedirs(os.path.dirname(results),
-          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n    #
-          subprocess.run(\"find . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport
+          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n\nimport
           argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
           dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
           dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
@@ -816,7 +868,6 @@ spec:
 
             os.makedirs(os.path.dirname(results), exist_ok=True)
             shutil.copytree("/yolov5/runs/val/exp", results)
-            # subprocess.run("find . -print", cwd="/yolov5", shell=True, check=True)
 
         import argparse
         _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
@@ -843,7 +894,7 @@ spec:
       parameters:
       - {name: evaluate-model-2-results-subpath, value: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/evaluate-model-2-results'}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate with best weights,
+      annotations: {pipelines.kubeflow.org/task_display_name: Evaluate Torch Model,
         pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
           ["--model", {"inputPath": "model"}, {"if": {"cond": {"isPresent": "model_format"},
           "then": ["--model-format", {"inputValue": "model_format"}]}}, {"if": {"cond":
@@ -871,8 +922,7 @@ spec:
           named_model)\n\n    subprocess.run(\n        f\"python val.py --weights
           {named_model} --data /dataset/data.yaml --img 640 \"\n        f\"--conf-thres
           {conf_thres} --iou-thres {iou_thres} --max-det {max_det} --workers=0 \",\n        check=True,\n        shell=True,\n        cwd=\"/yolov5\",\n    )\n\n    os.makedirs(os.path.dirname(results),
-          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n    #
-          subprocess.run(\"find . -print\", cwd=\"/yolov5\", shell=True, check=True)\n\nimport
+          exist_ok=True)\n    shutil.copytree(\"/yolov5/runs/val/exp\", results)\n\nimport
           argparse\n_parser = argparse.ArgumentParser(prog=''Evaluate model'', description='''')\n_parser.add_argument(\"--model\",
           dest=\"model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
           dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--conf-thres\",
@@ -961,15 +1011,11 @@ spec:
       parameters:
       - {name: load-from-url-dest-subpath, value: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-dest'}
     metadata:
-      labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
-        pipelines.kubeflow.org/pipeline-sdk-type: kfp
-        pipelines.kubeflow.org/enable_caching: "true"
-      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
-          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
-          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
-          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
-          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+      annotations: {pipelines.kubeflow.org/task_display_name: Load model Config, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--source", {"inputValue": "source"}, "--dest",
+          {"outputPath": "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
           exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
           os\n    import shutil\n    from urllib.request import urlretrieve\n    from
           urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
@@ -990,6 +1036,10 @@ spec:
           [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.model_config_url}}"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
   - name: load-from-url-2
     container:
       args: [--source, '{{inputs.parameters.initial_weights_url}}', --dest, /tmp/outputs/dest/data]
@@ -1054,16 +1104,13 @@ spec:
       parameters:
       - {name: load-from-url-2-dest-subpath, value: 'ml-blackboard/{{workflow.uid}}_{{pod.name}}/load-from-url-2-dest'}
     metadata:
-      labels:
-        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
-        pipelines.kubeflow.org/pipeline-sdk-type: kfp
-        pipelines.kubeflow.org/enable_caching: "true"
-      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
-          {"args": ["--source", {"inputValue": "source"}, "--dest", {"outputPath":
-          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
-          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
-          _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
-          exist_ok=True)\n    return file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
+      annotations: {pipelines.kubeflow.org/task_display_name: Load initial weights,
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--source", {"inputValue": "source"}, "--dest", {"outputPath": "dest"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def _make_parent_dirs_and_return_path(file_path:
+          str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return
+          file_path\n\ndef load_from_url(\n    source,\n    dest,\n):\n    import
           os\n    import shutil\n    from urllib.request import urlretrieve\n    from
           urllib.parse import urlparse\n\n    # Make target directories if needed\n    parent_dirs
           = os.path.dirname(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    #
@@ -1083,6 +1130,10 @@ spec:
           [{"name": "dest", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"source": "{{inputs.parameters.initial_weights_url}}"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
   - name: train-model
     container:
       args: [--model-cfg, /tmp/inputs/model_cfg/data, --initial-weights, /tmp/inputs/initial_weights/data,
@@ -1436,7 +1487,7 @@ spec:
         pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: write-artifact-to-path
     container:
-      args: [--source, /tmp/inputs/source/data, --dest, '/mnt/onnx-results/{{workflow.name}}']
+      args: [--source, /tmp/inputs/source/data, --dest, '/mnt/{{workflow.name}}/onnx-metrics']
       command:
       - sh
       - -ec
@@ -1450,8 +1501,7 @@ spec:
             import shutil
 
             parent_dirs = os.path.dirname(dest)
-            if not os.path.exists(parent_dirs):
-                os.makedirs(parent_dirs)
+            os.makedirs(parent_dirs, exist_ok=True)
 
             if os.path.isdir(source):
                 shutil.copytree(source, dest)
@@ -1477,22 +1527,220 @@ spec:
       - {name: artifact_vol_subpath}
       - {name: evaluate-model-results-subpath}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Save ONNX results, pipelines.kubeflow.org/component_spec: '{"implementation":
-          {"container": {"args": ["--source", {"inputPath": "source"}, "--dest", {"inputValue":
-          "dest"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\"
-          \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def
-          write_artifact_to_path(source, dest):\n    import os\n    import shutil\n\n    parent_dirs
-          = os.path.dirname(dest)\n    if not os.path.exists(parent_dirs):\n        os.makedirs(parent_dirs)\n\n    if
-          os.path.isdir(source):\n        shutil.copytree(source, dest)\n    else:\n        shutil.copyfile(source,
-          dest)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Write
-          artifact to path'', description='''')\n_parser.add_argument(\"--source\",
+      annotations: {pipelines.kubeflow.org/task_display_name: Save ONNX metrics (PVC),
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--source", {"inputPath": "source"}, "--dest", {"inputValue": "dest"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def write_artifact_to_path(source,
+          dest):\n    import os\n    import shutil\n\n    parent_dirs = os.path.dirname(dest)\n    os.makedirs(parent_dirs,
+          exist_ok=True)\n\n    if os.path.isdir(source):\n        shutil.copytree(source,
+          dest)\n    else:\n        shutil.copyfile(source, dest)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Write artifact to path'', description='''')\n_parser.add_argument(\"--source\",
           dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
           dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
           "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
           [{"name": "source", "type": "String"}, {"name": "dest", "type": "<class
           ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
-        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/onnx-results/{{workflow.name}}"}',
+        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/{{workflow.name}}/onnx-metrics"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: '{{inputs.parameters.artifact_vol_pvc_name}}'
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+  - name: write-artifact-to-path-2
+    container:
+      args: [--source, /tmp/inputs/source/data, --dest, '/mnt/{{workflow.name}}/pt-metrics']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def write_artifact_to_path(source, dest):
+            import os
+            import shutil
+
+            parent_dirs = os.path.dirname(dest)
+            os.makedirs(parent_dirs, exist_ok=True)
+
+            if os.path.isdir(source):
+                shutil.copytree(source, dest)
+            else:
+                shutil.copyfile(source, dest)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Write artifact to path', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = write_artifact_to_path(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /mnt, name: '{{inputs.parameters.artifact_vol_pvc_name}}', readOnly: false,
+        subPath: '{{inputs.parameters.artifact_vol_subpath}}'}
+      - {mountPath: /tmp/inputs/source, name: data-storage, subPath: '{{inputs.parameters.evaluate-model-2-results-subpath}}',
+        readOnly: true}
+    inputs:
+      parameters:
+      - {name: artifact_vol_pvc_name}
+      - {name: artifact_vol_subpath}
+      - {name: evaluate-model-2-results-subpath}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Save Torch results (PVC),
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--source", {"inputPath": "source"}, "--dest", {"inputValue": "dest"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def write_artifact_to_path(source,
+          dest):\n    import os\n    import shutil\n\n    parent_dirs = os.path.dirname(dest)\n    os.makedirs(parent_dirs,
+          exist_ok=True)\n\n    if os.path.isdir(source):\n        shutil.copytree(source,
+          dest)\n    else:\n        shutil.copyfile(source, dest)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Write artifact to path'', description='''')\n_parser.add_argument(\"--source\",
+          dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}, {"name": "dest", "type": "<class
+          ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/{{workflow.name}}/pt-metrics"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: '{{inputs.parameters.artifact_vol_pvc_name}}'
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+  - name: write-artifact-to-path-3
+    container:
+      args: [--source, /tmp/inputs/source/data, --dest, '/mnt/{{workflow.name}}/model.pt']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def write_artifact_to_path(source, dest):
+            import os
+            import shutil
+
+            parent_dirs = os.path.dirname(dest)
+            os.makedirs(parent_dirs, exist_ok=True)
+
+            if os.path.isdir(source):
+                shutil.copytree(source, dest)
+            else:
+                shutil.copyfile(source, dest)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Write artifact to path', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = write_artifact_to_path(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /mnt, name: '{{inputs.parameters.artifact_vol_pvc_name}}', readOnly: false,
+        subPath: '{{inputs.parameters.artifact_vol_subpath}}'}
+      - {mountPath: /tmp/inputs/source, name: data-storage, subPath: '{{inputs.parameters.train-model-model-subpath}}',
+        readOnly: true}
+    inputs:
+      parameters:
+      - {name: artifact_vol_pvc_name}
+      - {name: artifact_vol_subpath}
+      - {name: train-model-model-subpath}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Save Torch model (PVC),
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--source", {"inputPath": "source"}, "--dest", {"inputValue": "dest"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def write_artifact_to_path(source,
+          dest):\n    import os\n    import shutil\n\n    parent_dirs = os.path.dirname(dest)\n    os.makedirs(parent_dirs,
+          exist_ok=True)\n\n    if os.path.isdir(source):\n        shutil.copytree(source,
+          dest)\n    else:\n        shutil.copyfile(source, dest)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Write artifact to path'', description='''')\n_parser.add_argument(\"--source\",
+          dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}, {"name": "dest", "type": "<class
+          ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/{{workflow.name}}/model.pt"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: '{{inputs.parameters.artifact_vol_pvc_name}}'
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.artifact_vol_pvc_name}}'}
+  - name: write-artifact-to-path-4
+    container:
+      args: [--source, /tmp/inputs/source/data, --dest, '/mnt/{{workflow.name}}/model.onnx']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def write_artifact_to_path(source, dest):
+            import os
+            import shutil
+
+            parent_dirs = os.path.dirname(dest)
+            os.makedirs(parent_dirs, exist_ok=True)
+
+            if os.path.isdir(source):
+                shutil.copytree(source, dest)
+            else:
+                shutil.copyfile(source, dest)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Write artifact to path', description='')
+        _parser.add_argument("--source", dest="source", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--dest", dest="dest", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = write_artifact_to_path(**_parsed_args)
+      image: quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1
+      volumeMounts:
+      - {mountPath: /mnt, name: '{{inputs.parameters.artifact_vol_pvc_name}}', readOnly: false,
+        subPath: '{{inputs.parameters.artifact_vol_subpath}}'}
+      - {mountPath: /tmp/inputs/source, name: data-storage, subPath: '{{inputs.parameters.convert-model-to-onnx-onnx_model-subpath}}',
+        readOnly: true}
+    inputs:
+      parameters:
+      - {name: artifact_vol_pvc_name}
+      - {name: artifact_vol_subpath}
+      - {name: convert-model-to-onnx-onnx_model-subpath}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Save ONNX model (PVC),
+        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
+          ["--source", {"inputPath": "source"}, "--dest", {"inputValue": "dest"}],
+          "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" >
+          \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n", "def write_artifact_to_path(source,
+          dest):\n    import os\n    import shutil\n\n    parent_dirs = os.path.dirname(dest)\n    os.makedirs(parent_dirs,
+          exist_ok=True)\n\n    if os.path.isdir(source):\n        shutil.copytree(source,
+          dest)\n    else:\n        shutil.copyfile(source, dest)\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Write artifact to path'', description='''')\n_parser.add_argument(\"--source\",
+          dest=\"source\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dest\",
+          dest=\"dest\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = write_artifact_to_path(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolov5:pt1.12.1-yolo7.0-v1.1"}}, "inputs":
+          [{"name": "source", "type": "String"}, {"name": "dest", "type": "<class
+          ''str''>"}], "name": "Write artifact to path"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"dest": "/mnt/{{workflow.name}}/model.onnx"}',
         pipelines.kubeflow.org/max_cache_staleness: P0D}
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
