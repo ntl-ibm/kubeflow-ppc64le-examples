@@ -14,6 +14,7 @@ inputs:
 - {name: predictor_gpu_allocation, type: Integer, default: '0', optional: true}
 - {name: predictor_protocol, type: String, default: v2, optional: true}
 - {name: triton_runtime_version, type: String, default: 22.03-py3, optional: true}
+- {name: predictor_node_selector, type: String, default: '', optional: true}
 - {name: transformer_specification, type: 'typing.Dict[str, typing.Union[str, int]]',
   optional: true}
 implementation:
@@ -30,9 +31,9 @@ implementation:
       \    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
       ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas\
       \ = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\"\
-      ,  # or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    transformer_specification\
-      \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import\
-      \ base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+      ,  # or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    predictor_node_selector\
+      \ = \"\",\n    transformer_specification = None,\n):\n    import os\n    import\
+      \ subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
       \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
       \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
       \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
@@ -55,9 +56,10 @@ implementation:
       \ kind: ServiceAccount\n    metadata:\n      name: kserve-inference-sa\n   \
       \ secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n\
       \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
-      \ check=True, text=True\n    )\n\n    ### Remove Existing\n    if rm_existing:\n\
-      \        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\", name],\
-      \ check=False)\n\n    ####### Inference Service template #######\n\n    if transformer_specification:\n\
+      \ check=True, text=True\n    )\n\n    ### Remove Existing Inferenceservice,\
+      \ if requested\n    ### Ignores errrors if service does not already exist\n\
+      \    if rm_existing:\n        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\"\
+      , name], check=False)\n\n    ####### Transformer Spec ######\n    if transformer_specification:\n\
       \        min_t_replicas = (\n            (\"minReplicas: \" + transformer_specification[\"\
       min_replicas\"])\n            if \"min_replicas\" in transformer_specification\n\
       \            else \"\"\n        )\n        max_t_replicas = (\n            (\"\
@@ -69,9 +71,14 @@ implementation:
       \ the last one wins.\n        if \"env_configmap\" in transformer_specification:\n\
       \            envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
       \                name: {transformer_specification[\"env_configmap\"]}\n    \
-      \      \"\"\"\n        else:\n            envFrom = \"\"\n\n        transform_spec\
-      \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
-      \        serviceAccountName: kserve-inference-sa\n        containers:\n    \
+      \      \"\"\"\n        else:\n            envFrom = \"\"\n\n        # Node selector\n\
+      \        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
+      \        if \"node_selector\" in transformer_specification:\n            t_node_selector\
+      \ = f'nodeSelector:\\n        {transformer_specification[\"node_selector\"]}'\n\
+      \        else:\n            t_node_selector = \"\"\n\n        #### Transformer\
+      \ specification ####\n        transform_spec = f\"\"\"\n      transformer:\n\
+      \        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:\
+      \ kserve-inference-sa\n        {t_node_selector}\n        containers:\n    \
       \    - image: \"{transformer_specification[\"image\"]}\"\n          name: \"\
       {name}-transformer\"\n          command: {transformer_specification.get(\"command\"\
       , '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
@@ -87,21 +94,26 @@ implementation:
       \        if predictor_protocol == \"grpc-v2\"\n        else \"\"\n    )\n\n\
       \    if concurrency_target:\n        autoscaling_target = f\"\"\"\n        autoscaling.knative.dev/target:\
       \ \"{concurrency_target}\"\n        autoscaling.knative.dev/metric: \"concurrency\"\
-      \n        \"\"\"\n    else:\n        autoscaling_target = \"\"\n\n    service_spec\
-      \ = f\"\"\"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
-      \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
-      \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
-      \        {autoscaling_target}\n    spec:\n      {transform_spec}\n\n      predictor:\n\
+      \n        \"\"\"\n    else:\n        autoscaling_target = \"\"\n\n    # Node\
+      \ selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
+      \    if predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\\
+      n        {predictor_node_selector}\"\n    else:\n        p_node_selector = \"\
+      \"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\n  \
+      \  apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n\
+      \      name: {name}\n      annotations:\n        sidecar.istio.io/inject: \"\
+      false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
+      \        {autoscaling_target}\n    spec:\n      {transform_spec}\n      predictor:\n\
       \        {min_p_replicas}\n        {max_p_replicas}\n        serviceAccountName:\
-      \ kserve-inference-sa\n        triton:\n          runtimeVersion: {triton_runtime_version}\n\
-      \          args: [ \"--strict-model-config=false\"]\n          storageUri: {storage_uri}\n\
-      \          ports: {predictor_port_spec}\n          env:\n          - name: OMP_NUM_THREADS\n\
-      \            value: \"1\"\n          resources:\n            limits:\n     \
-      \          {gpu_resources}\n    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n\
-      \        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=service_spec, check=True,\
-      \ text=True\n    )\n\n    print(\"Waiting for inference service to become available\"\
-      )\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"\
-      wait\",\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
+      \ kserve-inference-sa\n        {p_node_selector}\n        triton:\n        \
+      \  runtimeVersion: {triton_runtime_version}\n          args: [ \"--strict-model-config=false\"\
+      ]\n          storageUri: {storage_uri}\n          ports: {predictor_port_spec}\n\
+      \          env:\n          - name: OMP_NUM_THREADS\n            value: \"1\"\
+      \n          resources:\n            limits:\n               {gpu_resources}\n\
+      \    \"\"\"\n\n    print(service_spec)\n    subprocess.run(\n        [\"kubectl\"\
+      , \"apply\", \"-f\", \"-\"], input=service_spec, check=True, text=True\n   \
+      \ )\n\n    print(\"Waiting for inference service to become available\")\n  \
+      \  subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\"\
+      ,\n            \"--for=condition=Ready\",\n            f\"inferenceservice/{name}\"\
       ,\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\
       \ndef _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n\
       \    return strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
@@ -123,9 +135,10 @@ implementation:
       , dest=\"predictor_protocol\", type=str, required=False, default=argparse.SUPPRESS)\n\
       _parser.add_argument(\"--triton-runtime-version\", dest=\"triton_runtime_version\"\
       , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-      --transformer-specification\", dest=\"transformer_specification\", type=json.loads,\
-      \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
-      \n_outputs = deploy_inference_service(**_parsed_args)\n"
+      --predictor-node-selector\", dest=\"predictor_node_selector\", type=str, required=False,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--transformer-specification\"\
+      , dest=\"transformer_specification\", type=json.loads, required=False, default=argparse.SUPPRESS)\n\
+      _parsed_args = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"
     args:
     - --name
     - {inputValue: name}
@@ -173,6 +186,11 @@ implementation:
         then:
         - --triton-runtime-version
         - {inputValue: triton_runtime_version}
+    - if:
+        cond: {isPresent: predictor_node_selector}
+        then:
+        - --predictor-node-selector
+        - {inputValue: predictor_node_selector}
     - if:
         cond: {isPresent: transformer_specification}
         then:
