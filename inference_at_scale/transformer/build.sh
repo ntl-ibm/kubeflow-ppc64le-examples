@@ -1,5 +1,5 @@
 #!/bin/bash
-# On a MAC, you'll need to do a few things to get podman to work (https://github.com/containers/podman/discussions/12899)
+# On a MAC M1, you'll need to do a few things to get podman to work (https://github.com/containers/podman/discussions/12899)
 # * brew install podman 
 # * podman machine init
 # * podman machine start
@@ -7,7 +7,7 @@
 #
 # You'll need to do a podman machine start after each reboot
 #
-VERSION="v3.0"
+VERSION="v4.0"
 podman buildx build --format=docker --platform linux/ppc64le -f Dockerfile -t quay.io/ntlawrence/monkeytransform:${VERSION} -t quay.io/ntlawrence/monkeytransform:latest
 podman push quay.io/ntlawrence/monkeytransform:latest quay.io/ntlawrence/monkeytransform:${VERSION}
 podman push quay.io/ntlawrence/monkeytransform:latest quay.io/ntlawrence/monkeytransform:latest

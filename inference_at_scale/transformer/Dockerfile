@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+FROM quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
 LABEL maintainer="Nick Lawrence <ntl@us.ibm.com>"
 
 RUN pip install kserve
