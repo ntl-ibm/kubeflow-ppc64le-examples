@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: bee-yolov5-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-03T16:50:55.922234',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-06T17:58:20.007955',
     pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_vol_pvc_name",
       "type": "String"}, {"name": "data_vol_subpath", "type": "String"}, {"default":
       "750", "name": "epochs", "optional": true, "type": "Integer"}, {"default": "https://github.com/ultralytics/yolov5/raw/v7.0/models/yolov5s.yaml",
@@ -1180,6 +1180,7 @@ spec:
             os.makedirs(os.path.dirname(model), exist_ok=True)
             os.makedirs(os.path.dirname(results), exist_ok=True)
 
+            # Copy trained model and results to output parameters
             shutil.copyfile("/yolov5/runs/train/exp/weights/best.pt", model)
             shutil.copyfile("/yolov5/runs/train/exp/results.csv", results)
 
@@ -1234,7 +1235,8 @@ spec:
           train.py --img 640 --batch -1 --noplots --epochs {epochs} --cache /home/jovyan/cache
           --cfg={model_cfg} \"\n        f\"--data /dataset/data.yaml --weights {weights}
           --workers=0 --device=0 --optimizer=Adam\",\n        check=True,\n        cwd=\"/yolov5\",\n        shell=True,\n    )\n\n    os.makedirs(os.path.dirname(model),
-          exist_ok=True)\n    os.makedirs(os.path.dirname(results), exist_ok=True)\n\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.pt\",
+          exist_ok=True)\n    os.makedirs(os.path.dirname(results), exist_ok=True)\n\n    #
+          Copy trained model and results to output parameters\n    shutil.copyfile(\"/yolov5/runs/train/exp/weights/best.pt\",
           model)\n    shutil.copyfile(\"/yolov5/runs/train/exp/results.csv\", results)\n\nimport
           argparse\n_parser = argparse.ArgumentParser(prog=''Train model'', description='''')\n_parser.add_argument(\"--model-cfg\",
           dest=\"model_cfg\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--initial-weights\",

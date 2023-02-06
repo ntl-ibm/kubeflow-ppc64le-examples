@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-03T14:32:19.580244',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-06T19:23:26.227417',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "monkey-classification", "name": "model_name", "optional": true,
@@ -198,7 +198,7 @@ spec:
       - --concurrency-target
       - '4'
       - --predictor-min-replicas
-      - '1'
+      - '0'
       - --predictor-max-replicas
       - '4'
       - --predictor-gpu-allocation
@@ -211,7 +211,7 @@ spec:
       - ''
       - --transformer-specification
       - '{"env_configmap": "{{inputs.parameters.model_name}}-transformer-env", "image":
-        "quay.io/ntlawrence/monkeytransform:latest", "maxReplicas": 4, "minReplicas":
+        "quay.io/ntlawrence/monkeytransform:v3.0", "maxReplicas": 4, "minReplicas":
         1}'
       command:
       - sh
@@ -225,24 +225,29 @@ spec:
         ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n  \
         \  predictor_max_replicas = None,\n    predictor_gpu_allocation = 0,\n   \
         \ predictor_protocol = \"v2\",  # or grpc-v2\n    triton_runtime_version =\
-        \ \"22.03-py3\",\n    predictor_node_selector = \"\",\n    transformer_specification\
-        \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n   \
-        \ import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+        \ \"22.03-py3\",\n    predictor_node_selector = \"\",  # Requires admin to\
+        \ enable the capability\n    transformer_specification = None,\n):\n    import\
+        \ os\n    import subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
         \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
         \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
-        \n    # It happens that the credentials for the minio user name and password\
-        \ are already in a secret\n    # This just loads them so that we can create\
-        \ our own secret to store the S3 connection information\n    # for the Inference\
-        \ service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\"\
-        , minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n\
-        \        check=True,\n        text=True,\n    )\n    secret = yaml.safe_load(r.stdout)\n\
-        \n    s3_credentials_spec = f\"\"\"\n    apiVersion: v1\n    kind: Secret\n\
-        \    metadata:\n      name: minio-credentials\n      annotations:\n      \
-        \  serving.kserve.io/s3-endpoint: {minio_url} \n        serving.kserve.io/s3-usehttps:\
-        \ \"0\"\n        serving.kserve.io/s3-region: \"us-west1\"\n        serving.kserve.io/s3-useanoncredential:\
-        \ \"false\"\n    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
+        \n    # Caution: If using nodeSelector, this capability must be enabled for\
+        \ knative by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n\
+        \    # The default for our installs is FALSE\n    # once enabled, the value\
+        \ should be 'label: \"value\"', to force the predictor/transformer to\n  \
+        \  # run on specific hardware\n\n    # It happens that the credentials for\
+        \ the minio user name and password are already in a secret\n    # This just\
+        \ loads them so that we can create our own secret to store the S3 connection\
+        \ information\n    # for the Inference service\n    r = subprocess.run(\n\
+        \        [\"kubectl\", \"get\", \"secret\", minio_credential_secret, \"-oyaml\"\
+        ],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n\
+        \    )\n    secret = yaml.safe_load(r.stdout)\n\n    s3_credentials_spec =\
+        \ f\"\"\"\n    apiVersion: v1\n    kind: Secret\n    metadata:\n      name:\
+        \ minio-credentials\n      annotations:\n        serving.kserve.io/s3-endpoint:\
+        \ {minio_url} \n        serving.kserve.io/s3-usehttps: \"0\"\n        serving.kserve.io/s3-region:\
+        \ \"us-west1\"\n        serving.kserve.io/s3-useanoncredential: \"false\"\n\
+        \    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
         \      AWS_SECRET_ACCESS_KEY: {secret['data']['secretkey']}\n    \"\"\"\n\n\
         \    print(s3_credentials_spec)\n    subprocess.run(\n        [\"kubectl\"\
         , \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n       \
@@ -269,13 +274,13 @@ spec:
         \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        # Node\
         \ selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
         \        if \"node_selector\" in transformer_specification:\n            t_node_selector\
-        \ = f'nodeSelector:\\n        {transformer_specification[\"node_selector\"\
-        ]}'\n        else:\n            t_node_selector = \"\"\n\n        #### Transformer\
-        \ specification ####\n        transform_spec = f\"\"\"\n      transformer:\n\
-        \        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:\
-        \ kserve-inference-sa\n        {t_node_selector}\n        containers:\n  \
-        \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
-        \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        \ = (\n                f'nodeSelector:\\n          {transformer_specification[\"\
+        node_selector\"]}'\n            )\n        else:\n            t_node_selector\
+        \ = \"\"\n\n        #### Transformer specification ####\n        transform_spec\
+        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
+        \        serviceAccountName: kserve-inference-sa\n        {t_node_selector}\n\
+        \        containers:\n        - image: \"{transformer_specification[\"image\"\
+        ]}\"\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
         command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
         ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
         \          {envFrom}\n          \"\"\"\n    else:\n        transform_spec\
@@ -292,9 +297,9 @@ spec:
         \  autoscaling.knative.dev/metric: \"concurrency\"\n        \"\"\"\n    else:\n\
         \        autoscaling_target = \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
         \    if predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\\
-        n        {predictor_node_selector}\"\n    else:\n        p_node_selector =\
-        \ \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\
-        \n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
+        n          {predictor_node_selector}\"\n    else:\n        p_node_selector\
+        \ = \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\
+        \"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
         \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
         \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
         \        {autoscaling_target}\n    spec:\n      {transform_spec}\n      predictor:\n\
@@ -369,17 +374,22 @@ spec:
           = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas
           = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\",  #
           or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    predictor_node_selector
-          = \"\",\n    transformer_specification = None,\n):\n    import os\n    import
-          subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
+          = \"\",  # Requires admin to enable the capability\n    transformer_specification
+          = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import
+          base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
           https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n    #
           https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\n    #
-          It happens that the credentials for the minio user name and password are
-          already in a secret\n    # This just loads them so that we can create our
-          own secret to store the S3 connection information\n    # for the Inference
-          service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\",
-          minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n    )\n    secret
+          Caution: If using nodeSelector, this capability must be enabled for knative
+          by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n    #
+          The default for our installs is FALSE\n    # once enabled, the value should
+          be ''label: \"value\"'', to force the predictor/transformer to\n    # run
+          on specific hardware\n\n    # It happens that the credentials for the minio
+          user name and password are already in a secret\n    # This just loads them
+          so that we can create our own secret to store the S3 connection information\n    #
+          for the Inference service\n    r = subprocess.run(\n        [\"kubectl\",
+          \"get\", \"secret\", minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n    )\n    secret
           = yaml.safe_load(r.stdout)\n\n    s3_credentials_spec = f\"\"\"\n    apiVersion:
           v1\n    kind: Secret\n    metadata:\n      name: minio-credentials\n      annotations:\n        serving.kserve.io/s3-endpoint:
           {minio_url} \n        serving.kserve.io/s3-usehttps: \"0\"\n        serving.kserve.io/s3-region:
@@ -405,7 +415,7 @@ spec:
           configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
           = \"\"\n\n        # Node selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n        if
           \"node_selector\" in transformer_specification:\n            t_node_selector
-          = f''nodeSelector:\\n        {transformer_specification[\"node_selector\"]}''\n        else:\n            t_node_selector
+          = (\n                f''nodeSelector:\\n          {transformer_specification[\"node_selector\"]}''\n            )\n        else:\n            t_node_selector
           = \"\"\n\n        #### Transformer specification ####\n        transform_spec
           = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
           kserve-inference-sa\n        {t_node_selector}\n        containers:\n        -
@@ -424,7 +434,7 @@ spec:
           = f\"\"\"\n        autoscaling.knative.dev/target: \"{concurrency_target}\"\n        autoscaling.knative.dev/metric:
           \"concurrency\"\n        \"\"\"\n    else:\n        autoscaling_target =
           \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n    if
-          predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\n        {predictor_node_selector}\"\n    else:\n        p_node_selector
+          predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\n          {predictor_node_selector}\"\n    else:\n        p_node_selector
           = \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\n    apiVersion:
           serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n      name:
           {name}\n      annotations:\n        sidecar.istio.io/inject: \"false\"\n        #
@@ -467,16 +477,16 @@ spec:
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "6f2ebe4cd10740f506e0bcf694d31a630d87842489ac66d608634904aee0a6af", "url":
+          "606d302117e348d3844087381c423bd6f531e7ba6f4cb24569c1de0e935ee137", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "4",
           "minio_credential_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
           "name": "{{inputs.parameters.model_name}}", "predictor_gpu_allocation":
-          "1", "predictor_max_replicas": "4", "predictor_min_replicas": "1", "predictor_node_selector":
+          "1", "predictor_max_replicas": "4", "predictor_min_replicas": "0", "predictor_node_selector":
           "", "predictor_protocol": "grpc-v2", "rm_existing": "True", "storage_uri":
           "s3://{{workflow.namespace}}-models/onnx/", "transformer_specification":
           "{\"env_configmap\": \"{{inputs.parameters.model_name}}-transformer-env\",
-          \"image\": \"quay.io/ntlawrence/monkeytransform:latest\", \"maxReplicas\":
+          \"image\": \"quay.io/ntlawrence/monkeytransform:v3.0\", \"maxReplicas\":
           4, \"minReplicas\": 1}", "triton_runtime_version": "21.08-py3-gpu"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
   - name: end-to-end-monkey-species-classification-pipeline
     inputs:

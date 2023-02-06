@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: download-image-to-pvc-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-06T17:41:36.776123',
+    pipelines.kubeflow.org/pipeline_spec: '{"name": "download_image_to_pvc"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
+spec:
+  entrypoint: download-image-to-pvc
+  templates:
+  - name: download-image
+    container:
+      args: [--image-url, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Youngkitten.JPG/320px-Youngkitten.JPG',
+        --output-path, /mnt/image/youngkitten.JPG]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def download_image(image_url, output_path):
+            import urllib.request
+            from pathlib import Path
+
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(image_url, output_path)
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Download image', description='')
+        _parser.add_argument("--image-url", dest="image_url", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = download_image(**_parsed_args)
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0
+      volumeMounts:
+      - {mountPath: /mnt/image, name: myvolume}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--image-url", {"inputValue": "image_url"}, "--output-path", {"inputValue":
+          "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def download_image(image_url, output_path):\n    import urllib.request\n    from
+          pathlib import Path\n\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n    urllib.request.urlretrieve(image_url, output_path)\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Download image'', description='''')\n_parser.add_argument(\"--image-url\",
+          dest=\"image_url\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = download_image(**_parsed_args)\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.14.1-py3.9-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "image_url", "type": "String"}, {"name": "output_path",
+          "type": "String"}], "name": "Download image"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Youngkitten.JPG/320px-Youngkitten.JPG",
+          "output_path": "/mnt/image/youngkitten.JPG"}'}
+    volumes:
+    - name: myvolume
+      persistentVolumeClaim: {claimName: my-data-vol}
+  - name: download-image-to-pvc
+    dag:
+      tasks:
+      - {name: download-image, template: download-image}
+  arguments:
+    parameters: []
+  serviceAccountName: pipeline-runner

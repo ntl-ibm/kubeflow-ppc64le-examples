@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: end-to-end-monkey-species-classification-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-03T19:26:19.546229',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-02-06T19:44:19.571981',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       performs an image classification and determines different monkey species", "inputs":
       [{"default": "Lehrig/Monkey-Species-Collection", "name": "dataset_url", "optional":
@@ -175,24 +175,29 @@ spec:
         ,\n    concurrency_target = None,\n    predictor_min_replicas = None,\n  \
         \  predictor_max_replicas = None,\n    predictor_gpu_allocation = 0,\n   \
         \ predictor_protocol = \"v2\",  # or grpc-v2\n    triton_runtime_version =\
-        \ \"22.03-py3\",\n    predictor_node_selector = \"\",\n    transformer_specification\
-        \ = None,\n):\n    import os\n    import subprocess\n    import yaml\n   \
-        \ import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
+        \ \"22.03-py3\",\n    predictor_node_selector = \"\",  # Requires admin to\
+        \ enable the capability\n    transformer_specification = None,\n):\n    import\
+        \ os\n    import subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n\
         \    # https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
         \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
         \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
-        \n    # It happens that the credentials for the minio user name and password\
-        \ are already in a secret\n    # This just loads them so that we can create\
-        \ our own secret to store the S3 connection information\n    # for the Inference\
-        \ service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\"\
-        , minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n\
-        \        check=True,\n        text=True,\n    )\n    secret = yaml.safe_load(r.stdout)\n\
-        \n    s3_credentials_spec = f\"\"\"\n    apiVersion: v1\n    kind: Secret\n\
-        \    metadata:\n      name: minio-credentials\n      annotations:\n      \
-        \  serving.kserve.io/s3-endpoint: {minio_url} \n        serving.kserve.io/s3-usehttps:\
-        \ \"0\"\n        serving.kserve.io/s3-region: \"us-west1\"\n        serving.kserve.io/s3-useanoncredential:\
-        \ \"false\"\n    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
+        \n    # Caution: If using nodeSelector, this capability must be enabled for\
+        \ knative by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n\
+        \    # The default for our installs is FALSE\n    # once enabled, the value\
+        \ should be 'label: \"value\"', to force the predictor/transformer to\n  \
+        \  # run on specific hardware\n\n    # It happens that the credentials for\
+        \ the minio user name and password are already in a secret\n    # This just\
+        \ loads them so that we can create our own secret to store the S3 connection\
+        \ information\n    # for the Inference service\n    r = subprocess.run(\n\
+        \        [\"kubectl\", \"get\", \"secret\", minio_credential_secret, \"-oyaml\"\
+        ],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n\
+        \    )\n    secret = yaml.safe_load(r.stdout)\n\n    s3_credentials_spec =\
+        \ f\"\"\"\n    apiVersion: v1\n    kind: Secret\n    metadata:\n      name:\
+        \ minio-credentials\n      annotations:\n        serving.kserve.io/s3-endpoint:\
+        \ {minio_url} \n        serving.kserve.io/s3-usehttps: \"0\"\n        serving.kserve.io/s3-region:\
+        \ \"us-west1\"\n        serving.kserve.io/s3-useanoncredential: \"false\"\n\
+        \    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
         \      AWS_SECRET_ACCESS_KEY: {secret['data']['secretkey']}\n    \"\"\"\n\n\
         \    print(s3_credentials_spec)\n    subprocess.run(\n        [\"kubectl\"\
         , \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n       \
@@ -219,13 +224,13 @@ spec:
         \        \"\"\"\n        else:\n            envFrom = \"\"\n\n        # Node\
         \ selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
         \        if \"node_selector\" in transformer_specification:\n            t_node_selector\
-        \ = f'nodeSelector:\\n        {transformer_specification[\"node_selector\"\
-        ]}'\n        else:\n            t_node_selector = \"\"\n\n        #### Transformer\
-        \ specification ####\n        transform_spec = f\"\"\"\n      transformer:\n\
-        \        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:\
-        \ kserve-inference-sa\n        {t_node_selector}\n        containers:\n  \
-        \      - image: \"{transformer_specification[\"image\"]}\"\n          name:\
-        \ \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
+        \ = (\n                f'nodeSelector:\\n          {transformer_specification[\"\
+        node_selector\"]}'\n            )\n        else:\n            t_node_selector\
+        \ = \"\"\n\n        #### Transformer specification ####\n        transform_spec\
+        \ = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n\
+        \        serviceAccountName: kserve-inference-sa\n        {t_node_selector}\n\
+        \        containers:\n        - image: \"{transformer_specification[\"image\"\
+        ]}\"\n          name: \"{name}-transformer\"\n          command: {transformer_specification.get(\"\
         command\", '[\"python\", \"transform.py\"]')}\n          args: [\"--protocol={predictor_protocol}\"\
         ]\n          env:\n            - name: STORAGE_URI\n              value: {storage_uri}\n\
         \          {envFrom}\n          \"\"\"\n    else:\n        transform_spec\
@@ -242,9 +247,9 @@ spec:
         \  autoscaling.knative.dev/metric: \"concurrency\"\n        \"\"\"\n    else:\n\
         \        autoscaling_target = \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
         \    if predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\\
-        n        {predictor_node_selector}\"\n    else:\n        p_node_selector =\
-        \ \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\
-        \n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
+        n          {predictor_node_selector}\"\n    else:\n        p_node_selector\
+        \ = \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\
+        \"\n    apiVersion: serving.kserve.io/v1beta1\n    kind: InferenceService\n\
         \    metadata:\n      name: {name}\n      annotations:\n        sidecar.istio.io/inject:\
         \ \"false\"\n        # https://knative.dev/docs/serving/autoscaling/concurrency/#soft-limit\n\
         \        {autoscaling_target}\n    spec:\n      {transform_spec}\n      predictor:\n\
@@ -319,17 +324,22 @@ spec:
           = None,\n    predictor_min_replicas = None,\n    predictor_max_replicas
           = None,\n    predictor_gpu_allocation = 0,\n    predictor_protocol = \"v2\",  #
           or grpc-v2\n    triton_runtime_version = \"22.03-py3\",\n    predictor_node_selector
-          = \"\",\n    transformer_specification = None,\n):\n    import os\n    import
-          subprocess\n    import yaml\n    import base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
+          = \"\",  # Requires admin to enable the capability\n    transformer_specification
+          = None,\n):\n    import os\n    import subprocess\n    import yaml\n    import
+          base64\n\n    # https://kserve.github.io/website/modelserving/storage/s3/s3/#predict-on-a-inferenceservice-with-a-saved-model-on-s3\n    #
           https://kserve.github.io/website/reference/api/\n    # https://kserve.github.io/website/modelserving/autoscaling/autoscaling/\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n    #
           https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n    #
           https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\n    #
-          It happens that the credentials for the minio user name and password are
-          already in a secret\n    # This just loads them so that we can create our
-          own secret to store the S3 connection information\n    # for the Inference
-          service\n    r = subprocess.run(\n        [\"kubectl\", \"get\", \"secret\",
-          minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n    )\n    secret
+          Caution: If using nodeSelector, this capability must be enabled for knative
+          by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n    #
+          The default for our installs is FALSE\n    # once enabled, the value should
+          be ''label: \"value\"'', to force the predictor/transformer to\n    # run
+          on specific hardware\n\n    # It happens that the credentials for the minio
+          user name and password are already in a secret\n    # This just loads them
+          so that we can create our own secret to store the S3 connection information\n    #
+          for the Inference service\n    r = subprocess.run(\n        [\"kubectl\",
+          \"get\", \"secret\", minio_credential_secret, \"-oyaml\"],\n        stdout=subprocess.PIPE,\n        check=True,\n        text=True,\n    )\n    secret
           = yaml.safe_load(r.stdout)\n\n    s3_credentials_spec = f\"\"\"\n    apiVersion:
           v1\n    kind: Secret\n    metadata:\n      name: minio-credentials\n      annotations:\n        serving.kserve.io/s3-endpoint:
           {minio_url} \n        serving.kserve.io/s3-usehttps: \"0\"\n        serving.kserve.io/s3-region:
@@ -355,7 +365,7 @@ spec:
           configMapRef:\n                name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n        else:\n            envFrom
           = \"\"\n\n        # Node selector\n        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n        if
           \"node_selector\" in transformer_specification:\n            t_node_selector
-          = f''nodeSelector:\\n        {transformer_specification[\"node_selector\"]}''\n        else:\n            t_node_selector
+          = (\n                f''nodeSelector:\\n          {transformer_specification[\"node_selector\"]}''\n            )\n        else:\n            t_node_selector
           = \"\"\n\n        #### Transformer specification ####\n        transform_spec
           = f\"\"\"\n      transformer:\n        {min_t_replicas}\n        {max_t_replicas}\n        serviceAccountName:
           kserve-inference-sa\n        {t_node_selector}\n        containers:\n        -
@@ -374,7 +384,7 @@ spec:
           = f\"\"\"\n        autoscaling.knative.dev/target: \"{concurrency_target}\"\n        autoscaling.knative.dev/metric:
           \"concurrency\"\n        \"\"\"\n    else:\n        autoscaling_target =
           \"\"\n\n    # Node selector\n    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n    if
-          predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\n        {predictor_node_selector}\"\n    else:\n        p_node_selector
+          predictor_node_selector:\n        p_node_selector = f\"nodeSelector:\\n          {predictor_node_selector}\"\n    else:\n        p_node_selector
           = \"\"\n\n    ##### Inference Service Spec ####\n    service_spec = f\"\"\"\n    apiVersion:
           serving.kserve.io/v1beta1\n    kind: InferenceService\n    metadata:\n      name:
           {name}\n      annotations:\n        sidecar.istio.io/inject: \"false\"\n        #
@@ -417,7 +427,7 @@ spec:
           "optional": true, "type": "String"}, {"name": "transformer_specification",
           "optional": true, "type": "typing.Dict[str, typing.Union[str, int]]"}],
           "name": "Deploy inference service"}', pipelines.kubeflow.org/component_ref: '{"digest":
-          "6f2ebe4cd10740f506e0bcf694d31a630d87842489ac66d608634904aee0a6af", "url":
+          "606d302117e348d3844087381c423bd6f531e7ba6f4cb24569c1de0e935ee137", "url":
           "/home/jovyan/kubeflow-ppc64le-examples/deploy_triton_inference_service_component/deploy_triton_inference_service_component.yaml"}',
         pipelines.kubeflow.org/arguments.parameters: '{"minio_credential_secret":
           "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_url}}",
@@ -1645,6 +1655,8 @@ spec:
 
                   print("Initializing training callbacks...")
                   callbacks = [
+                      # MetricAverageCallback is used to synchrnoize metrics between the workers,
+                      # That is important when using ReduceLROnPlateau and/or EarlyStopping.
                       # https://www.olcf.ornl.gov/wp-content/uploads/2019/12/ORNL-Scaling-20200210.pdf (chart 28)
                       MetricAverageCallback(),
                       ReduceLROnPlateau(
@@ -1684,7 +1696,7 @@ spec:
                       validation_data=validation_dataset,
                       epochs=epochs,
                       steps_per_epoch=approx_shard_train_size // batch_size
-                      + 1,  # Needed when using repeat()
+                      + 1,  # steps_per_epoch is needed when using repeat()
                       callbacks=callbacks,
                       verbose=1 if hvd.rank() == 0 else 0,
                   )
@@ -3700,7 +3712,10 @@ spec:
           model...\")\n          # Horovod: Specify `experimental_run_tf_function=False`
           to ensure TensorFlow\n          # uses hvd.DistributedOptimizer() to compute
           gradients.\n          model.compile(\n              optimizer=opt,\n              loss=\"categorical_crossentropy\",\n              metrics=[\"categorical_accuracy\"],\n              experimental_run_tf_function=False,\n          )\n\n          print(\"Initializing
-          training callbacks...\")\n          callbacks = [\n              # https://www.olcf.ornl.gov/wp-content/uploads/2019/12/ORNL-Scaling-20200210.pdf
+          training callbacks...\")\n          callbacks = [\n              # MetricAverageCallback
+          is used to synchrnoize metrics between the workers,\n              # That
+          is important when using ReduceLROnPlateau and/or EarlyStopping.\n              #
+          https://www.olcf.ornl.gov/wp-content/uploads/2019/12/ORNL-Scaling-20200210.pdf
           (chart 28)\n              MetricAverageCallback(),\n              ReduceLROnPlateau(\n                  monitor=\"val_loss\",\n                  factor=0.1,\n                  patience=7,\n                  verbose=1,\n                  min_delta=0.0001,\n                  mode=\"min\",\n              ),\n              EarlyStopping(monitor=\"val_loss\",
           patience=20, verbose=1, mode=\"min\"),\n              TensorBoard(\n                  log_dir=f\"s3://mlpipeline/tensorboard/{os.environ[''JOB_NAME'']}\",\n                  histogram_freq=1,\n              ),\n              #
           Horovod: broadcast initial variable states from rank 0 to all other processes.\n              #
@@ -3709,8 +3724,9 @@ spec:
           Horovod: save checkpoints only on worker 0 to prevent other workers from
           corrupting them.\n          if hvd.rank() == 0:\n              callbacks.append(\n                  ModelCheckpoint(\n                      f\"{model_dir}/best_model.keras\",\n                      monitor=\"val_loss\",\n                      save_best_only=True,\n                      save_weights_only=True,\n                      mode=\"min\",\n                  )\n              )\n\n          print(\"Starting
           model training...\")\n          start = time.time()\n          hist = model.fit(\n              distributed_train_dataset,\n              validation_data=validation_dataset,\n              epochs=epochs,\n              steps_per_epoch=approx_shard_train_size
-          // batch_size\n              + 1,  # Needed when using repeat()\n              callbacks=callbacks,\n              verbose=1
-          if hvd.rank() == 0 else 0,\n          )\n\n          if hvd.rank() == 0:\n              print(\"\\n\\nTraining
+          // batch_size\n              + 1,  # steps_per_epoch is needed when using
+          repeat()\n              callbacks=callbacks,\n              verbose=1 if
+          hvd.rank() == 0 else 0,\n          )\n\n          if hvd.rank() == 0:\n              print(\"\\n\\nTraining
           took \", time.time() - start, \"seconds\")\n\n              print(\"Model
           train history:\")\n              print(hist.history)\n\n              print(f\"Saving
           model to: {model_dir}\")\n              model.save(model_dir)\n              print(f\"Model
