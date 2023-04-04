@@ -2,7 +2,7 @@
 
 There are many container registries. We use quay.io. If you would like to also use quay.io, you will need to create a free account First.
 
-Create a quay.io account. (If necessary)
+## Create a quay.io account. (If necessary)
 
 1.  In a web browser, navigate to quay.io and click sign in
 1.  You will be asked to Log into your Red Hat account
