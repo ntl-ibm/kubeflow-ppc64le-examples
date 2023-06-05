@@ -23,7 +23,6 @@ WORKDIR /root
 # will not need to directly activate the environment.
 ENV CONDA_DIR="/opt/conda"
 ENV PATH=${CONDA_DIR}/bin:${PATH}
-ENV YOLOV5_CONFIG_DIR="/yolov5-config"
 
 ## OS Dependencies
 RUN dnf install -y bzip2 \
@@ -31,6 +30,7 @@ RUN dnf install -y bzip2 \
         wget && \
     dnf group install -y "Development Tools" && \
     dnf clean all -y 
+
 
 # Copy a script that we will use to correct permissions after running certain commands
 COPY fix-permissions /usr/local/bin/fix-permissions
@@ -50,66 +50,27 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     -c conda-forge \
     --yes \
     python==3.10  \
-    pandas>=1.1.4 \
     pip  \
     mamba \
-    gitpython  \
-    matplotlib  \
-    pillow \
-    psutil \
-    PyYAML \
-    requests \
-    scipy \
     pytorch==2.0.0 \
-    torchvision==0.15.1 \
-    tqdm \
     nccl==2.17.1 \
     cudatoolkit==11.8.0 \
-    && rm /tmp/micromamba \
-    && fix-permissions ${CONDA_DIR}  \
+    && rm /tmp/micromamba
+
+COPY api.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py 
+COPY dynamic_rendezvous.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py
+
+RUN fix-permissions ${CONDA_DIR}  \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
     && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf
 
-WORKDIR /wheels/opencv-python
-COPY --from=quay.io/ntlawrence/opencv-python:1.0.0  /wheels .
 
-# Checks out a specific version of the yolov5 tools.
-# This is a little newer that the latest release, but has some
-# fixes in it for distriubed.
+WORKDIR /workspace
+ADD echo.py .
+ENV PYTHONPATH /workspace
+RUN fix-permissions /workspace
 
-WORKDIR /yolov5
-RUN git clone https://github.com/ultralytics/yolov5 . && \
-    git checkout ec2b8538cd && \
-    git config --system --add safe.directory '/yolov5' && \
-    pip install -r requirements.txt --find-links /wheels/opencv-python
-
-COPY train.py /yolov5
-RUN fix-permissions /yolov5
-
-# When running distributed training, this file gets downloaded in all worker pods at the same time
-# The download of the same file multiple times in a small timewindow causes the download request to
-# be rejected. 
-# https://stackoverflow.com/questions/71251177/how-to-use-yolov5-api-with-flask-offline
-WORKDIR /yolov5-config
-RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
-RUN fix-permissions /yolov5-config
-
-#COPY api.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py
-
-#RUN pip install python-etcd
-#COPY client.py  /opt/conda/lib/python3.10/site-packages/etcd/client.py
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/etcd/client.py
-
-#COPY distributed_c10d.py /opt/conda/lib/python3.10/site-packages/torch/distributed/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py
-
-#COPY rendezvous.py /opt/conda/lib/python3.10/site-packages/torch/distributed/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/rendezvous.py
-
-#COPY dynamic_rendezvous.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/rendezvous/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py
-
-WORKDIR /yolov5
 USER 1000:0
+
+ENTRYPOINT ["python", "-m", "torch.distributed.run"]

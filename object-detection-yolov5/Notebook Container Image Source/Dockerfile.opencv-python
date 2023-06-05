@@ -1,0 +1,46 @@
+ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
+FROM $ROOT_CONTAINER
+LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
+
+USER root
+WORKDIR /root
+
+## OS Dependencies
+RUN dnf install -y bzip2 \
+    && dnf -y groupinstall "Development Tools" \
+    && dnf clean all -y 
+
+## Install mamba
+# https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
+WORKDIR /tmp
+RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/latest && \
+    tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
+    rm /tmp/micromamba.tar
+
+# Copy a script that we will use to correct permissions after running certain commands
+COPY fix-permissions /usr/local/bin/fix-permissions
+RUN chmod a+rx /usr/local/bin/fix-permissions
+
+# The trick here is to install into a root prefix that is first in the path
+# Then the python environment will be what we installed using mamba, but we
+# will not need to directly activate the environment.
+ENV CONDA_DIR="/opt/conda"
+
+ENV PATH=${CONDA_DIR}/bin:${PATH}
+RUN mkdir -p ${CONDA_DIR} && \
+    ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
+    -c rocketce \
+    -c conda-forge \
+    -c https://repo.anaconda.com/pkgs/main \
+    --yes \
+    conda-forge::python==3.10.11 \
+    pip  \
+    mamba \
+    && fix-permissions ${CONDA_DIR} && \
+    mkdir ~/.pip && \
+    echo "[global]" >> ~/.pip/pip.conf && \
+    echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf
+
+
+WORKDIR /wheels
+RUN  pip wheel -v opencv-python  --w /wheels

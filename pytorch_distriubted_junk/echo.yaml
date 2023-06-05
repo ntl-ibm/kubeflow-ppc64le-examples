@@ -1,0 +1,45 @@
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: echo
+  namespace: kubeflow-ntl
+spec:
+  elasticPolicy:
+    rdzvBackend: c10d
+    rdzvId: abcdefg
+    minReplicas: 6
+    maxReplicas: 6
+    maxRestarts: 0
+  pytorchReplicaSpecs:
+    Worker:
+      replicas: 6
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+            - name: pytorch
+              image: quay.io/ntlawrence/echo:1.3
+              imagePullPolicy: IfNotPresent
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
+              env:
+                - name: LOGLEVEL
+                  value: DEBUG
+                - name: NCCL_DEBUG
+                  value: DEBUG
+                - name: TORCH_CPP_LOG_LEVEL
+                  value: INFO
+                - name: PET_VERBOSE
+                  value: "1"
+                - name: ENABLE_NCCL_HEALTH_CHECK
+                  value: "1"
+
+              command:
+                - python
+                - -m
+                - torch.distributed.run
+                - --rdzv_backend=c10d
+                - ./echo.py
