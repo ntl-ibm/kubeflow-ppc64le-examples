@@ -15,6 +15,8 @@ from torchmetrics import F1Score
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader, random_split
 import torch.distributed as dst
+
+from pytorch_lightning.utilities import rank_zero_info
 from typing import Optional
 import logging
 import sys
@@ -29,6 +31,16 @@ logging.basicConfig(
 )
 
 ROOT_DIR = "/home/jovyan/kubeflow-ppc64le-examples/pytorch_distributed/working_root"
+
+
+class LoggingCallback(L.Callback):
+    def on_validation_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
+        rank_zero_info("***** Test results *****")
+        metrics = trainer.callback_metrics
+        # Log results
+        for key in sorted(metrics):
+            if key not in ["log", "progress_bar"]:
+                rank_zero_info("{} = {}\n".format(key, str(metrics[key])))
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -160,11 +172,12 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
+        enable_progress_bar=False,
+        callbacks=[LoggingCallback],
     )
 
     # Train the model
     trainer.fit(model, mnist)
-    log.info("DONE TRAINING!!!")
 
     if os.environ["RANK"] == "0":
         torch.save(model, args.model)
