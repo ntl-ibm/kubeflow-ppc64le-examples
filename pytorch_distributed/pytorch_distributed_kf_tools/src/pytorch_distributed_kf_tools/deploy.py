@@ -34,11 +34,11 @@ from kubeflow.training.constants import constants
 from kubernetes import client, config, watch
 
 DEFAULT_CONTAINER_ENV = [
-    V1EnvVar(name="LOGLEVEL", value="DEBUG"),
-    V1EnvVar(name="NCCL_DEBUG", value="DEBUG"),
-    V1EnvVar(name="TORCH_CPP_LOG_LEVEL", value="INFO"),
-    V1EnvVar(name="C10D_DEBUG_MODE", value="DETAIL"),
-    V1EnvVar(name="PET_VERBOSE", value="1"),
+    V1EnvVar(name="LOGLEVEL", value="INFO"),
+    # V1EnvVar(name="NCCL_DEBUG", value="DEBUG"),
+    # V1EnvVar(name="TORCH_CPP_LOG_LEVEL", value="INFO"),
+    # V1EnvVar(name="C10D_DEBUG_MODE", value="DETAIL"),
+    # V1EnvVar(name="PET_VERBOSE", value="1"),
     # V1EnvVar(name="CUDA_LAUNCH_BLOCKING", value="1"),
     # V1EnvVar(name="NCCL_BLOCKING_WAIT", value="1"),
 ]
