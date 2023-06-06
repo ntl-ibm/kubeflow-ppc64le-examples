@@ -200,6 +200,7 @@ def run_pytorch_job(
     ##########################
     # Submit training job
     ##########################
+    print(repr(pytorchjob))
     training_client = TrainingClient()
     training_client.create_pytorchjob(pytorchjob)
 
