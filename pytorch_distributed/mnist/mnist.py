@@ -5,6 +5,7 @@
 # https://lightning.ai/docs/pytorch/stable/common/checkpointing_basic.html#save-a-checkpoint
 # https://github.com/Lightning-AI/lightning/discussions/7186#discussioncomment-654431
 # https://lightning.ai/docs/pytorch/stable/accelerators/gpu_intermediate.html#optimize-multi-machine-communication
+# https://github.com/bigscience-workshop/Megatron-DeepSpeed/issues/265#issuecomment-1085185496
 import argparse
 import pytorch_lightning as L
 import torch
@@ -78,15 +79,27 @@ class MNISTModel(L.LightningModule):
         super().__init__()
 
         # Model
-        self.fc = torch.nn.Linear(28 * 28, 10)
+        self.conv1 = torch.nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = torch.nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = torch.nn.Dropout(0.25)
+        self.dropout2 = torch.nn.Dropout(0.5)
+        self.fc1 = torch.nn.Linear(255, 128)
+        self.fc2 = torch.nn.Linear(128, 10)
 
         # Metrics
         self.val_f1 = F1Score(task="multiclass", num_classes=10)
         self.test_f1 = F1Score(task="multiclass", num_classes=10)
 
     def forward(self, x):
-        flatten = x.view(x.size(0), -1)
-        return torch.relu(self.fc(flatten))
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout2(x)
+        output = F.log_softmax(self.fc2(x), dim=1)
+        return output
 
     def training_step(self, batch, batch_idx):
         x, y = batch
