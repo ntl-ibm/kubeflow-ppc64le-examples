@@ -113,14 +113,14 @@ class MNISTModel(L.LightningModule):
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         self.val_f1.update(preds, y)
-        self.log("val_F1", self.val_f1, on_epoch=True)
+        self.log("val_F1", self.val_f1, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         self.test_f1.update(preds, y)
-        self.log("test_F1", self.test_f1, on_epoch=True)
+        self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
-        enable_progress_bar=False,
+        enable_progress_bar=True,
     )
 
     # Train the model
