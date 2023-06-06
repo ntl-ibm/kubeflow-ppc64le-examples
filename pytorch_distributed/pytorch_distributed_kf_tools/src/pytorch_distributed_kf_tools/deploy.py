@@ -95,7 +95,7 @@ def run_pytorch_job(
     # An owner reference for the workflow
     # When the workflow is deleted, the torch job is
     # garbage collected.
-    workflow_ownership = []
+    workflow_ownership = None
     if owning_workflow:
         workflow_ownership = [
             V1OwnerReference(
