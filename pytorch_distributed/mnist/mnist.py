@@ -83,7 +83,7 @@ class MNISTModel(L.LightningModule):
         self.conv2 = torch.nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = torch.nn.Dropout(0.25)
         self.dropout2 = torch.nn.Dropout(0.5)
-        self.fc1 = torch.nn.Linear(255, 128)
+        self.fc1 = torch.nn.Linear(9216, 128)
         self.fc2 = torch.nn.Linear(128, 10)
 
         # Metrics
