@@ -86,7 +86,7 @@ def run_pytorch_job(
     gpus_per_worker: int = 1,
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
-    worker_image: str = "quay.io/ntlawrence/pytorchv1.13:1.0",
+    worker_image: str = "quay.io/ntlawrence/pytorchv1.13:1.0.0",
     shared_pvc_subpath: Optional[str] = None,
     completion_timeout: int = 60 * 60 * 24,
 ):
@@ -198,7 +198,6 @@ def run_pytorch_job(
     ##########################
     # Submit training job
     ##########################
-    print(repr(pytorchjob))
     training_client = TrainingClient()
     training_client.create_pytorchjob(pytorchjob)
 
