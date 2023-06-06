@@ -162,4 +162,5 @@ if __name__ == "__main__":
     # Train the model
     trainer.fit(model, mnist)
 
-    torch.save(model, args.model)
+    if os.environ["RANK"] == "0":
+        torch.save(model, args.model)
