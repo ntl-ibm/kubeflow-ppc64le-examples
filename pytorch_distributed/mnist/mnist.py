@@ -145,7 +145,6 @@ if __name__ == "__main__":
 
     # Initialize a trainer
 
-    print(os.environ)
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
