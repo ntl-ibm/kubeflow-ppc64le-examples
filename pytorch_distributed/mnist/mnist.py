@@ -4,6 +4,7 @@
 # https://lightning.ai/docs/pytorch/stable/accelerators/gpu_intermediate.html#torch-distributed-elastic
 # https://lightning.ai/docs/pytorch/stable/common/checkpointing_basic.html#save-a-checkpoint
 # https://github.com/Lightning-AI/lightning/discussions/7186#discussioncomment-654431
+# https://lightning.ai/docs/pytorch/stable/accelerators/gpu_intermediate.html#optimize-multi-machine-communication
 import argparse
 import pytorch_lightning as L
 import torch
@@ -12,6 +13,7 @@ from torchvision import transforms
 from torchmetrics import F1Score
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader, random_split
+import torch.distributed as dst
 from typing import Optional
 import logging
 import sys
@@ -147,6 +149,7 @@ if __name__ == "__main__":
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
+        num_nodes=os.environ["WORLD_SIZE"],
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
         else -1,
