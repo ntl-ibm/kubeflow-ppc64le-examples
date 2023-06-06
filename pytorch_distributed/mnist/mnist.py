@@ -100,20 +100,12 @@ class MNISTModel(L.LightningModule):
         self.val_f1.update(preds, y)
         self.log("val_F1", self.val_f1, on_epoch=True)
 
-    def on_validation_epoch_end(self):
-        metrics = self.trainer.callback_metrics
-        log.info(f'val_F1 = {metrics["val_F1"]}')
-
     def test_step(self, batch, batch_idx):
         x, y = batch
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         self.test_f1.update(preds, y)
         self.log("test_F1", self.test_f1, on_epoch=True)
-
-    def on_test_epoch_end(self):
-        metrics = self.trainer.callback_metrics
-        log.info(f'test_F1 = {metrics["test_F1"]}')
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
