@@ -144,7 +144,7 @@ if __name__ == "__main__":
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
-        devices=-1,  # torch.cuda.device_count() if torch.cuda.is_available() else 1,
+        devices=torch.cuda.device_count() if torch.cuda.is_available() else -1,
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
