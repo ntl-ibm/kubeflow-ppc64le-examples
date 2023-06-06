@@ -175,7 +175,7 @@ def run_pytorch_job(
         api_version=f"{constants.KUBEFLOW_GROUP}/{constants.OPERATOR_VERSION}",
         kind=constants.PYTORCHJOB_KIND,
         metadata=V1ObjectMeta(
-            name=pytorch_job_name, owner_references=[workflow_ownership]
+            name=pytorch_job_name, owner_references=workflow_ownership
         ),
         spec=KubeflowOrgV1PyTorchJobSpec(
             # c10d is the most commonly used because it doesn't require additional
