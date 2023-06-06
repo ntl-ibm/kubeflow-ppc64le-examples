@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader, random_split
 from typing import Optional
 import logging
 import sys
+import os
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -142,6 +143,7 @@ if __name__ == "__main__":
 
     # Initialize a trainer
 
+    print(os.environ)
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
