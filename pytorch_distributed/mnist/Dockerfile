@@ -51,7 +51,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::python==3.10.9  \
     pip  \
     mamba \
-    pytorch==1.13.1 \
+    rocketce::pytorch==1.13.1 \
     rocketce::pytorch-lightning \
     rocketce::torchvision \
     rocketce::torchmetrics \
