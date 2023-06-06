@@ -86,7 +86,7 @@ def run_pytorch_job(
     gpus_per_worker: int = 1,
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
-    worker_image: str = "quay.io/ntlawrence/pytorchv1.13:latest",
+    worker_image: str = "quay.io/ntlawrence/pytorchv1.13:1.0",
     shared_pvc_subpath: Optional[str] = None,
     completion_timeout: int = 60 * 60 * 24,
 ):
@@ -220,7 +220,7 @@ def run_pytorch_job(
     # Wait for pods to be ready, must do this before reading logs
     pod_names = training_client.get_job_pod_names(name=pytorch_job_name, is_master=None)
     for pod in pod_names:
-        wait_for_pod_ready(pod)
+        wait_for_pod_ready(pod, namespace)
 
     # stream logs for all workers
     # (most of the interesting stuff is in worker 0)
