@@ -155,11 +155,11 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
-        # limit_train_batches=0.25,
     )
 
     # Train the model
     trainer.fit(model, mnist)
+    log.info("DONE TRAINING!!!")
 
     if os.environ["RANK"] == "0":
         torch.save(model, args.model)
