@@ -60,13 +60,13 @@ class MNISTDataModule(L.LightningDataModule):
             )
 
     def train_dataloader(self):
-        return DataLoader(self.data["train"], batch_size=self.batch_size)
+        return DataLoader(self.data["train"], num_workers=2, batch_size=self.batch_size)
 
     def test_dataloader(self):
-        return DataLoader(self.data["test"], batch_size=self.batch_size)
+        return DataLoader(self.data["test"], num_workers=1, batch_size=self.batch_size)
 
     def val_dataloader(self):
-        return DataLoader(self.data["val"], batch_size=self.batch_size)
+        return DataLoader(self.data["val"], num_workers=0, batch_size=self.batch_size)
 
 
 class MNISTModel(L.LightningModule):
