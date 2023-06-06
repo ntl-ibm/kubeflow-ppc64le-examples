@@ -141,10 +141,13 @@ if __name__ == "__main__":
     mnist = MNISTDataModule(data_dir=args.data_dir, batch_size=args.batch_size)
 
     # Initialize a trainer
+
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
-        devices=torch.cuda.device_count() if torch.cuda.is_available() else -1,
+        devices=[d for d in range(torch.cuda.device_count())]
+        if torch.cuda.is_available()
+        else -1,
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
