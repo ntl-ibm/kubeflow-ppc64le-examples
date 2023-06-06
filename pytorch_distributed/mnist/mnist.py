@@ -33,16 +33,6 @@ logging.basicConfig(
 ROOT_DIR = "/home/jovyan/kubeflow-ppc64le-examples/pytorch_distributed/working_root"
 
 
-class LoggingCallback(L.Callback):
-    def on_validation_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
-        rank_zero_info("***** Test results *****")
-        metrics = trainer.callback_metrics
-        # Log results
-        for key in sorted(metrics):
-            if key not in ["log", "progress_bar"]:
-                rank_zero_info("{} = {}\n".format(key, str(metrics[key])))
-
-
 class MNISTDataModule(L.LightningDataModule):
     """
     Data Module to load MNIST dataset
@@ -173,7 +163,6 @@ if __name__ == "__main__":
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
         enable_progress_bar=False,
-        callbacks=[LoggingCallback],
     )
 
     # Train the model
