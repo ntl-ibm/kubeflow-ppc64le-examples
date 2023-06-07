@@ -2,7 +2,6 @@ import os
 import subprocess
 import shutil
 from dataclasses import dataclass
-
 from typing import Optional, List, Dict
 
 from kubernetes.client import (
@@ -17,8 +16,6 @@ from kubernetes.client import (
     V1PersistentVolumeClaimVolumeSource,
     V1EmptyDirVolumeSource,
     V1OwnerReference,
-    V1ObjectFieldSelector,
-    V1EnvVarSource,
 )
 
 from kubeflow.training import (
@@ -48,6 +45,13 @@ DEFAULT_CONTAINER_ENV = [
 class OwningWorkFlow:
     name: str
     uid: str
+
+
+@dataclass
+class PvcMount:
+    pvc_name: str
+    mount_path: str
+    subpath: Optional[str] = None
 
 
 def wait_for_pod_ready(name: str, namespace: str):
@@ -80,8 +84,7 @@ def wait_for_pod_ready(name: str, namespace: str):
 def run_pytorch_job(
     namespace: str,
     pytorch_job_name: str,
-    shared_pvc_name: str,
-    shared_pvc_mount_point: str,
+    pvcs: List[PvcMount],
     owning_workflow: Optional[OwningWorkFlow],
     command: List[str],
     num_workers: int,
@@ -89,7 +92,7 @@ def run_pytorch_job(
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
     worker_image: str = "quay.io/ntlawrence/pytorchv1.13:latest",
-    shared_pvc_subpath: Optional[str] = None,
+    image_pull_policy: str = "IfNotPresent",
     completion_timeout: int = 60 * 60 * 24,
 ):
     # An owner reference for the workflow
@@ -106,18 +109,45 @@ def run_pytorch_job(
             )
         ]
 
+    # Construct Environment parameters
     container_env = (
         [V1EnvVar(n, v) for n, v in env.items()] if env else DEFAULT_CONTAINER_ENV
     )
+
+    # Construct resources parameters
     resources = (
         V1ResourceRequirements(limits={"nvidia.com/gpu": f"{gpus_per_worker}"})
         if gpus_per_worker
         else None
     )
 
-    container_working_dir = working_dir if working_dir else shared_pvc_mount_point
+    container_working_dir = working_dir if working_dir else None
 
-    # Pod definition for each worker replica
+    # Construct the volumes and volume mount parameters
+    volume_mounts: List[V1VolumeMount] = []
+    volumes: List[V1Volume] = []
+    for i, pvc in enumerate(pvcs):
+        name = f"{pvc.pvc_name}-{i}"
+        volume_mounts.append(
+            V1VolumeMount(mount_path=pvc.mount_path, name=name, sub_path=pvc.subpath)
+        )
+        volumes.append(
+            V1Volume(
+                name=name,
+                persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
+                    claim_name=pvc.pvc_name
+                ),
+            )
+        )
+
+    # PyTorch requires shared memory on each pod
+    if not "/dev/shm" in {p.mount_path for p in pvcs}:
+        volume_mounts.append(V1VolumeMount(mount_path="/dev/shm", name="dshm")),
+        volumes.append(
+            V1Volume(name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory"))
+        )
+
+    # Pod template for each worker replica
     # Defines the container image, command, and volume mounts
     pod_template = V1PodTemplateSpec(
         metadata=V1ObjectMeta(
@@ -132,33 +162,15 @@ def run_pytorch_job(
                 V1Container(
                     name=constants.PYTORCHJOB_CONTAINER,
                     image=worker_image,
-                    image_pull_policy="IfNotPresent",
+                    image_pull_policy=image_pull_policy,
                     working_dir=container_working_dir,
                     command=command,
                     env=container_env,
                     resources=resources,
-                    volume_mounts=[
-                        V1VolumeMount(
-                            mount_path=shared_pvc_mount_point,
-                            name="shared",
-                            sub_path=shared_pvc_subpath,
-                        ),
-                        # PyTorch requires shared memory on each pod
-                        V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-                    ],
+                    volume_mounts=volume_mounts,
                 )
             ],
-            volumes=[
-                V1Volume(
-                    name="shared",
-                    persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
-                        claim_name=shared_pvc_name
-                    ),
-                ),
-                V1Volume(
-                    name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory")
-                ),
-            ],
+            volumes=volumes,
         ),
     )
 
