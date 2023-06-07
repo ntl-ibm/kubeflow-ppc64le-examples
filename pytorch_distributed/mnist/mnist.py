@@ -124,7 +124,7 @@ class MNISTModel(L.LightningModule):
 
     def on_train_epoch_end(self):
         print(
-            f"Finished epoch {self.current_epoch} / {self.max_epochs} val_F1 = {self.callback_metrics['val_F1']}"
+            f"Finished epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} val_F1 = {self.trainer.callback_metrics['val_F1']}"
         )
 
     def configure_optimizers(self):
