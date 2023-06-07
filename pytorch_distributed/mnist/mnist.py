@@ -123,7 +123,7 @@ class MNISTModel(L.LightningModule):
         self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
 
     def on_train_epoch_end(self):
-        if ("RANK" not in os.environ) or (os.environ["RANK"] == 0):
+        if ("RANK" not in os.environ) or (os.environ["RANK"] == "0"):
             print(
                 f"Finished epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} val_F1 = {self.trainer.callback_metrics['val_F1']}"
             )
