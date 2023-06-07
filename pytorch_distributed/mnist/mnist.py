@@ -52,14 +52,14 @@ class MNISTDataModule(L.LightningDataModule):
     def setup(self, stage: str):
         if stage == "fit":
             mnist_full = MNIST(
-                self.data_dir, download=True, train=True, transform=self.transforms
+                self.data_dir, download=False, train=True, transform=self.transforms
             )
             self.data["train"], self.data["val"] = random_split(
                 mnist_full, [55000, 5000]
             )
         elif stage == "test":
             self.data["test"] = MNIST(
-                self.data_dir, download=True, train=False, transform=transforms
+                self.data_dir, download=False, train=False, transform=transforms
             )
 
     def train_dataloader(self):
@@ -122,6 +122,11 @@ class MNISTModel(L.LightningModule):
         self.test_f1.update(preds, y)
         self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
 
+    def on_train_epoch_end(self):
+        print(
+            f"Finished epoch {self.current_epoch} / {self.max_epochs} val_F1 = {self.callback_metrics['val_F1']}"
+        )
+
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
@@ -162,7 +167,7 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_checkpointing=False,
-        enable_progress_bar=True,
+        enable_progress_bar=False,
     )
 
     # Train the model
