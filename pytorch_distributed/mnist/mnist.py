@@ -1,11 +1,20 @@
-# https://kengz.gitbook.io/blog/ml/distributed-training-with-torchelastic-on-kubernetes#pytorch-lightning
-# https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/mnist-hello-world.html
-# https://lightning.ai/docs/pytorch/stable/common/checkpointing_basic.html
-# https://lightning.ai/docs/pytorch/stable/accelerators/gpu_intermediate.html#torch-distributed-elastic
-# https://lightning.ai/docs/pytorch/stable/common/checkpointing_basic.html#save-a-checkpoint
-# https://github.com/Lightning-AI/lightning/discussions/7186#discussioncomment-654431
-# https://lightning.ai/docs/pytorch/stable/accelerators/gpu_intermediate.html#optimize-multi-machine-communication
-# https://github.com/bigscience-workshop/Megatron-DeepSpeed/issues/265#issuecomment-1085185496
+# Copyright 2023 IBM All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+This module is an example of how to train a MNIST model using pytorch lightning 
+with DDP.
+"""
 import argparse
 import pytorch_lightning as L
 import torch
@@ -13,10 +22,9 @@ from torch.nn import functional as F
 from torchvision import transforms
 from torchmetrics import F1Score
 from torchvision.datasets import MNIST
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import torch.distributed as dst
 
-from pytorch_lightning.utilities import rank_zero_info
 from typing import Optional
 import logging
 import sys
@@ -24,20 +32,11 @@ import os
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s : %(message)s",
-    level=logging.INFO,
-    stream=sys.stdout,
-)
-
-ROOT_DIR = "/home/jovyan/kubeflow-ppc64le-examples/pytorch_distributed/working_root"
 
 
 class MNISTDataModule(L.LightningDataModule):
     """
-    Data Module to load MNIST dataset
-
-    Splits into train/validate/test sets
+    Data Module to load MNIST dataset from disk
     """
 
     def __init__(self, data_dir: str, batch_size: int):
@@ -50,20 +49,17 @@ class MNISTDataModule(L.LightningDataModule):
         )
 
     def prepare_data(self):
-        # This is where the data should be downloaded, lightning makes sure it only
-        # happens in one process.
-        # In this example, we assume that the data has already been downloaded and
-        # transformed by other pipeline steps.
-        # Do not set any state here, since this is not called for
+        # This is where the data would be downloaded if the download happened in the DataModule,
+        # lightning makes sure this method is only called by one process.
+        # In this example, we assume that the data has already been downloaded onto shared storage
+        # and transformed/shuffled by previous pipeline steps.
+        # Caution: do not set any object state here, since this is not called for
         # every device, do that in setup()
         # https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
         pass
 
     def setup(self, stage: str):
         if stage == "fit":
-            #  Assuming that the data has already been shuffled
-            #  We want each worker seeing the same train / val split
-            #  so no need for random split
             mnist_full = MNIST(
                 self.data_dir, download=False, train=True, transform=self.transforms
             )
@@ -71,9 +67,6 @@ class MNISTDataModule(L.LightningDataModule):
             self.data["val"] = torch.utils.data.Subset(
                 mnist_full, range(55000, 55000 + 5000)
             )
-            # , self.data["val"] = random_split(
-            #    mnist_full, [55000, 5000]
-            # )
         elif stage == "test":
             self.data["test"] = MNIST(
                 self.data_dir, download=False, train=False, transform=transforms
@@ -91,7 +84,7 @@ class MNISTDataModule(L.LightningDataModule):
 
 class MNISTModel(L.LightningModule):
     """
-    Minimal MNIST classifier
+    MNIST classifier
     """
 
     def __init__(self):
@@ -142,8 +135,11 @@ class MNISTModel(L.LightningModule):
         self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
 
     def on_train_epoch_end(self):
+        """
+        Prints the F1 score for the validation set after each epoch.
+        """
         if ("RANK" not in os.environ) or (os.environ["RANK"] == "0"):
-            print(
+            log.info(
                 f"Finished epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} val_F1 = {self.trainer.callback_metrics['val_F1']}"
             )
 
@@ -151,15 +147,14 @@ class MNISTModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """
+    Parse the arguments from sys.argv
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data_dir", type=str, default=f"{ROOT_DIR}/data", help="Data Directory"
-    )
-    parser.add_argument(
-        "--root_dir", type=str, default=f"{ROOT_DIR}/root", help="Root Directory"
-    )
-    parser.add_argument("--model", type=str, default=f"{ROOT_DIR}/model.pt")
+    parser.add_argument("--data_dir", type=str, help="Data Directory")
+    parser.add_argument("--root_dir", type=str, help="Root Directory")
+    parser.add_argument("--model", type=str)
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument(
         "--batch_size", type=int, default=64 if torch.cuda.is_available() else 16
@@ -171,12 +166,10 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     args = parse_args()
-
     model = MNISTModel()
     mnist = MNISTDataModule(data_dir=args.data_dir, batch_size=args.batch_size)
 
     # Initialize a trainer
-
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
@@ -193,5 +186,13 @@ if __name__ == "__main__":
     # Train the model
     trainer.fit(model, mnist)
 
-    if os.environ["RANK"] == "0":
+    # Test the model
+    trainer.test(model, mnist, verbose=True)
+
+    if "RANK" not in os.environ or (os.environ["RANK"] == "0"):
+        log.info(f"Train Valiation F1 = {trainer.callback_metrics['val_F1']}")
+        log.info(f"Test Validation F1 = {trainer.callback_metrics['test_F1']}")
+
+        # Save model
+        log.info(f"Saving the model to {args.model}")
         torch.save(model, args.model)
