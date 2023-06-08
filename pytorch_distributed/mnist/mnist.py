@@ -224,7 +224,7 @@ if __name__ == "__main__":
     trainer.test(model, mnist)
     metrics["test_f1"] = trainer.callback_metrics["test_F1"]
 
-    rank_zero_info(f"Training Valiation F1 = {metrics['val_f1']}")
+    rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
     rank_zero_info(f"Test F1 = {metrics['test_f1']}")
 
     # Save outputs (Model and metrics)
