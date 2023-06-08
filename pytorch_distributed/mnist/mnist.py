@@ -188,13 +188,15 @@ if __name__ == "__main__":
 
     # Train the model
     trainer.fit(model, mnist)
+    val_f1 = trainer.callback_metrics["val_F1"]
 
     # Test the model
     trainer.test(model, mnist, verbose=True)
+    test_f1 = trainer.callback_metrics["test_F1"]
 
     if "RANK" not in os.environ or (os.environ["RANK"] == "0"):
-        log.info(f"Train Valiation F1 = {trainer.callback_metrics['val_F1']}")
-        log.info(f"Test Validation F1 = {trainer.callback_metrics['test_F1']}")
+        log.info(f"Train Valiation F1 = {val_f1}")
+        log.info(f"Test Validation F1 = {test_f1}")
 
         # Save model
         log.info(f"Saving the model to {args.model}")
