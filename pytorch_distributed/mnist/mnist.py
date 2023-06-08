@@ -31,6 +31,7 @@ import logging
 import sys
 import os
 import json
+from pathlib import Path
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -190,6 +191,7 @@ def create_kubeflow_ui_metadata(path: str, metadata: Dict[str, str]):
         ]
     }
 
+    Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(metadata, f)
 
