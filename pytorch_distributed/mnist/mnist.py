@@ -30,8 +30,10 @@ import logging
 import sys
 import os
 
-log = logging.getLogger()
-log.setLevel(logging.INFO)
+log = logging.getLogger(__name__)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+log.addHandler(handler)
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -69,7 +71,7 @@ class MNISTDataModule(L.LightningDataModule):
             )
         elif stage == "test":
             self.data["test"] = MNIST(
-                self.data_dir, download=False, train=False, transform=transforms
+                self.data_dir, download=False, train=False, transform=self.transforms
             )
 
     def train_dataloader(self):
@@ -140,7 +142,8 @@ class MNISTModel(L.LightningModule):
         """
         if ("RANK" not in os.environ) or (os.environ["RANK"] == "0"):
             log.info(
-                f"Finished epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} val_F1 = {self.trainer.callback_metrics['val_F1']}"
+                f"Finished training epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} "
+                + f"val_F1 = {self.trainer.callback_metrics['val_F1']}"
             )
 
     def configure_optimizers(self):
