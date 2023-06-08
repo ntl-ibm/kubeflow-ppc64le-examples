@@ -24,16 +24,12 @@ from torchmetrics import F1Score
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import torch.distributed as dst
+from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
 
 from typing import Optional
 import logging
 import sys
 import os
-
-log = logging.getLogger(__name__)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-log.addHandler(handler)
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -140,14 +136,18 @@ class MNISTModel(L.LightningModule):
         """
         Prints the F1 score for the validation set after each epoch.
         """
-        if ("RANK" not in os.environ) or (os.environ["RANK"] == "0"):
-            log.info(
-                f"Finished training epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} "
-                + f"val_F1 = {self.trainer.callback_metrics['val_F1']}"
-            )
+        rank_zero_info(
+            f">>>> Finished training epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} "
+            + f"val_F1 = {self.trainer.callback_metrics['val_F1']}"
+        )
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.02)
+
+    @rank_zero_only
+    def save(self, dest: str):
+        """Saves the model to the destination file"""
+        torch.save(self, dest)
 
 
 def parse_args() -> argparse.Namespace:
@@ -191,13 +191,9 @@ if __name__ == "__main__":
     val_f1 = trainer.callback_metrics["val_F1"]
 
     # Test the model
-    trainer.test(model, mnist, verbose=True)
+    trainer.test(model, mnist)
     test_f1 = trainer.callback_metrics["test_F1"]
 
-    if "RANK" not in os.environ or (os.environ["RANK"] == "0"):
-        log.info(f"Train Valiation F1 = {val_f1}")
-        log.info(f"Test Validation F1 = {test_f1}")
-
-        # Save model
-        log.info(f"Saving the model to {args.model}")
-        torch.save(model, args.model)
+    rank_zero_info(f"Training Valiation F1 = {val_f1}")
+    rank_zero_info(f"Test F1 = {test_f1}")
+    model.save(args.model)
