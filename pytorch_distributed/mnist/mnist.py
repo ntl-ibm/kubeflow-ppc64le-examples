@@ -183,7 +183,9 @@ def create_kubeflow_ui_metadata(path: str, metadata: Dict[str, str]):
                 "storage": "inline",
                 "format": "csv",
                 "header": headings,
-                "source": ",".join([str(metadata[heading]) for heading in headings]),
+                "source": ",".join(
+                    [f"{metadata[heading].item():.4f}" for heading in headings]
+                ),
             }
         ]
     }
