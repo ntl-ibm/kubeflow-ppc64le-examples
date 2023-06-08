@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader
 import torch.distributed as dst
 from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
 
-from typing import Optional
+from typing import Optional, Dict
 import logging
 import sys
 import os
