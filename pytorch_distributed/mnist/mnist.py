@@ -30,6 +30,7 @@ from typing import Optional
 import logging
 import sys
 import os
+import json
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -145,9 +146,9 @@ class MNISTModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=0.02)
 
     @rank_zero_only
-    def save(self, dest: str):
+    def save(self, model_dest: str):
         """Saves the model to the destination file"""
-        torch.save(self, dest)
+        torch.save(self, model_dest)
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,12 +158,40 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, help="Data Directory")
     parser.add_argument("--root_dir", type=str, help="Root Directory")
-    parser.add_argument("--model", type=str)
+    parser.add_argument("--model", type=str, help="Output trained model file")
+    parser.add_argument(
+        "--kubeflow_ui_metadata", type=str, default=None, help="Ouput metrics json"
+    )
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument(
         "--batch_size", type=int, default=64 if torch.cuda.is_available() else 16
     )
     return parser.parse_args()
+
+
+@rank_zero_only
+def create_kubeflow_ui_metadata(path: str, metadata: Dict[str, str]):
+    """Writes training and test data metrics to the specified path
+
+    The file is formatted such that Kubeflow can display it as a visualization
+    of a component.
+    """
+    headings = list(metadata.keys())
+
+    metadata = {
+        "outputs": [
+            {
+                "type": "table",
+                "storage": "inline",
+                "format": "csv",
+                "header": headings,
+                "source": ",".join([str(metadata[heading]) for heading in headings]),
+            }
+        ]
+    }
+
+    with open(path, "w") as f:
+        json.dump(metadata, f)
 
 
 if __name__ == "__main__":
@@ -186,14 +215,19 @@ if __name__ == "__main__":
         enable_progress_bar=False,
     )
 
+    metrics = {}
     # Train the model
     trainer.fit(model, mnist)
-    val_f1 = trainer.callback_metrics["val_F1"]
+    metrics["train_f1"] = trainer.callback_metrics["val_F1"]
 
     # Test the model
     trainer.test(model, mnist)
-    test_f1 = trainer.callback_metrics["test_F1"]
+    metrics["test_f1"] = trainer.callback_metrics["test_F1"]
 
     rank_zero_info(f"Training Valiation F1 = {val_f1}")
     rank_zero_info(f"Test F1 = {test_f1}")
+
+    # Save outputs (Model and metrics)
     model.save(args.model)
+    if args.kubeflow_ui_metadata:
+        create_kubeflow_ui_metadata(args.kubeflow_ui_metadata, metrics)
