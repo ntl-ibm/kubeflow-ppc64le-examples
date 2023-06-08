@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pytorch_distributed_kf_tools"
 version = "0.0.1"
+dynamic = ["dependencies"]
 authors = [
   { name="Nick Lawrence", email="ntl@us.ibm.com" },
 ]
@@ -16,3 +17,6 @@ classifiers = [
     "License :: OSI Approved :: Apache 2.0 License",
     "Operating System :: OS Independent",
 ]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
