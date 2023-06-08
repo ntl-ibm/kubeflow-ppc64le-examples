@@ -95,21 +95,5 @@ WORKDIR /yolov5-config
 RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
 RUN fix-permissions /yolov5-config
 
-#COPY api.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py
-
-#RUN pip install python-etcd
-#COPY client.py  /opt/conda/lib/python3.10/site-packages/etcd/client.py
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/etcd/client.py
-
-#COPY distributed_c10d.py /opt/conda/lib/python3.10/site-packages/torch/distributed/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py
-
-#COPY rendezvous.py /opt/conda/lib/python3.10/site-packages/torch/distributed/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/rendezvous.py
-
-#COPY dynamic_rendezvous.py /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/rendezvous/
-#RUN chmod ugo+rx /opt/conda/lib/python3.10/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py
-
 WORKDIR /yolov5
 USER 1000:0

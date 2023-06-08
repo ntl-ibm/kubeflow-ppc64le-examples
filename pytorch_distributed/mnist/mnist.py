@@ -49,14 +49,31 @@ class MNISTDataModule(L.LightningDataModule):
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
+    def prepare_data(self):
+        # This is where the data should be downloaded, lightning makes sure it only
+        # happens in one process.
+        # In this example, we assume that the data has already been downloaded and
+        # transformed by other pipeline steps.
+        # Do not set any state here, since this is not called for
+        # every device, do that in setup()
+        # https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
+        pass
+
     def setup(self, stage: str):
         if stage == "fit":
+            #  Assuming that the data has already been shuffled
+            #  We want each worker seeing the same train / val split
+            #  so no need for random split
             mnist_full = MNIST(
                 self.data_dir, download=False, train=True, transform=self.transforms
             )
-            self.data["train"], self.data["val"] = random_split(
-                mnist_full, [55000, 5000]
+            self.data["train"] = torch.utils.data.Subset(mnist_full, range(55000))
+            self.data["val"] = torch.utils.data.Subset(
+                mnist_full, range(55000, 55000 + 5000)
             )
+            # , self.data["val"] = random_split(
+            #    mnist_full, [55000, 5000]
+            # )
         elif stage == "test":
             self.data["test"] = MNIST(
                 self.data_dir, download=False, train=False, transform=transforms
@@ -80,13 +97,15 @@ class MNISTModel(L.LightningModule):
     def __init__(self):
         super().__init__()
 
-        # Model
-        self.conv1 = torch.nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = torch.nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = torch.nn.Dropout(0.25)
-        self.dropout2 = torch.nn.Dropout(0.5)
-        self.fc1 = torch.nn.Linear(9216, 128)
-        self.fc2 = torch.nn.Linear(128, 10)
+        # Model Layers
+        self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
+        self.conv2 = torch.nn.Conv2d(
+            in_channels=32, out_channels=64, kernel_size=(3, 3)
+        )
+        self.dropout1 = torch.nn.Dropout(p=0.25)
+        self.fc1 = torch.nn.Linear(in_features=9216, out_features=128)
+        self.dropout2 = torch.nn.Dropout(p=0.5)
+        self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
         self.val_f1 = F1Score(task="multiclass", num_classes=10)
