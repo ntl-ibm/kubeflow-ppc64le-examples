@@ -20,7 +20,7 @@ Author: ntl@us.ibm.com
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
 from kubeflow.training import (
@@ -65,7 +65,9 @@ class ContainerEnv:
     LOGLEVEL_INFO: V1EnvVar = V1EnvVar(name="LOGLEVEL", value="INFO")
     NCCL_INFO: V1EnvVar = V1EnvVar(name="NCCL_DEBUG", value="INFO")
     C10D_DEBUG_MODE_DETAIL: V1EnvVar = V1EnvVar(name="C10D_DEBUG_MODE", value="DETAIL")
-    DEFAULT_CONTAINER_ENV: List[V1EnvVar] = [LOGLEVEL_INFO, NCCL_INFO]
+    DEFAULT_CONTAINER_ENV: List[V1EnvVar] = field(
+        default_factory=lambda: [ContainerEnv.LOGLEVEL_INFO, ContainerEnv.NCCL_INFO]
+    )
 
 
 @dataclass
