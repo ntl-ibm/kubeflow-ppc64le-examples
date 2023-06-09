@@ -48,15 +48,11 @@ from kubernetes.client import (
 )
 
 
-@dataclass(frozen=True)
-class TimeOutConstants:
-    """Utility values for common time out values"""
-
+class Timeout(int):
     ONE_YEAR: int = 60 * 60 * 24 * 365
 
 
-@dataclass(frozen=True)
-class ContainerEnv:
+class ContainerEnv(V1EnvVar):
     """
     Environment variables that can be added to pytorch workers to provide enhanced
     debug capabilities.
@@ -65,9 +61,6 @@ class ContainerEnv:
     LOGLEVEL_INFO: V1EnvVar = V1EnvVar(name="LOGLEVEL", value="INFO")
     NCCL_INFO: V1EnvVar = V1EnvVar(name="NCCL_DEBUG", value="INFO")
     C10D_DEBUG_MODE_DETAIL: V1EnvVar = V1EnvVar(name="C10D_DEBUG_MODE", value="DETAIL")
-    DEFAULT_CONTAINER_ENV: List[V1EnvVar] = field(
-        default_factory=lambda: [ContainerEnv.LOGLEVEL_INFO, ContainerEnv.NCCL_INFO]
-    )
 
 
 @dataclass
@@ -133,7 +126,7 @@ def _wait_for_job_conditions(
     training_client: TrainingClient,
     pytorch_job_name: str,
     conditions: Set[str],
-    timeout: int = TimeOutConstants.ONE_YEAR,
+    timeout: int = Timeout.ONE_YEAR,
 ) -> None:
     """
     Waits for the pytorch job to have one of the expected conditions.
@@ -164,7 +157,7 @@ def run_pytorch_job(
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
     image_pull_policy: str = "IfNotPresent",
-    completion_timeout: int = TimeOutConstants.ONE_YEAR,
+    completion_timeout: int = Timeout.ONE_YEAR,
 ) -> None:
     """
     Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
@@ -221,7 +214,10 @@ def run_pytorch_job(
     container_env = (
         [V1EnvVar(n, v) for n, v in env.items()]
         if env
-        else ContainerEnv.DEFAULT_CONTAINER_ENV
+        else [
+            ContainerEnv.LOGLEVEL_INFO,
+            ContainerEnv.NCCL_INFO,
+        ]
     )
 
     # Construct resources parameter
