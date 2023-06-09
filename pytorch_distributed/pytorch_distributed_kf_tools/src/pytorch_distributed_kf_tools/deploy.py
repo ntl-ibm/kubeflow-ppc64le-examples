@@ -324,6 +324,7 @@ def run_pytorch_job(
 
     _wait_for_job_conditions(
         training_client,
+        pytorch_job_name,
         {
             constants.JOB_CONDITION_RUNNING,
             constants.JOB_CONDITION_SUCCEEDED,
@@ -349,6 +350,7 @@ def run_pytorch_job(
     # No more logs means workers have finished, wait for the rest of the job
     _wait_for_job_conditions(
         training_client,
+        pytorch_job_name,
         {
             constants.JOB_CONDITION_SUCCEEDED,
             constants.JOB_CONDITION_FAILED,
