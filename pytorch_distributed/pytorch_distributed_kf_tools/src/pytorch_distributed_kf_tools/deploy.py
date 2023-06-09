@@ -95,6 +95,9 @@ def run_pytorch_job(
     image_pull_policy: str = "IfNotPresent",
     completion_timeout: int = 60 * 60 * 24,
 ):
+    print(os.environ["ARGO_POD_NAME"])
+    print(os.environ["ARGO_POD_UID"])
+
     # An owner reference for the workflow
     # When the workflow is deleted, the torch job is
     # garbage collected.
