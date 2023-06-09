@@ -320,9 +320,7 @@ def run_pytorch_job(
         ),
     )
 
-    ##########################
     # Submit training job
-    ##########################
     training_client = TrainingClient()
     training_client.create_pytorchjob(pytorchjob)
 
@@ -335,13 +333,14 @@ def run_pytorch_job(
         },
     )
 
-    # Wait for pods to be ready, must do this before reading logs
+    # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
     pod_names = training_client.get_job_pod_names(name=pytorch_job_name, is_master=None)
     for pod in pod_names:
         _wait_for_pod_ready(pod, namespace)
 
-    # stream logs for all workers
-    # (most of the interesting stuff is in worker 0)
+    # stream logs for all workers (The interesting stuff is usually in worker 0)
+    # I have seen cases where progress bars cause with log streaming at the
+    # k8s client layer. I recommend turning those off if possible.
     training_client.get_job_logs(
         name=pytorch_job_name,
         is_master=False,
@@ -359,6 +358,7 @@ def run_pytorch_job(
         completion_timeout,
     )
 
+    # Check for success or failure
     if training_client.is_job_failed(
         name=pytorch_job_name, job_kind=constants.PYTORCHJOB_KIND
     ):
