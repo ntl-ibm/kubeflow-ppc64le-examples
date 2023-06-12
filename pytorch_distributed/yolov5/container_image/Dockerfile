@@ -15,10 +15,6 @@ ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
 FROM $ROOT_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
-# This container includes packages and tooling to Run PyTorch distributed on
-# IBM Power 9 or Power 10 hardware.
-# It does NOT include a notebook server.
-
 # These arguments define where to install the distributed kf tools package from.
 ARG DISTRIBUTED_KF_TOOLS_BRANCH="multi-gpu-yolov5"
 ARG DISTRIBUTED_KF_TOOLS_SUBDIR="pytorch_distributed/pytorch_distributed_kf_tools"
@@ -32,6 +28,7 @@ WORKDIR /root
 # will not need to directly activate the environment.
 ENV CONDA_DIR="/opt/conda"
 ENV PATH=${CONDA_DIR}/bin:${PATH}
+ENV YOLOV5_CONFIG_DIR="/yolov5-config"
 
 ## OS Dependencies
 RUN dnf install -y bzip2 \
@@ -39,13 +36,11 @@ RUN dnf install -y bzip2 \
         wget && \
     dnf clean all -y 
 
-# dnf group install -y "Development Tools" && \
-
 # Copy a script that we will use to correct permissions after running certain commands
 COPY fix-permissions /usr/local/bin/fix-permissions
 RUN chmod a+rx /usr/local/bin/fix-permissions
 
-## Install mamba and required packages
+## Install mamba
 # https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
 WORKDIR /tmp
 RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/latest && \
@@ -57,13 +52,20 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     -c https://repo.anaconda.com/pkgs/main \
     -c conda-forge \
     --yes \
-    rocketce::python==3.10.9  \
+    python==3.9.16  \
+    pandas>=1.1.4 \
     pip  \
     mamba \
+    gitpython  \
+    matplotlib  \
+    pillow \
+    psutil \
+    PyYAML \
+    requests \
+    scipy \
     rocketce::pytorch==1.13.1 \
-    rocketce::pytorch-lightning \
     rocketce::torchvision \
-    rocketce::torchmetrics \
+    tqdm \
     nccl \
     cudatoolkit \
     && rm /tmp/micromamba \
@@ -75,11 +77,28 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
     && pip cache purge
 
+WORKDIR /wheels/opencv-python
+COPY --from=quay.io/ntlawrence/opencv-python:1.0.1  /wheels .
 
-WORKDIR /workspace
-ENV PYTHONPATH /workspace
-RUN fix-permissions /workspace
+# Checks out a specific version of the yolov5 tools.
+# This is a little newer that the latest release, but has some
+# fixes in it for distriubed.
+WORKDIR /yolov5
+RUN git clone https://github.com/ultralytics/yolov5 . && \
+    git checkout a199480ba6bb527598df11abbc1d679ccda82670 && \
+    git config --system --add safe.directory '/yolov5' && \
+    pip install -r requirements.txt --find-links /wheels/opencv-python
 
+COPY train.py /yolov5
+RUN fix-permissions /yolov5
+
+# When running distributed training, this file gets downloaded in all worker pods at the same time
+# The download of the same file multiple times in a small timewindow causes the download request to
+# be rejected. 
+# https://stackoverflow.com/questions/71251177/how-to-use-yolov5-api-with-flask-offline
+WORKDIR /yolov5-config
+RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
+RUN fix-permissions /yolov5-config
+
+WORKDIR /yolov5
 USER 1000:0
-
-ENTRYPOINT ["python", "-m", "torch.distributed.run"]

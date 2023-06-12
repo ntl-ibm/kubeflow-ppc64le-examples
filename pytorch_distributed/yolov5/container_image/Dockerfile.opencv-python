@@ -27,13 +27,17 @@ RUN chmod a+rx /usr/local/bin/fix-permissions
 ENV CONDA_DIR="/opt/conda"
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
+# There were warnings about numpy not supporting python 3.10 yet and the
+# build failed when 3.10 was tried.
 RUN mkdir -p ${CONDA_DIR} && \
     ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
-    -c conda-forge \
     -c https://repo.anaconda.com/pkgs/main \
+    -c conda-forge \
     --yes \
-    conda-forge::python==3.10.11 \
+    rocketce::python==3.9.16 \
+    gfortran \
+    cmake \
     pip  \
     mamba \
     && fix-permissions ${CONDA_DIR} && \
