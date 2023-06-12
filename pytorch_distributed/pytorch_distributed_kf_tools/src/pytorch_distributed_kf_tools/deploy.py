@@ -231,26 +231,26 @@ def run_pytorch_job(
 
     # Construct the volumes and volume mount parameters
     volume_mounts: List[V1VolumeMount] = []
-    volumes: List[V1Volume] = []
-    for i, pvc in enumerate(pvcs):
-        name = f"{pvc.pvc_name}-{i}"
+    volumes: Dict[str, V1Volume] = {}
+    for pvc in pvcs:
         volume_mounts.append(
-            V1VolumeMount(mount_path=pvc.mount_path, name=name, sub_path=pvc.subpath)
+            V1VolumeMount(
+                mount_path=pvc.mount_path, name=pvc.pvc_name, sub_path=pvc.subpath
+            )
         )
-        volumes.append(
-            V1Volume(
-                name=name,
+        if pvc.pvc_name not in volumes:
+            volumes[pvc.pvc_name] = V1Volume(
+                name=pvc.pvc_name,
                 persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
                     claim_name=pvc.pvc_name
                 ),
             )
-        )
 
     # PyTorch requires shared memory on each pod
     if not "/dev/shm" in {p.mount_path for p in pvcs}:
         volume_mounts.append(V1VolumeMount(mount_path="/dev/shm", name="dshm")),
-        volumes.append(
-            V1Volume(name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory"))
+        volumes["dshm"] = V1Volume(
+            name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory")
         )
 
     # Pod template for each worker replica
@@ -276,7 +276,7 @@ def run_pytorch_job(
                     volume_mounts=volume_mounts,
                 )
             ],
-            volumes=volumes,
+            volumes=list(volumes.values()),
         ),
     )
 
