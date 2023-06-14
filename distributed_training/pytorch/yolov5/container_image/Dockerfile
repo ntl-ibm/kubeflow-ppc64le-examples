@@ -17,7 +17,7 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
 # These arguments define where to install the distributed kf tools package from.
 ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.0"
-ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed-training/pytorch/pytorch_distributed_kf_tools"
+ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed_training/pytorch/pytorch_distributed_kf_tools"
 ARG DISTRIBUTED_KF_TOOLS_GIT="https://github.com/ntl-ibm/kubeflow-ppc64le-examples@${DISTRIBUTED_KF_TOOLS_BRANCH}#subdirectory=${DISTRIBUTED_KF_TOOLS_SUBDIR}"
 
 USER root
@@ -94,10 +94,8 @@ WORKDIR /yolov5
 RUN git clone https://github.com/ultralytics/yolov5 . && \
     git checkout a199480ba6bb527598df11abbc1d679ccda82670 && \
     git config --system --add safe.directory '/yolov5' && \
-    pip install -r requirements.txt --find-links /wheels/opencv-python
-
-COPY train.py /yolov5
-RUN fix-permissions /yolov5
+    pip install -r requirements.txt --find-links /wheels/opencv-python && \
+    fix-permissions /yolov5
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
