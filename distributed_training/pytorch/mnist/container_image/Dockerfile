@@ -20,7 +20,7 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 # It does NOT include a notebook server.
 
 # These arguments define where to install the distributed kf tools package from.
-ARG DISTRIBUTED_KF_TOOLS_BRANCH="multi-gpu-yolov5"
+ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.0"
 ARG DISTRIBUTED_KF_TOOLS_SUBDIR="pytorch_distributed/pytorch_distributed_kf_tools"
 ARG DISTRIBUTED_KF_TOOLS_GIT="https://github.com/ntl-ibm/kubeflow-ppc64le-examples@${DISTRIBUTED_KF_TOOLS_BRANCH}#subdirectory=${DISTRIBUTED_KF_TOOLS_SUBDIR}"
 

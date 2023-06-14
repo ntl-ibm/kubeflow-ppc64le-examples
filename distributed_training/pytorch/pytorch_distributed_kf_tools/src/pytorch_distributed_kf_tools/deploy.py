@@ -230,6 +230,12 @@ def run_pytorch_job(
     container_working_dir = working_dir if working_dir else None
 
     # Construct the volumes and volume mount parameters
+    # The same volume can be mounted at different locations (possibly using a subpath),
+    # and so it is legal to have the same volume twice in the volume_mounts.
+    # It is not OK to have the same volume twice in the volumes list, and the error
+    # given if you do that is not clear. The PvcMount class is just a mapping of
+    # pvc name -> mount point, so the invoker is free of this problem as long as
+    # we make sure volumes appear only once in the volume list.
     volume_mounts: List[V1VolumeMount] = []
     volumes: Dict[str, V1Volume] = {}
     for pvc in pvcs:

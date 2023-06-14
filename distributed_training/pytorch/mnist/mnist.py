@@ -37,6 +37,12 @@ class MNISTDataModule(L.LightningDataModule):
     """
 
     def __init__(self, data_dir: str, batch_size: int):
+        """
+        Params:
+        data_dir   - directory for the dataset
+        batch_size - batch size (per worker).
+                     https://pytorch.org/tutorials/beginner/ddp_series_multigpu.html#distributing-input-data
+        """
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -162,7 +168,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument(
-        "--batch_size", type=int, default=64 if torch.cuda.is_available() else 16
+        "--batch_size", type=int, help="Effective batch size (across all workers)"
     )
     return parser.parse_args()
 
@@ -198,14 +204,23 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     args = parse_args()
+
+    num_workers = int(os.environ.get("WORLD_SIZE", 1))
+    if not ((args.batch_size % num_workers) == 0):
+        raise ValueError(
+            f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
+        )
+
     model = MNISTModel()
-    mnist = MNISTDataModule(data_dir=args.data_dir, batch_size=args.batch_size)
+    mnist = MNISTDataModule(
+        data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
+    )
 
     # Initialize a trainer
     trainer = L.Trainer(
         accelerator="auto",
         strategy="ddp",
-        num_nodes=os.environ["WORLD_SIZE"],
+        num_nodes=num_workers,
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
         else -1,
