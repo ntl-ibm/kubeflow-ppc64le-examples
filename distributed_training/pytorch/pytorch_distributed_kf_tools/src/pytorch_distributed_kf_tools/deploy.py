@@ -432,6 +432,7 @@ def run_pytorch_job(
         },
     ):
         # Submit training job
+        print("START\n")
         training_client = TrainingClient()
         training_client.create_pytorchjob(pytorchjob)
 
