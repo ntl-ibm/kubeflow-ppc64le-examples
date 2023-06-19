@@ -151,7 +151,7 @@ class _AsyncEventLogger:
         w = watch.Watch()
         api = client.coreV1Api()
         resource_version = None
-
+        print("Watching events")
         while not self.stop_monitoring.is_set():
             # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/EventsV1Api.md#list_namespaced_event
             # https://stackoverflow.com/questions/61062325/python-kubernetes-client-equivalent-of-kubectl-describe-pod-grep-events
@@ -178,6 +178,7 @@ class _AsyncEventLogger:
                     resource_version = None
                 else:
                     raise
+        print("done watching")
 
     def start_watching(self) -> None:
         self.thread.start()
