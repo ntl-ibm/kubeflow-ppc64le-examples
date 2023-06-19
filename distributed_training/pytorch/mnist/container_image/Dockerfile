@@ -67,13 +67,15 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     nccl \
     cudatoolkit \
     && rm /tmp/micromamba \
-    && fix-permissions ${CONDA_DIR}  \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
     && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
     && pip install "pytorch_distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
-    && pip cache purge
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR}  \
+    && fix-permissions ~/.pip
+
 
 
 WORKDIR /workspace
