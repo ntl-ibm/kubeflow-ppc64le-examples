@@ -163,6 +163,7 @@ class _AsyncEventLogger:
                     timeout_seconds=10,
                     resource_version=resource_version,
                 ):
+                    print(event)
                     resource_version = event["object"].metadata.resource_version
                     if self._is_relevant(event):
                         logger.log(
