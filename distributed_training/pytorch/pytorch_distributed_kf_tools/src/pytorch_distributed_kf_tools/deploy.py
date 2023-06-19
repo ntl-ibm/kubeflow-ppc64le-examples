@@ -20,8 +20,12 @@ Author: ntl@us.ibm.com
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from dataclasses import dataclass
+import logging
+from typing import Dict, List, Optional, Set, Callable, NamedTuple, Set
+import threading
+import http.client
+import time
 
 from kubeflow.training import (
     KubeflowOrgV1ElasticPolicy,
@@ -45,7 +49,13 @@ from kubernetes.client import (
     V1ResourceRequirements,
     V1Volume,
     V1VolumeMount,
+    CoreV1Event,
+    ApiException,
 )
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
+config.load_incluster_config()
 
 
 class Timeout(int):
@@ -92,34 +102,116 @@ class PvcMount:
     subpath: Optional[str] = None
 
 
+class _AsyncEventLogger:
+    """
+    Output events to the log as info messages.
+    """
+
+    class InvolvedObject(NamedTuple):
+        kind: str
+        name: str
+
+        def is_for(self, event: CoreV1Event) -> bool:
+            return (
+                event.involved_object.kind == self.kind
+                and event.involved_object.name == self.name
+            )
+
+    namespace: str
+    involved_objects: Set[InvolvedObject]
+
+    def __init__(self, namespace: str, involved_objects: Set[InvolvedObject]):
+        self.namespace = namespace
+        self.involved_objects = involved_objects
+        self.stop_monitoring = threading.Event()
+        self.thread = threading.Thread(target=self._watch_events, daemon=False)
+
+    @classmethod
+    def _build_msg(cls, event: CoreV1Event) -> str:
+        name = f"{event.involved_object.kind}/{event.involved_object.name}"
+        msg = f"{event.type:10.10s} {event.last_timestamp.isoformat()} {name:30s} {event.message}"
+        return msg
+
+    @classmethod
+    def _set_log_level(cls, event: CoreV1Event) -> int:
+        if event.type == "Normal":
+            level = logging.DEBUG
+        elif event.type == "Error":
+            level = logging.ERROR
+        else:
+            level = logging.WARNING
+
+    def _is_relevant(self, event: CoreV1Event) -> bool:
+        return next(filter(lambda io: io.is_for(event), self.involved_objects), None)
+
+    def _watch_events(self):
+        w = watch.Watch()
+        api = client.coreV1Api()
+        resource_version = None
+
+        while not self.stop_monitoring.is_set():
+            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/EventsV1Api.md#list_namespaced_event
+            # https://stackoverflow.com/questions/61062325/python-kubernetes-client-equivalent-of-kubectl-describe-pod-grep-events
+            # https://stackoverflow.com/questions/72133783/how-to-avoid-resource-too-old-when-retrying-a-watch-with-kubernetes-python-cli
+            try:
+                for event in w.stream(
+                    api.list_namespaced_event,
+                    self.namespace,
+                    timeout_seconds=10,
+                    resource_version=resource_version,
+                ):
+                    resource_version = event["object"].metadata.resource_version
+                    if self._is_relevant(event):
+                        logger.log(
+                            _AsyncEventLogger._set_log_level(event),
+                            _AsyncEventLogger._build_msg(event),
+                        )
+
+                if self.stop_monitoring.is_set():
+                    w.stop()
+            except ApiException as e:
+                if e.status == http.client.GONE:
+                    resource_version = None
+                else:
+                    raise
+
+    def start_watching(self) -> None:
+        self.thread.start()
+
+    def stop_watching(self) -> None:
+        self.stop_monitoring.set()
+
+    def __enter__(self):
+        self.start_watching()
+
+    def __exit__(self):
+        self.stop_watching()
+
+
 def _wait_for_pod_ready(name: str, namespace: str) -> None:
     """Waits for a Pod to become ready.
     At that point all containers in the pod have been started
+    (but they might still be pulling images)
 
     name - name of the pod
     namespace - namespace of the pod
     """
-    config.load_incluster_config()
-    w = watch.Watch()
     core_v1 = client.CoreV1Api()
 
-    # Watching a specific pod is done with a field selector on the name.
-    # https://github.com/kubernetes-client/python/issues/467
-    for event in w.stream(
-        func=core_v1.list_namespaced_pod,
-        namespace=namespace,
-        field_selector=f"metadata.name={name}",
-        timeout_seconds=120,
-    ):
+    while True:
+        try:
+            pod = core_v1.list_namespaced_pod(name=name, namespace=namespace)
+        except ApiException as e:
+            if e.status == http.client.NOT_FOUND:
+                logger.error(f"The pod {name} was deleted")
+                return
+            else:
+                raise
         # Phases: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-        if event["object"].status.phase not in {"Pending"}:
-            w.stop()
+        if pod.status.phase not in {"Pending"}:
             return
-        # event.type: ADDED, MODIFIED, DELETED
-        if event["type"] == "DELETED":
-            print(f" {name} deleted before it started")
-            w.stop()
-            return
+
+        time.sleep(5)
 
 
 def _wait_for_job_conditions(
@@ -324,45 +416,66 @@ def run_pytorch_job(
         ),
     )
 
-    # Submit training job
-    training_client = TrainingClient()
-    training_client.create_pytorchjob(pytorchjob)
-
-    _wait_for_job_conditions(
-        training_client,
-        pytorch_job_name,
+    with _AsyncEventLogger(
+        namespace,
         {
-            constants.JOB_CONDITION_RUNNING,
-            constants.JOB_CONDITION_SUCCEEDED,
-            constants.JOB_CONDITION_FAILED,
+            _AsyncEventLogger.InvolvedObject(
+                constants.PYTORCHJOB_KIND, name=pytorch_job_name
+            )
         },
-    )
+    ):
+        # Submit training job
+        training_client = TrainingClient()
+        training_client.create_pytorchjob(pytorchjob)
 
-    # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
-    pod_names = training_client.get_job_pod_names(name=pytorch_job_name, is_master=None)
-    for pod in pod_names:
-        _wait_for_pod_ready(pod, namespace)
+        _wait_for_job_conditions(
+            training_client,
+            pytorch_job_name,
+            {
+                constants.JOB_CONDITION_RUNNING,
+                constants.JOB_CONDITION_SUCCEEDED,
+                constants.JOB_CONDITION_FAILED,
+            },
+        )
 
-    # stream logs for all workers (The interesting stuff is usually in worker 0)
-    # I have seen cases where progress bars cause with log streaming at the
-    # k8s client layer. I recommend turning those off if possible.
-    training_client.get_job_logs(
-        name=pytorch_job_name,
-        is_master=False,
-        container=constants.PYTORCHJOB_CONTAINER,
-        follow=True,
-    )
+        pod_names = training_client.get_job_pod_names(
+            name=pytorch_job_name, is_master=None
+        )
 
-    # No more logs means workers have finished, wait for the rest of the job
-    _wait_for_job_conditions(
-        training_client,
-        pytorch_job_name,
-        {
-            constants.JOB_CONDITION_SUCCEEDED,
-            constants.JOB_CONDITION_FAILED,
-        },
-        completion_timeout,
-    )
+        with _AsyncEventLogger(
+            namespace,
+            {_AsyncEventLogger.InvolvedObject("Pod", name=name) for name in pod_names},
+        ):
+            # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
+            for pod in pod_names:
+                _wait_for_pod_ready(pod, namespace)
+
+            # stream logs for all workers (The interesting stuff is usually in worker 0)
+            # I have seen cases where progress bars cause with log streaming at the
+            # k8s client layer. I recommend turning those off if possible.
+            stream_logs_thread = threading.Thread(
+                target=training_client.get_job_logs,
+                args=[pytorch_job_name],
+                kwargs={
+                    "is_master": False,
+                    "container": constants.PYTORCHJOB_CONTAINER,
+                    "follow": True,
+                },
+                daemon=True,
+            )
+            stream_logs_thread.start()
+
+            _wait_for_job_conditions(
+                training_client,
+                pytorch_job_name,
+                {
+                    constants.JOB_CONDITION_SUCCEEDED,
+                    constants.JOB_CONDITION_FAILED,
+                },
+                completion_timeout,
+            )
+
+            stream_logs_thread.join(120)
 
     # Check for success or failure
     if training_client.is_job_failed(
