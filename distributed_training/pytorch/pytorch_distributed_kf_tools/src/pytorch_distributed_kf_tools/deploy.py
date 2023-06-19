@@ -127,7 +127,9 @@ class _AsyncEventLogger:
         self.namespace = namespace
         self.involved_objects = involved_objects
         self.stop_monitoring = threading.Event()
-        self.thread = threading.Thread(target=self._watch_events, daemon=False)
+        self.thread = threading.Thread(
+            target=lambda: self._watch_events(), daemon=False
+        )
 
     @classmethod
     def _build_msg(cls, event: CoreV1Event) -> str:
@@ -479,7 +481,7 @@ def run_pytorch_job(
                 },
                 completion_timeout,
             )
-
+            print("JOIN")
             stream_logs_thread.join(120)
 
     # Check for success or failure
