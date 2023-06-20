@@ -464,7 +464,7 @@ def run_pytorch_job(
             for job in training_client.list_pytorchjobs(namespace=namespace)
         }
         if pytorch_job_name in existing_jobs:
-            training_client.delete(
+            training_client.delete_pytorchjob(
                 pytorch_job_name,
                 namespace=namespace,
                 delete_options=V1DeleteOptions(propagation_policy="Foreground"),
