@@ -147,7 +147,10 @@ class _AsyncEventLogger:
             return logging.WARNING
 
     def _is_relevant(self, event: CoreV1Event) -> bool:
-        return next(filter(lambda io: io.is_for(event), self.involved_objects), None)
+        return (
+            next(filter(lambda io: io.is_for(event), self.involved_objects), None)
+            is not None
+        )
 
     def _watch_events(self):
         w = watch.Watch()
