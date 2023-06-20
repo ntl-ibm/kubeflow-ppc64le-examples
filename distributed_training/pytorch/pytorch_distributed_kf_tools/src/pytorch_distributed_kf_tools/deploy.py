@@ -181,6 +181,7 @@ class _AsyncEventLogger:
                             _AsyncEventLogger._set_log_level(core_event),
                             _AsyncEventLogger._build_msg(core_event),
                         )
+                        print(core_event)
 
                 if self.stop_monitoring.is_set():
                     w.stop()
