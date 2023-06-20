@@ -278,6 +278,7 @@ def run_pytorch_job(
     working_dir: Optional[str] = None,
     image_pull_policy: str = "IfNotPresent",
     completion_timeout: int = Timeout.ONE_YEAR,
+    log_pytorch_job_template: bool = True,
 ) -> None:
     """
     Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
@@ -452,8 +453,9 @@ def run_pytorch_job(
             )
         },
     ):
-        # Submit training job
-        logger.debug(yaml.dump(pytorchjob.to_dict()))
+        if log_pytorch_job_template:
+            logger.debug(yaml.dump(pytorchjob.to_dict()))
+
         training_client = TrainingClient()
         training_client.create_pytorchjob(pytorchjob)
 
@@ -507,7 +509,7 @@ def run_pytorch_job(
                 completion_timeout,
                 polling_interval=120,
             )
-            stream_logs_thread.join(120)
+            stream_logs_thread.join(60)
 
     # Check for success or failure
     if training_client.is_job_failed(
