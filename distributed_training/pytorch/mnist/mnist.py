@@ -90,17 +90,18 @@ class MNISTModel(L.LightningModule):
     MNIST classifier
     """
 
-    def __init__(self):
+    def __init__(self, pDropout1: float = 0.25, pDropout2: float = 0.5):
         super().__init__()
+        self.save_hyperparameters()
 
         # Model Layers
         self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
         self.conv2 = torch.nn.Conv2d(
             in_channels=32, out_channels=64, kernel_size=(3, 3)
         )
-        self.dropout1 = torch.nn.Dropout(p=0.25)
+        self.dropout1 = torch.nn.Dropout(p=pDropout1)
         self.fc1 = torch.nn.Linear(in_features=9216, out_features=128)
-        self.dropout2 = torch.nn.Dropout(p=0.5)
+        self.dropout2 = torch.nn.Dropout(p=pDropout2)
         self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
@@ -211,7 +212,13 @@ if __name__ == "__main__":
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
         )
 
-    model = MNISTModel()
+    # Load from a possibly existing checkpoint
+    checkpoint = os.path.join(args.root_dir, "checkpoint.ckpt")
+    if os.path.exists(checkpoint):
+        model = MNISTModel.load_from_checkpoint(checkpoint)
+    else:
+        model = MNISTModel()
+
     mnist = MNISTDataModule(
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
     )
@@ -226,7 +233,6 @@ if __name__ == "__main__":
         else -1,
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
-        enable_checkpointing=False,
         enable_progress_bar=False,
     )
 
