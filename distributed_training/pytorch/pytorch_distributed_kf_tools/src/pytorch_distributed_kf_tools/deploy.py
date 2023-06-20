@@ -140,11 +140,11 @@ class _AsyncEventLogger:
     @classmethod
     def _set_log_level(cls, event: CoreV1Event) -> int:
         if event.type == "Normal":
-            level = logging.DEBUG
+            return logging.DEBUG
         elif event.type == "Error":
-            level = logging.ERROR
+            return logging.ERROR
         else:
-            level = logging.WARNING
+            return logging.WARNING
 
     def _is_relevant(self, event: CoreV1Event) -> bool:
         return next(filter(lambda io: io.is_for(event), self.involved_objects), None)
