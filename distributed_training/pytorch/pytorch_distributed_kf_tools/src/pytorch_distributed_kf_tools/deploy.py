@@ -26,6 +26,7 @@ from typing import Dict, List, Optional, Set, Callable, NamedTuple, Set
 import threading
 import http.client
 import time
+from datetime import datetime
 
 from kubeflow.training import (
     KubeflowOrgV1ElasticPolicy,
@@ -134,7 +135,13 @@ class _AsyncEventLogger:
     @classmethod
     def _build_msg(cls, event: CoreV1Event) -> str:
         name = f"{event.involved_object.kind}/{event.involved_object.name}"
-        msg = f"{event.type:10.10s} {event.last_timestamp.isoformat()} {name:30s} {event.message}"
+        ts = (
+            event.last_timestamp
+            or event.first_timestamp
+            or event.event_time
+            or datetime.now()
+        )
+        msg = f"{event.type:10.10s} {ts.isoformat()} {name:30s} {event.message}"
         return msg
 
     @classmethod
