@@ -216,10 +216,8 @@ class _AsyncEventLogger:
         self.thread.join(30)
 
 
-def _wait_for_pod_ready(name: str, namespace: str) -> None:
-    """Waits for a Pod to become ready.
-    At that point all containers in the pod have been started
-    (but they might still be pulling images)
+def _wait_for_other_pod_status(name: str, namespace: str, phase="Pending") -> None:
+    """Waits for a Pod to not have a specific Phase.
 
     name - name of the pod
     namespace - namespace of the pod
@@ -231,12 +229,12 @@ def _wait_for_pod_ready(name: str, namespace: str) -> None:
             pod = core_v1.read_namespaced_pod(name=name, namespace=namespace)
         except ApiException as e:
             if e.status == http.client.NOT_FOUND:
-                logger.error(f"The pod {name} was deleted")
+                logger.info(f"The pod {name} was deleted")
                 return
             else:
                 raise
         # Phases: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-        if pod.status.phase not in {"Pending"}:
+        if pod.status.phase not in {phase}:
             return
 
         time.sleep(5)
@@ -484,7 +482,7 @@ def run_pytorch_job(
         ):
             # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
             for pod in pod_names:
-                _wait_for_pod_ready(pod, namespace)
+                _wait_for_other_pod_status(pod, namespace, "Pending")
 
             # stream logs for all workers (The interesting stuff is usually in worker 0)
             # I have seen cases where progress bars cause with log streaming at the
@@ -500,6 +498,9 @@ def run_pytorch_job(
                 daemon=True,
             )
             stream_logs_thread.start()
+
+            for pod in pod_names:
+                _wait_for_other_pod_status(pod, namespace, "Running")
 
             _wait_for_job_conditions(
                 training_client,
