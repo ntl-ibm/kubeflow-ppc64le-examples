@@ -131,6 +131,7 @@ class _AsyncEventLogger:
         self.thread = threading.Thread(
             target=lambda: self._watch_events(), daemon=False
         )
+        logger.info(f"Monitoring events for {self.involved_objects}")
 
     @classmethod
     def _build_msg(cls, event: CoreV1Event) -> str:
@@ -141,17 +142,29 @@ class _AsyncEventLogger:
             or event.event_time
             or datetime.now()
         )
-        msg = f"{event.type:10.10s} {ts.isoformat()} {name:30s} {event.message}"
+
+        if event.source:
+            source = (
+                f"{event.source.component or ''}"
+                + f"{':' if event.source.host and event.source.component else ''} {event.source.host or ''}"
+            )
+        else:
+            source = ""
+
+        msg = (
+            f"{event.type:10.10s} {ts.isoformat()} {name:30s} {source} {event.message}"
+        )
         return msg
 
     @classmethod
     def _set_log_level(cls, event: CoreV1Event) -> int:
+        if not event.type:
+            return logging.ERROR
         if event.type == "Normal":
             return logging.DEBUG
-        elif event.type == "Error":
+        if event.type == "Error":
             return logging.ERROR
-        else:
-            return logging.WARNING
+        return logging.WARNING
 
     def _is_relevant(self, event: CoreV1Event) -> bool:
         return (
@@ -181,7 +194,6 @@ class _AsyncEventLogger:
                             _AsyncEventLogger._set_log_level(core_event),
                             _AsyncEventLogger._build_msg(core_event),
                         )
-                        print(core_event)
 
                 if self.stop_monitoring.is_set():
                     w.stop()
@@ -460,7 +472,10 @@ def run_pytorch_job(
 
         with _AsyncEventLogger(
             namespace,
-            {_AsyncEventLogger.InvolvedObject("Pod", name=name) for name in pod_names},
+            {
+                _AsyncEventLogger.InvolvedObject(kind="Pod", name=name)
+                for name in pod_names
+            },
         ):
             # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
             for pod in pod_names:
