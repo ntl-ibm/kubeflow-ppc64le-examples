@@ -54,12 +54,12 @@ from kubernetes.client import (
     ApiException,
 )
 
+config.load_incluster_config()
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
 ConsoleOutputHandler = logging.StreamHandler()
 logger.addHandler(ConsoleOutputHandler)
-
-config.load_incluster_config()
+logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
 
 
 class Timeout(int):
