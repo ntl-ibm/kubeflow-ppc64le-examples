@@ -25,6 +25,7 @@ from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import torch.distributed as dst
 from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
+from lightning.pytorch.callbacks import ModelCheckpoint
 
 from typing import Dict
 import os
@@ -212,13 +213,17 @@ if __name__ == "__main__":
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
         )
 
+    CHECKPOINT_FILE = os.path.join(args.root_dir, "last.ckpt")
+
     # Load from a possibly existing checkpoint
-    checkpoint = os.path.join(args.root_dir, "checkpoint.ckpt")
-    if os.path.exists(checkpoint):
-        model = MNISTModel.load_from_checkpoint(checkpoint)
+    if os.path.exists(os.path.join(args.root_dir, "last.ckpt")):
+        model = MNISTModel.load_from_checkpoint(
+            os.path.join(args.root_dir, "last.ckpt")
+        )
     else:
         model = MNISTModel()
 
+    checkpoint_callback = ModelCheckpoint(every_n_epochs=1, save_last=True)
     mnist = MNISTDataModule(
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
     )
@@ -236,6 +241,7 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
+        callbacks=[checkpoint_callback],
     )
 
     metrics = {}
