@@ -164,11 +164,12 @@ class _AsyncEventLogger:
                     timeout_seconds=10,
                     resource_version=resource_version,
                 ):
-                    resource_version = event["object"].metadata.resource_version
-                    if self._is_relevant(event["object"]):
+                    core_event = event["object"]
+                    resource_version = core_event.metadata.resource_version
+                    if self._is_relevant(core_event):
                         logger.log(
-                            _AsyncEventLogger._set_log_level(event),
-                            _AsyncEventLogger._build_msg(event),
+                            _AsyncEventLogger._set_log_level(core_event),
+                            _AsyncEventLogger._build_msg(core_event),
                         )
 
                 if self.stop_monitoring.is_set():
@@ -479,7 +480,6 @@ def run_pytorch_job(
                 },
                 completion_timeout,
             )
-            print("JOIN")
             stream_logs_thread.join(120)
 
     # Check for success or failure
