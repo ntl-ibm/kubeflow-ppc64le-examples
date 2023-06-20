@@ -245,6 +245,7 @@ def _wait_for_job_conditions(
     pytorch_job_name: str,
     conditions: Set[str],
     timeout: int = Timeout.ONE_YEAR,
+    polling_interval: int = 15,
 ) -> None:
     """
     Waits for the pytorch job to have one of the expected conditions.
@@ -257,6 +258,7 @@ def _wait_for_job_conditions(
             expected_conditions=conditions,
             job_kind=constants.PYTORCHJOB_KIND,
             timeout=timeout,
+            polling_intervl=polling_interval,
         )
     except RuntimeError as e:
         # https://github.com/kubeflow/training-operator/issues/1806#issue-1708084586
@@ -503,6 +505,7 @@ def run_pytorch_job(
                     constants.JOB_CONDITION_FAILED,
                 },
                 completion_timeout,
+                polling_interval=120,
             )
             stream_logs_thread.join(120)
 
