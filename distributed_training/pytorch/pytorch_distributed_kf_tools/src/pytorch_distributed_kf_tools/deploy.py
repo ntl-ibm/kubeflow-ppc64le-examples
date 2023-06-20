@@ -151,7 +151,7 @@ class _AsyncEventLogger:
 
     def _watch_events(self):
         w = watch.Watch()
-        api = client.coreV1Api()
+        api = client.CoreV1Api()
         resource_version = None
         print("Watching events")
         while not self.stop_monitoring.is_set():
@@ -207,7 +207,7 @@ def _wait_for_pod_ready(name: str, namespace: str) -> None:
 
     while True:
         try:
-            pod = core_v1.list_namespaced_pod(name=name, namespace=namespace)
+            pod = core_v1.read_namespaced_pod(name=name, namespace=namespace)
         except ApiException as e:
             if e.status == http.client.NOT_FOUND:
                 logger.error(f"The pod {name} was deleted")
