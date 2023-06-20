@@ -258,7 +258,7 @@ def _wait_for_job_conditions(
             expected_conditions=conditions,
             job_kind=constants.PYTORCHJOB_KIND,
             timeout=timeout,
-            polling_intervl=polling_interval,
+            polling_interval=polling_interval,
         )
     except RuntimeError as e:
         # https://github.com/kubeflow/training-operator/issues/1806#issue-1708084586
