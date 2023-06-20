@@ -244,11 +244,12 @@ if __name__ == "__main__":
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
         callbacks=[checkpoint_callback],
+        resume_from_checkpoint=chkpt_path,
     )
 
     metrics = {}
     # Train the model
-    trainer.fit(model, mnist, chkpt_path=chkpt_path)
+    trainer.fit(model, mnist)
     metrics["train_f1"] = trainer.callback_metrics["val_F1"]
 
     # Test the model
