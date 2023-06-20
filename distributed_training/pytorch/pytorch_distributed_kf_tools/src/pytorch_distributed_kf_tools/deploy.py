@@ -22,7 +22,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 import logging
-from typing import Dict, List, Optional, Set, Callable, NamedTuple, Set
+from typing import Dict, List, Optional, Set, Callable, NamedTuple, Set, Iterable
 import threading
 import http.client
 import time
@@ -216,14 +216,21 @@ class _AsyncEventLogger:
         self.thread.join(30)
 
 
-def _wait_for_other_pod_status(name: str, namespace: str, phase="Pending") -> None:
+def _wait_for_other_pod_status(
+    name: str,
+    namespace: str,
+    phases: Optional[Set[str]] = None,
+    timeout_seconds=Timeout.ONE_YEAR,
+) -> None:
     """Waits for a Pod to not have a specific Phase.
 
     name - name of the pod
     namespace - namespace of the pod
+    phase - set of phases that the Pod should not be in
     """
     core_v1 = client.CoreV1Api()
 
+    start_time = int(time.time())
     while True:
         try:
             pod = core_v1.read_namespaced_pod(name=name, namespace=namespace)
@@ -234,10 +241,27 @@ def _wait_for_other_pod_status(name: str, namespace: str, phase="Pending") -> No
             else:
                 raise
         # Phases: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-        if pod.status.phase not in {phase}:
+        if pod.status.phase not in phases:
             return
 
+        if int(time.time()) - start_time > timeout_seconds:
+            raise TimeoutError(
+                f"The pod {namespace}/{name} did not exit phases {phases}."
+            )
         time.sleep(5)
+
+
+def _wait_for_pods_to_be_in_different_state(
+    namespace: str, pod_names: Iterable[str], phases: Set[str], timeout_seconds: int
+):
+    start_time = int(time.time())
+    for pod in pod_names:
+        _wait_for_other_pod_status(
+            pod,
+            namespace,
+            phases,
+            timeout_seconds - (int(time.time()) - start_time),
+        )
 
 
 def _wait_for_job_conditions(
@@ -316,6 +340,7 @@ def run_pytorch_job(
     image_pull_pollicy - when to pull a new container image (optional, default is IfNotPresent)
     completion_timeout - how long to wait for the training to complete (optional, default is one year)
     """
+    start_time = int(time.time())
 
     # An owner reference for the workflow
     # When the workflow is deleted, the torch job is
@@ -481,8 +506,12 @@ def run_pytorch_job(
             },
         ):
             # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
-            for pod in pod_names:
-                _wait_for_other_pod_status(pod, namespace, "Pending")
+            _wait_for_pods_to_be_in_different_state(
+                namespace,
+                pod_names,
+                {"Pending"},
+                completion_timeout - (start_time - int(time.time())),
+            )
 
             # stream logs for all workers (The interesting stuff is usually in worker 0)
             # I have seen cases where progress bars cause with log streaming at the
@@ -499,9 +528,12 @@ def run_pytorch_job(
             )
             stream_logs_thread.start()
 
-            for pod in pod_names:
-                _wait_for_other_pod_status(pod, namespace, "Running")
-
+            _wait_for_pods_to_be_in_different_state(
+                namespace,
+                pod_names,
+                {"Running"},
+                completion_timeout - (start_time - int(time.time())),
+            )
             _wait_for_job_conditions(
                 training_client,
                 pytorch_job_name,
@@ -509,7 +541,7 @@ def run_pytorch_job(
                     constants.JOB_CONDITION_SUCCEEDED,
                     constants.JOB_CONDITION_FAILED,
                 },
-                completion_timeout,
+                completion_timeout - (start_time - int(time.time())),
                 polling_interval=120,
             )
             stream_logs_thread.join(60)
