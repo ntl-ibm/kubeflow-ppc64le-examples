@@ -224,9 +224,11 @@ if __name__ == "__main__":
     )
 
     # Initialize a trainer
+    # strategy needs to be ddp, find_unused_parameters is due to
+    # https://github.com/Lightning-AI/lightning/discussions/6761
     trainer = L.Trainer(
         accelerator="auto",
-        strategy="ddp",
+        strategy="ddp_find_unused_parameters_false",
         num_nodes=num_workers,
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
