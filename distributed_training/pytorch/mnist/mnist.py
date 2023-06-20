@@ -25,7 +25,7 @@ from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import torch.distributed as dst
 from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
-from pytorch_lightning.pytorch.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from typing import Dict
 import os
