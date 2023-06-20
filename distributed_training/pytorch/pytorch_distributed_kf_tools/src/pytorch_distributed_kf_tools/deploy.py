@@ -27,6 +27,7 @@ import threading
 import http.client
 import time
 from datetime import datetime
+import yaml
 
 from kubeflow.training import (
     KubeflowOrgV1ElasticPolicy,
@@ -57,8 +58,6 @@ from kubernetes.client import (
 config.load_incluster_config()
 
 logger = logging.getLogger(__name__)
-ConsoleOutputHandler = logging.StreamHandler()
-logger.addHandler(ConsoleOutputHandler)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
 
 
@@ -131,7 +130,6 @@ class _AsyncEventLogger:
         self.thread = threading.Thread(
             target=lambda: self._watch_events(), daemon=False
         )
-        logger.info(f"Monitoring events for {self.involved_objects}")
 
     @classmethod
     def _build_msg(cls, event: CoreV1Event) -> str:
@@ -453,6 +451,7 @@ def run_pytorch_job(
         },
     ):
         # Submit training job
+        logger.debug(yaml.dump(pytorchjob.to_dict()))
         training_client = TrainingClient()
         training_client.create_pytorchjob(pytorchjob)
 
