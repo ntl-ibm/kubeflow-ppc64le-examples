@@ -213,8 +213,6 @@ if __name__ == "__main__":
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
         )
 
-    CHECKPOINT_FILE = os.path.join(args.root_dir, "last.ckpt")
-
     # Load from a possibly existing checkpoint
     if os.path.exists(os.path.join(args.root_dir, "last.ckpt")):
         model = MNISTModel.load_from_checkpoint(
@@ -223,7 +221,10 @@ if __name__ == "__main__":
     else:
         model = MNISTModel()
 
-    checkpoint_callback = ModelCheckpoint(every_n_epochs=1, save_last=True)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
+    )
+
     mnist = MNISTDataModule(
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
     )
