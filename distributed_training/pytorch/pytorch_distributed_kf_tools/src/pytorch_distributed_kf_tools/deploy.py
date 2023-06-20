@@ -213,6 +213,7 @@ class _AsyncEventLogger:
 
     def __exit__(self, type, value, traceback):
         self.stop_watching()
+        self.thread.join(30)
 
 
 def _wait_for_pod_ready(name: str, namespace: str) -> None:
