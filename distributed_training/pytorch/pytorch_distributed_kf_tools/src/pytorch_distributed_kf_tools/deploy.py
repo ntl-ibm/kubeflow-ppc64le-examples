@@ -55,8 +55,8 @@ from kubernetes.client import (
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
-ConsoleOutputHandler = logging.StreamHandler()
-logger.addHandler(ConsoleOutputHandler)
+# ConsoleOutputHandler = logging.StreamHandler()
+# logger.addHandler(ConsoleOutputHandler)
 
 config.load_incluster_config()
 
@@ -153,7 +153,6 @@ class _AsyncEventLogger:
         w = watch.Watch()
         api = client.CoreV1Api()
         resource_version = None
-        print("Watching events")
         while not self.stop_monitoring.is_set():
             # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/EventsV1Api.md#list_namespaced_event
             # https://stackoverflow.com/questions/61062325/python-kubernetes-client-equivalent-of-kubectl-describe-pod-grep-events
@@ -165,9 +164,8 @@ class _AsyncEventLogger:
                     timeout_seconds=10,
                     resource_version=resource_version,
                 ):
-                    print(event)
                     resource_version = event["object"].metadata.resource_version
-                    if self._is_relevant(event):
+                    if self._is_relevant(event["object"]):
                         logger.log(
                             _AsyncEventLogger._set_log_level(event),
                             _AsyncEventLogger._build_msg(event),
@@ -180,7 +178,6 @@ class _AsyncEventLogger:
                     resource_version = None
                 else:
                     raise
-        print("done watching")
 
     def start_watching(self) -> None:
         self.thread.start()
@@ -191,7 +188,7 @@ class _AsyncEventLogger:
     def __enter__(self):
         self.start_watching()
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         self.stop_watching()
 
 
