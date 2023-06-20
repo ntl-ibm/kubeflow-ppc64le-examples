@@ -56,8 +56,8 @@ from kubernetes.client import (
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
-# ConsoleOutputHandler = logging.StreamHandler()
-# logger.addHandler(ConsoleOutputHandler)
+ConsoleOutputHandler = logging.StreamHandler()
+logger.addHandler(ConsoleOutputHandler)
 
 config.load_incluster_config()
 
@@ -361,7 +361,7 @@ def run_pytorch_job(
 
     # PyTorch requires shared memory on each pod
     if not "/dev/shm" in {p.mount_path for p in pvcs}:
-        volume_mounts.append(V1VolumeMount(mount_path="/dev/shm", name="dshm")),
+        volume_mounts.append(V1VolumeMount(mount_path="/dev/shm", name="dshm"))
         volumes["dshm"] = V1Volume(
             name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory")
         )
@@ -440,7 +440,6 @@ def run_pytorch_job(
         },
     ):
         # Submit training job
-        print("START\n")
         training_client = TrainingClient()
         training_client.create_pytorchjob(pytorchjob)
 
