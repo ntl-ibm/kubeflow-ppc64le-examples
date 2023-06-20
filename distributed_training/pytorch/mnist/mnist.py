@@ -214,12 +214,13 @@ if __name__ == "__main__":
         )
 
     # Load from a possibly existing checkpoint
-    if os.path.exists(os.path.join(args.root_dir, "last.ckpt")):
-        model = MNISTModel.load_from_checkpoint(
-            os.path.join(args.root_dir, "last.ckpt")
-        )
+    chkpt_path = os.path.join(args.root_dir, "last.ckpt")
+    if os.path.exists(chkpt_path):
+        model = MNISTModel.load_from_checkpoint(chkpt_path)
+
     else:
         model = MNISTModel()
+        chkpt_path = None
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
@@ -247,7 +248,7 @@ if __name__ == "__main__":
 
     metrics = {}
     # Train the model
-    trainer.fit(model, mnist)
+    trainer.fit(model, mnist, chkpt_path=chkpt_path)
     metrics["train_f1"] = trainer.callback_metrics["val_F1"]
 
     # Test the model
