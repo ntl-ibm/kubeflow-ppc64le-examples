@@ -18,282 +18,29 @@ within a Kubeflow pipeline.
 Author: ntl@us.ibm.com
 """
 import os
-import shutil
-import subprocess
-from dataclasses import dataclass
 import logging
-from typing import Dict, List, Optional, Set, Callable, NamedTuple, Set, Iterable
-import threading
-import http.client
+from typing import Dict, List, Optional
 import time
-from datetime import datetime
 import yaml
 
-from kubeflow.training import (
-    KubeflowOrgV1ElasticPolicy,
-    KubeflowOrgV1PyTorchJob,
-    KubeflowOrgV1PyTorchJobSpec,
-    TrainingClient,
-    V1ReplicaSpec,
-    V1RunPolicy,
-)
+from kubeflow.training import TrainingClient
 from kubeflow.training.constants import constants
-from kubernetes import client, config, watch
-from kubernetes.client import (
-    V1Container,
-    V1EmptyDirVolumeSource,
-    V1EnvVar,
-    V1ObjectMeta,
-    V1OwnerReference,
-    V1PersistentVolumeClaimVolumeSource,
-    V1PodSpec,
-    V1PodTemplateSpec,
-    V1ResourceRequirements,
-    V1Volume,
-    V1VolumeMount,
-    V1DeleteOptions,
-    CoreV1Event,
-    ApiException,
-)
+from kubernetes import config
 
-config.load_incluster_config()
+import template
+import syncjob
+import event_logger
+import pod_log_streamer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
 
 
-class Timeout(int):
-    ONE_YEAR: int = 60 * 60 * 24 * 365
-
-
-class ContainerEnv(V1EnvVar):
-    """
-    Environment variables that can be added to pytorch workers to provide enhanced
-    debug capabilities.
-    """
-
-    LOGLEVEL_INFO: V1EnvVar = V1EnvVar(name="LOGLEVEL", value="INFO")
-    NCCL_INFO: V1EnvVar = V1EnvVar(name="NCCL_DEBUG", value="INFO")
-    C10D_DEBUG_MODE_DETAIL: V1EnvVar = V1EnvVar(name="C10D_DEBUG_MODE", value="DETAIL")
-
-
-@dataclass
-class OwningWorkFlow:
-    """
-    This class represents the owning workflow (kubeflow pipeline) for a
-    pytorch job. "Owning" is a kubernetes concept that means when the
-    owning object is deleted, the owned objects are also cleaned up.
-    """
-
-    name: str
-    uid: str
-
-
-@dataclass
-class PvcMount:
-    """
-    This class represents a request to mount a volume to the worker pods referencing
-    a pvc claim name.
-
-    pvc_name - the claim associated with the pvc
-    mount_path - the path to the mounted volume within the container
-    subpath - a path within the pvc to mount at the mount path.
-              This is optional and allows a subset of the pvc to be mounted.
-    """
-
-    pvc_name: str
-    mount_path: str
-    subpath: Optional[str] = None
-
-
-class _AsyncEventLogger:
-    """
-    Output events to the log as info messages.
-    """
-
-    class InvolvedObject(NamedTuple):
-        kind: str
-        name: str
-
-        def is_for(self, event: CoreV1Event) -> bool:
-            return (
-                event.involved_object.kind == self.kind
-                and event.involved_object.name == self.name
-            )
-
-    namespace: str
-    involved_objects: Set[InvolvedObject]
-
-    def __init__(self, namespace: str, involved_objects: Set[InvolvedObject]):
-        self.namespace = namespace
-        self.involved_objects = involved_objects
-        self.stop_monitoring = threading.Event()
-        self.thread = threading.Thread(
-            target=lambda: self._watch_events(), daemon=False
-        )
-
-    @classmethod
-    def _build_msg(cls, event: CoreV1Event) -> str:
-        name = f"{event.involved_object.kind}/{event.involved_object.name}"
-        ts = (
-            event.last_timestamp
-            or event.first_timestamp
-            or event.event_time
-            or datetime.now()
-        )
-
-        if event.source:
-            source = (
-                f"{event.source.component or ''}"
-                + f"{':' if event.source.host and event.source.component else ''} {event.source.host or ''}"
-            )
-        else:
-            source = ""
-
-        msg = (
-            f"{event.type:10.10s} {ts.isoformat()} {name:30s} {source} {event.message}"
-        )
-        return msg
-
-    @classmethod
-    def _set_log_level(cls, event: CoreV1Event) -> int:
-        if not event.type:
-            return logging.ERROR
-        if event.type == "Normal":
-            return logging.DEBUG
-        if event.type == "Error":
-            return logging.ERROR
-        return logging.WARNING
-
-    def _is_relevant(self, event: CoreV1Event) -> bool:
-        return (
-            next(filter(lambda io: io.is_for(event), self.involved_objects), None)
-            is not None
-        )
-
-    def _watch_events(self):
-        w = watch.Watch()
-        api = client.CoreV1Api()
-        resource_version = None
-        while not self.stop_monitoring.is_set():
-            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/EventsV1Api.md#list_namespaced_event
-            # https://stackoverflow.com/questions/61062325/python-kubernetes-client-equivalent-of-kubectl-describe-pod-grep-events
-            # https://stackoverflow.com/questions/72133783/how-to-avoid-resource-too-old-when-retrying-a-watch-with-kubernetes-python-cli
-            try:
-                for event in w.stream(
-                    api.list_namespaced_event,
-                    self.namespace,
-                    timeout_seconds=10,
-                    resource_version=resource_version,
-                ):
-                    core_event = event["object"]
-                    resource_version = core_event.metadata.resource_version
-                    if self._is_relevant(core_event):
-                        logger.log(
-                            _AsyncEventLogger._set_log_level(core_event),
-                            _AsyncEventLogger._build_msg(core_event),
-                        )
-
-                if self.stop_monitoring.is_set():
-                    w.stop()
-            except ApiException as e:
-                if e.status == http.client.GONE:
-                    resource_version = None
-                else:
-                    raise
-
-    def start_watching(self) -> None:
-        self.thread.start()
-
-    def stop_watching(self) -> None:
-        self.stop_monitoring.set()
-
-    def __enter__(self):
-        self.start_watching()
-
-    def __exit__(self, type, value, traceback):
-        self.stop_watching()
-        self.thread.join(30)
-
-
-def _wait_for_other_pod_status(
-    name: str,
-    namespace: str,
-    phases: Optional[Set[str]] = None,
-    timeout_seconds=Timeout.ONE_YEAR,
-) -> None:
-    """Waits for a Pod to not have a specific Phase.
-
-    name - name of the pod
-    namespace - namespace of the pod
-    phase - set of phases that the Pod should not be in
-    """
-    core_v1 = client.CoreV1Api()
-
-    start_time = int(time.time())
-    while True:
-        try:
-            pod = core_v1.read_namespaced_pod(name=name, namespace=namespace)
-        except ApiException as e:
-            if e.status == http.client.NOT_FOUND:
-                logger.info(f"The pod {name} was deleted")
-                return
-            else:
-                raise
-        # Phases: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-        if pod.status.phase not in phases:
-            return
-
-        if int(time.time()) - start_time > timeout_seconds:
-            raise TimeoutError(
-                f"The pod {namespace}/{name} did not exit phases {phases}."
-            )
-        time.sleep(5)
-
-
-def _wait_for_pods_to_be_in_different_state(
-    namespace: str, pod_names: Iterable[str], phases: Set[str], timeout_seconds: int
-):
-    start_time = int(time.time())
-    for pod in pod_names:
-        _wait_for_other_pod_status(
-            pod,
-            namespace,
-            phases,
-            timeout_seconds - (int(time.time()) - start_time),
-        )
-
-
-def _wait_for_job_conditions(
-    training_client: TrainingClient,
-    pytorch_job_name: str,
-    conditions: Set[str],
-    timeout: int = Timeout.ONE_YEAR,
-    polling_interval: int = 15,
-) -> None:
-    """
-    Waits for the pytorch job to have one of the expected conditions.
-
-    Stops waiting if the pod enters a failed state.
-    """
-    try:
-        training_client.wait_for_job_conditions(
-            pytorch_job_name,
-            expected_conditions=conditions,
-            job_kind=constants.PYTORCHJOB_KIND,
-            timeout=timeout,
-            polling_interval=polling_interval,
-        )
-    except RuntimeError as e:
-        # https://github.com/kubeflow/training-operator/issues/1806#issue-1708084586
-        pass
-
-
 def run_pytorch_job(
     namespace: str,
     pytorch_job_name: str,
-    pvcs: List[PvcMount],
-    owning_workflow: Optional[OwningWorkFlow],
+    pvcs: List[template.PvcMount],
+    owning_workflow: Optional[template.OwningWorkFlow],
     command: List[str],
     num_workers: int,
     worker_image: str,
@@ -301,8 +48,9 @@ def run_pytorch_job(
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
     image_pull_policy: str = "IfNotPresent",
-    completion_timeout: int = Timeout.ONE_YEAR,
+    completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
     log_pytorch_job_template: bool = True,
+    load_in_cluster_config=True,
 ) -> None:
     """
     Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
@@ -339,152 +87,44 @@ def run_pytorch_job(
     working_dir - working directory for each worker (optional)
     image_pull_pollicy - when to pull a new container image (optional, default is IfNotPresent)
     completion_timeout - how long to wait for the training to complete (optional, default is one year)
+    load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
+                             you will need to initialize the config before calling the method.
     """
     start_time = int(time.time())
 
-    # An owner reference for the workflow
-    # When the workflow is deleted, the torch job is
-    # garbage collected.
-    workflow_ownership = None
-    if owning_workflow:
-        workflow_ownership = [
-            V1OwnerReference(
-                api_version="v1",
-                kind="Workflow",
-                name=owning_workflow.name,
-                uid=owning_workflow.uid,
-            )
-        ]
+    def remaining_time() -> int:
+        return completion_timeout - (start_time - int(time.time()))
 
-    # Construct Environment parameters
-    container_env = (
-        [V1EnvVar(n, v) for n, v in env.items()]
-        if env
-        else [
-            ContainerEnv.LOGLEVEL_INFO,
-            ContainerEnv.NCCL_INFO,
-        ]
+    if load_in_cluster_config:
+        config.load_incluster_config()
+
+    pytorchjob_template = template.build_pytorch_job_template(
+        namespace=namespace,
+        pytorch_job_name=pytorch_job_name,
+        pvcs=pvcs,
+        owning_workflow=owning_workflow,
+        command=command,
+        num_workers=num_workers,
+        worker_image=worker_image,
+        gpus_per_worker=gpus_per_worker,
+        env=env,
+        working_dir=working_dir,
+        image_pull_policy=image_pull_policy,
     )
 
-    # Construct resources parameter
-    resources = (
-        V1ResourceRequirements(limits={"nvidia.com/gpu": f"{gpus_per_worker}"})
-        if gpus_per_worker
-        else None
-    )
+    training_client = TrainingClient()
 
-    container_working_dir = working_dir if working_dir else None
-
-    # Construct the volumes and volume mount parameters
-    # The same volume can be mounted at different locations (possibly using a subpath),
-    # and so it is legal to have the same volume twice in the volume_mounts.
-    # It is not OK to have the same volume twice in the volumes list, and the error
-    # given if you do that is not clear. The PvcMount class is just a mapping of
-    # pvc name -> mount point, so the invoker is free of this problem as long as
-    # we make sure volumes appear only once in the volume list.
-    volume_mounts: List[V1VolumeMount] = []
-    volumes: Dict[str, V1Volume] = {}
-    for pvc in pvcs:
-        volume_mounts.append(
-            V1VolumeMount(
-                mount_path=pvc.mount_path, name=pvc.pvc_name, sub_path=pvc.subpath
-            )
-        )
-        if pvc.pvc_name not in volumes:
-            volumes[pvc.pvc_name] = V1Volume(
-                name=pvc.pvc_name,
-                persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
-                    claim_name=pvc.pvc_name
-                ),
-            )
-
-    # PyTorch requires shared memory on each pod
-    if not "/dev/shm" in {p.mount_path for p in pvcs}:
-        volume_mounts.append(V1VolumeMount(mount_path="/dev/shm", name="dshm"))
-        volumes["dshm"] = V1Volume(
-            name="dshm", empty_dir=V1EmptyDirVolumeSource(medium="Memory")
-        )
-
-    # Pod template for each worker replica
-    # Defines the container image, command, and volume mounts
-    pod_template = V1PodTemplateSpec(
-        metadata=V1ObjectMeta(
-            name=pytorch_job_name,
-            namespace=namespace,
-            owner_references=workflow_ownership,
-            # https://github.com/kubeflow/website/issues/2011
-            annotations={"sidecar.istio.io/inject": "false"},
-        ),
-        spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name=constants.PYTORCHJOB_CONTAINER,
-                    image=worker_image,
-                    image_pull_policy=image_pull_policy,
-                    working_dir=container_working_dir,
-                    command=command,
-                    env=container_env,
-                    resources=resources,
-                    volume_mounts=volume_mounts,
-                )
-            ],
-            volumes=list(volumes.values()),
-        ),
-    )
-
-    # The PyTorchJob supports the concept of a master replica. When not
-    # included, the first worker takes the master role. Having only workers
-    # simplifies the template a bit. This is how the imagenet example is
-    # setup. https://github.com/kubeflow/training-operator/blob/master/examples/pytorch/elastic/imagenet/
-    worker_spec = V1ReplicaSpec(
-        replicas=num_workers, restart_policy="Never", template=pod_template
-    )
-
-    # The owner references and replica spec are used to define the torch job
-    pytorchjob = KubeflowOrgV1PyTorchJob(
-        api_version=f"{constants.KUBEFLOW_GROUP}/{constants.OPERATOR_VERSION}",
-        kind=constants.PYTORCHJOB_KIND,
-        metadata=V1ObjectMeta(
-            name=pytorch_job_name, owner_references=workflow_ownership
-        ),
-        spec=KubeflowOrgV1PyTorchJobSpec(
-            # c10d is the most commonly used because it doesn't require additional
-            # packages. The primary advantage that elastic solutions offer is the
-            # ability to use cheap hardware in the cloud that can be taken away
-            # at any time. That doesn't apply so much for Power servers that are
-            # running on on-prem. Here we default to a fixed size of the
-            # number of replicias.
-            # We also set this template up to fail if a failure happens, in the
-            # future we might support restarts with checkpointing. But for now,
-            # this example needs to be a simple pass/fail type of thing.
-            elastic_policy=KubeflowOrgV1ElasticPolicy(
-                rdzv_backend="c10d",
-                rdzv_id=pytorch_job_name,
-                n_proc_per_node=gpus_per_worker,
-                min_replicas=num_workers,
-                max_replicas=num_workers,
-                max_restarts=0,
-            ),
-            run_policy=V1RunPolicy(clean_pod_policy="None"),
-            pytorch_replica_specs={"Worker": worker_spec},
-        ),
-    )
-
-    with _AsyncEventLogger(
+    # Within the scope of this with, all events targeting the pytorch job will appear in the log
+    with event_logger.EventLogger(
         namespace,
-        {
-            _AsyncEventLogger.InvolvedObject(
-                constants.PYTORCHJOB_KIND, name=pytorch_job_name
-            )
-        },
+        {event_logger.InvolvedObject(constants.PYTORCHJOB_KIND, name=pytorch_job_name)},
     ):
         if log_pytorch_job_template:
-            logger.debug(yaml.dump(pytorchjob.to_dict()))
+            logger.debug(yaml.dump(pytorchjob_template.to_dict()))
 
-        training_client = TrainingClient()
-        training_client.create_pytorchjob(pytorchjob)
+        training_client.create_pytorchjob(pytorchjob_template)
 
-        _wait_for_job_conditions(
+        syncjob.wait_for_job_conditions(
             training_client,
             pytorch_job_name,
             {
@@ -495,56 +135,45 @@ def run_pytorch_job(
         )
 
         pod_names = training_client.get_job_pod_names(
-            name=pytorch_job_name, is_master=None
+            name=pytorch_job_name, is_master=False
         )
 
-        with _AsyncEventLogger(
+        # Within the scope of this with, all events targeting pods for the pytorch job
+        # will appear in the log
+        with event_logger.EventLogger(
             namespace,
-            {
-                _AsyncEventLogger.InvolvedObject(kind="Pod", name=name)
-                for name in pod_names
-            },
+            {event_logger.InvolvedObject(kind="Pod", name=name) for name in pod_names},
         ):
-            # Wait for pods to be ready (or succeeded/failed), must do this before reading logs
-            _wait_for_pods_to_be_in_different_state(
+            # Wait for pods to be Running (or succeeded/failed), must do this before reading logs
+            # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+            syncjob.wait_while_any_pod_is_in_phase(
                 namespace,
                 pod_names,
                 {"Pending"},
-                completion_timeout - (start_time - int(time.time())),
+                remaining_time(),
             )
 
             # stream logs for all workers (The interesting stuff is usually in worker 0)
-            # I have seen cases where progress bars cause with log streaming at the
-            # k8s client layer. I recommend turning those off if possible.
-            stream_logs_thread = threading.Thread(
-                target=training_client.get_job_logs,
-                args=[pytorch_job_name],
-                kwargs={
-                    "is_master": False,
-                    "container": constants.PYTORCHJOB_CONTAINER,
-                    "follow": True,
-                },
-                daemon=True,
-            )
-            stream_logs_thread.start()
+            with pod_log_streamer.PodLogStreamer(namespace, pytorch_job_name):
+                # Monitor pods until not running
+                syncjob.wait_while_any_pod_is_in_phase(
+                    namespace,
+                    pod_names,
+                    {"Running"},
+                    remaining_time(),
+                )
 
-            _wait_for_pods_to_be_in_different_state(
-                namespace,
-                pod_names,
-                {"Running"},
-                completion_timeout - (start_time - int(time.time())),
-            )
-            _wait_for_job_conditions(
-                training_client,
-                pytorch_job_name,
-                {
-                    constants.JOB_CONDITION_SUCCEEDED,
-                    constants.JOB_CONDITION_FAILED,
-                },
-                completion_timeout - (start_time - int(time.time())),
-                polling_interval=120,
-            )
-            stream_logs_thread.join(60)
+                # Job might still have a little cleanup, even after all the pods end
+                syncjob.wait_for_job_conditions(
+                    training_client,
+                    pytorch_job_name,
+                    {
+                        constants.JOB_CONDITION_SUCCEEDED,
+                        constants.JOB_CONDITION_FAILED,
+                    },
+                    remaining_time(),
+                    polling_interval=20,
+                )
 
     # Check for success or failure
     if training_client.is_job_failed(

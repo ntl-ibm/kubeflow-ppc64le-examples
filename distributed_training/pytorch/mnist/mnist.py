@@ -213,9 +213,9 @@ if __name__ == "__main__":
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
         )
 
-    # Load from a possibly existing checkpoint
     chkpt_path = os.path.join(args.root_dir, "last.ckpt")
     if os.path.exists(chkpt_path):
+        rank_zero_info(f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}")
         model = MNISTModel.load_from_checkpoint(chkpt_path)
 
     else:
@@ -230,11 +230,10 @@ if __name__ == "__main__":
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
     )
 
-    # Initialize a trainer
-    # strategy needs to be ddp, find_unused_parameters is due to
-    # https://github.com/Lightning-AI/lightning/discussions/6761
     trainer = L.Trainer(
         accelerator="auto",
+        # strategy needs to be ddp, find_unused_parameters is due to
+        # https://github.com/Lightning-AI/lightning/discussions/6761
         strategy="ddp_find_unused_parameters_false",
         num_nodes=num_workers,
         devices=[d for d in range(torch.cuda.device_count())]
@@ -244,22 +243,23 @@ if __name__ == "__main__":
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
         callbacks=[checkpoint_callback],
+        # Note: resume_from_checkpoint is depreciated and will be
+        # removed in 2.0, instead use chkpt_path on trainer.fit()
+        # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
         resume_from_checkpoint=chkpt_path,
     )
 
     metrics = {}
-    # Train the model
     trainer.fit(model, mnist)
     metrics["train_f1"] = trainer.callback_metrics["val_F1"]
 
-    # Test the model
     trainer.test(model, mnist)
     metrics["test_f1"] = trainer.callback_metrics["test_F1"]
 
     rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
     rank_zero_info(f"Test F1 = {metrics['test_f1']}")
 
-    # Save outputs (Model and metrics)
+    # Save outputs
     model.save(args.model)
     if args.kubeflow_ui_metadata:
         create_kubeflow_ui_metadata(args.kubeflow_ui_metadata, metrics)
