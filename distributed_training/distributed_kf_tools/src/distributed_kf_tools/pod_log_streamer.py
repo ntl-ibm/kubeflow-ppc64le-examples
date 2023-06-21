@@ -52,7 +52,7 @@ class PodLogStreamer:
                 "container": constants.PYTORCHJOB_CONTAINER,
                 "follow": True,
             },
-            daemon=True,
+            daemon=False,
         )
 
     def __enter__(self):

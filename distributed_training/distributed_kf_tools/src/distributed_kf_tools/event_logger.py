@@ -143,7 +143,9 @@ class EventLogger:
 
         This method runs in a secondary thread until it is signaled that it should stop
         """
-        logger.debug(f"Starting to watch events for {self.involved_objects}")
+        logger.debug(
+            f"Watching events for {self.involved_objects} in process {self.process.pid}"
+        )
         w = watch.Watch()
         api = client.CoreV1Api()
         resource_version = None
