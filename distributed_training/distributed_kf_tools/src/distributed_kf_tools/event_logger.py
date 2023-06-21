@@ -87,7 +87,7 @@ class EventLogger:
         self.involved_objects = involved_objects
         self.stop_monitoring = multiprocessing.Event()
         self.process = multiprocessing.Process(
-            target=self._watch_events(), daemon=False
+            target=lambda: self._watch_events(), daemon=False
         )
 
     @classmethod
