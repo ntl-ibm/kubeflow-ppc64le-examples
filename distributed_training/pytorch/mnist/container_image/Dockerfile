@@ -20,8 +20,8 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 # It does NOT include a notebook server.
 
 # These arguments define where to install the distributed kf tools package from.
-ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.0"
-ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed_training/pytorch/pytorch_distributed_kf_tools"
+ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.1"
+ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed_training/distributed_kf_tools"
 ARG DISTRIBUTED_KF_TOOLS_GIT="https://github.com/ntl-ibm/kubeflow-ppc64le-examples@${DISTRIBUTED_KF_TOOLS_BRANCH}#subdirectory=${DISTRIBUTED_KF_TOOLS_SUBDIR}"
 
 USER root
@@ -70,7 +70,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
     && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
-    && pip install "pytorch_distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
+    && pip install "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR}  \
