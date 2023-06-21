@@ -28,6 +28,11 @@ Author: ntl@us.ibm.com
 import multiprocessing
 from kubeflow.training.constants import constants
 from kubeflow.training import TrainingClient
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.environ.get("POD_LOG_STREAMER_LOGLEVEL", "DEBUG"))
 
 
 class PodLogStreamer:
@@ -44,23 +49,33 @@ class PodLogStreamer:
         self.job_name = job_name
         self.training_client = TrainingClient()
         self.wait_for_completion_time = wait_for_completion_time
+
+        def mp_target():
+            self.training_client.get_job_logs(
+                self.job_name,
+                is_master=False,
+                container=constants.PYTORCHJOB_CONTAINER,
+                follow=True,
+            )
+
         self.process = multiprocessing.Process(
-            target=self.training_client.get_job_logs,
-            args=[self.job_name],
-            kwargs={
-                "is_master": False,
-                "container": constants.PYTORCHJOB_CONTAINER,
-                "follow": True,
-            },
+            target=mp_target,
             daemon=False,
         )
 
     def __enter__(self):
         self.process.start()
+        logger.debug(
+            f"Started streaming logs for job {self.job_name} in pid {self.process.pid}"
+        )
 
     def __exit__(self, type, value, traceback):
         del type, value, traceback
         if self.wait_for_completion_time:
             self.process.join(self.wait_for_completion_time)
+        logger.debug(
+            f"Finished streaming logs for job {self.job_name} in pid {self.process.pid}"
+        )
         if self.process.is_alive():
+            logger.debug(f"Killing process pid {self.process.pid}")
             self.process.kill()
