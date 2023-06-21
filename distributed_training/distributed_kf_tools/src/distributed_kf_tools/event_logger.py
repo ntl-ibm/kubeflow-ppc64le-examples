@@ -27,7 +27,7 @@ Example:
         },
     ):
     # Code that needs to run goes here
-    # AsyncEventLogger will monitor for events in a seconday thread,
+    # The logger will monitor for events in a seconday thread,
     # events related to PyTorchJob/job-name will be written to the log.
 
 Author: ntl@us.ibm.com
@@ -39,7 +39,7 @@ import os
 import multiprocessing
 from typing import Set, NamedTuple
 
-from kubernetes import client, config, watch
+from kubernetes import client, watch
 from kubernetes.client import ApiException, CoreV1Event
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class EventLogger:
     """
     Output events to the log as info messages.
 
-    Normal events are written at the debug level, while other events are written at the
+    Normal events are written at the info level, while other events are written at the
     WARNING/ERROR Level.
     """
 
@@ -126,7 +126,7 @@ class EventLogger:
         if not event.type:
             return logging.ERROR
         if event.type == "Normal":
-            return logging.DEBUG
+            return logging.INFO
         if event.type == "Error":
             return logging.ERROR
         return logging.WARNING
@@ -143,6 +143,7 @@ class EventLogger:
 
         This method runs in a secondary thread until it is signaled that it should stop
         """
+        logger.debug(f"Starting to watch events for {self.involved_objects}")
         w = watch.Watch()
         api = client.CoreV1Api()
         resource_version = None
@@ -159,6 +160,9 @@ class EventLogger:
                     resource_version=resource_version,
                 ):
                     if not isinstance(event, dict):
+                        logger.warn(
+                            f"Attempt to process an event that was type {type(event)} when dict was expected. {event}"
+                        )
                         continue
 
                     core_event = event["object"]
@@ -176,15 +180,28 @@ class EventLogger:
                 # kept around for a short period of time. If that happens, retrieve list of events again.
                 # We poll often enough that this probably doesn't happen in practice.
                 if e.status == http.client.GONE:
+                    logger.debug(
+                        f"Watch API return GONE while monitoring events {self.involved_objects}"
+                    )
                     resource_version = None
                 else:
                     raise
+            logger.debug(f"Done monitoring events for {self.involved_objects}")
 
     def __enter__(self):
+        logger.debug(
+            f"Starting event Logger Process for objects {self.involved_objects}"
+        )
         self.process.start()
+        logger.debug(
+            f"Event Logger Process has started for objects {self.involved_objects}"
+        )
 
     def __exit__(self, type, value, traceback):
         del type, value, traceback
         self.stop_monitoring.set()
+        logger.debug(
+            f"Killing event Logger Process for objects {self.involved_objects}"
+        )
         self.process.join(60)
         self.process.kill()

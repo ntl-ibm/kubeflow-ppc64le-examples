@@ -27,10 +27,10 @@ from kubeflow.training import TrainingClient
 from kubeflow.training.constants import constants
 from kubernetes import config
 
-import pytorch_distributed_kf_tools.template as template
-import pytorch_distributed_kf_tools.syncjob as syncjob
-import pytorch_distributed_kf_tools.event_logger as event_logger
-import pytorch_distributed_kf_tools.pod_log_streamer as pod_log_streamer
+import distributed_kf_tools.template as template
+import distributed_kf_tools.syncjob as syncjob
+import distributed_kf_tools.event_logger as event_logger
+import distributed_kf_tools.pod_log_streamer as pod_log_streamer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
@@ -112,16 +112,15 @@ def run_pytorch_job(
         image_pull_policy=image_pull_policy,
     )
 
-    training_client = TrainingClient()
+    if log_pytorch_job_template:
+        logger.debug(yaml.dump(pytorchjob_template.to_dict()))
 
     # Within the scope of this with, all events targeting the pytorch job will appear in the log
     with event_logger.EventLogger(
         namespace,
         {event_logger.InvolvedObject(constants.PYTORCHJOB_KIND, name=pytorch_job_name)},
     ):
-        if log_pytorch_job_template:
-            logger.debug(yaml.dump(pytorchjob_template.to_dict()))
-
+        training_client = TrainingClient()
         training_client.create_pytorchjob(pytorchjob_template)
 
         syncjob.wait_for_job_conditions(
