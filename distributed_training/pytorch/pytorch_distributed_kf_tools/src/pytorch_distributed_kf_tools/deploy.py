@@ -27,10 +27,10 @@ from kubeflow.training import TrainingClient
 from kubeflow.training.constants import constants
 from kubernetes import config
 
-import template
-import syncjob
-import event_logger
-import pod_log_streamer
+import pytorch_distributed_kf_tools.template as template
+import pytorch_distributed_kf_tools.syncjob as syncjob
+import pytorch_distributed_kf_tools.event_logger as event_logger
+import pytorch_distributed_kf_tools.pod_log_streamer as pod_log_streamer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))

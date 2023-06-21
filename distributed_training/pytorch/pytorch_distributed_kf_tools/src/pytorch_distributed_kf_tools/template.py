@@ -39,7 +39,7 @@ from kubernetes.client import (
     V1Volume,
     V1VolumeMount,
 )
-import env_var
+import pytorch_distributed_kf_tools.env_var as env_var
 
 
 @dataclass
