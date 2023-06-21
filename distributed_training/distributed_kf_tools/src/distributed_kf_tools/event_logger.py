@@ -186,22 +186,20 @@ class EventLogger:
                     resource_version = None
                 else:
                     raise
-            logger.debug(f"Done monitoring events for {self.involved_objects}")
+        logger.debug(f"Done monitoring events for {self.involved_objects}")
 
     def __enter__(self):
-        logger.debug(
-            f"Starting event Logger Process for objects {self.involved_objects}"
-        )
+        logger.debug(f"Starting event Logger Process")
         self.process.start()
         logger.debug(
-            f"Event Logger Process has started for objects {self.involved_objects}"
+            f"Event Logger Process {self.process.pid} has started for objects {self.involved_objects}"
         )
 
     def __exit__(self, type, value, traceback):
         del type, value, traceback
         self.stop_monitoring.set()
-        logger.debug(
-            f"Killing event Logger Process for objects {self.involved_objects}"
-        )
+        logger.debug(f"Joining with event Logger Process {self.process.pid}")
         self.process.join(60)
-        self.process.kill()
+        if self.process.is_alive():
+            logger.debug(f"Killing process {self.process.pid}")
+            self.process.kill()
