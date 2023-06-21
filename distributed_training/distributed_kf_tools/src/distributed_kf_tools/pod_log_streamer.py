@@ -32,7 +32,7 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get("POD_LOG_STREAMER_LOGLEVEL", "DEBUG"))
+logger.setLevel(os.environ.get("POD_LOG_STREAMER_LOGLEVEL", "INFO"))
 
 
 class PodLogStreamer:

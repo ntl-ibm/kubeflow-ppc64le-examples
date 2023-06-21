@@ -43,7 +43,7 @@ from kubernetes import client, watch
 from kubernetes.client import ApiException, CoreV1Event
 
 logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get("EVENT_LOGGER_LOGLEVEL", "DEBUG"))
+logger.setLevel(os.environ.get("EVENT_LOGGER_LOGLEVEL", "INFO"))
 
 
 class InvolvedObject(NamedTuple):
