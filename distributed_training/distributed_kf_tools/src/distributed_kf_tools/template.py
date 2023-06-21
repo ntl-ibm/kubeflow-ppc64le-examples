@@ -128,7 +128,6 @@ def build_pytorch_job_template(
         if env
         else [
             env_var.LOGLEVEL_INFO,
-            env_var.NCCL_INFO,
         ]
     )
 
