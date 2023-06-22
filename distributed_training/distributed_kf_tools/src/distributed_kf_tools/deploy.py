@@ -150,7 +150,7 @@ def _execute_pytorch_job_and_delete(
         # Don't try to delete from a running subprocess (which will also get a SIGTERM signal)
         if os.getpid() == pid:
             logger.error(
-                f"SIGTERM received in pid {os.getpid} , deleting the pytorch job"
+                f"SIGTERM received in pid {os.getpid()} , deleting the pytorch job"
             )
             _delete_pytorch_job(pytorchjob_template)
             sys.exit(143)
