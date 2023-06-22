@@ -130,6 +130,7 @@ def _delete_pytorch_job(pytorchjob_template: KubeflowOrgV1PyTorchJob) -> None:
 
     try:
         training_client = TrainingClient()
+        logger.info(f"Deleting pytorch job {name}")
         training_client.delete_pytorchjob(name=name, namespace=namespace)
     except RuntimeError as e:
         logger.exception(e)
