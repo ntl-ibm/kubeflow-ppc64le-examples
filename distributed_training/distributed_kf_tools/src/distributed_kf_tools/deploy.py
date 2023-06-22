@@ -146,13 +146,15 @@ def _execute_pytorch_job_and_delete(
     """
     pid = os.getpid()
 
-    def hndlr(signal, stackframe) -> None:
-        del signal, stackframe
+    def hndlr(_signal, _stackframe) -> None:
+        del _signal, _stackframe
         if os.getpid() == pid:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
             logger.error(
                 f"SIGTERM received in pid {os.getpid()} , deleting the pytorch job"
             )
             _delete_pytorch_job(pytorchjob_template)
+            sys.exit(1)
         else:
             pass
 
