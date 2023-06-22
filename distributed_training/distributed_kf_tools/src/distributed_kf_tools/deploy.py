@@ -153,7 +153,7 @@ def _execute_pytorch_job_and_delete(
                 f"SIGTERM received in pid {os.getpid()} , deleting the pytorch job"
             )
             _delete_pytorch_job(pytorchjob_template)
-            sys.exit(143)
+            sys.exit(1)
         else:
             pass
 
