@@ -20,10 +20,12 @@ Author: ntl@us.ibm.com
 import os
 import logging
 from typing import Dict, List, Optional
+import signal
 import time
 import yaml
 
 from kubeflow.training import TrainingClient
+from kubeflow.training import KubeflowOrgV1PyTorchJob
 from kubeflow.training.constants import constants
 from kubernetes import config
 
@@ -36,84 +38,21 @@ logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
 
 
-def run_pytorch_job(
-    namespace: str,
-    pytorch_job_name: str,
-    pvcs: List[template.PvcMount],
-    owning_workflow: Optional[template.OwningWorkFlow],
-    command: List[str],
-    num_workers: int,
-    worker_image: str,
-    gpus_per_worker: int = 1,
-    env: Optional[Dict[str, str]] = None,
-    working_dir: Optional[str] = None,
-    image_pull_policy: str = "IfNotPresent",
-    completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
-    log_pytorch_job_template: bool = True,
-    load_in_cluster_config=True,
+def _execute_job(
+    pytorchjob_template: KubeflowOrgV1PyTorchJob, completion_timeout: int
 ) -> None:
     """
-    Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
-    RuntimeError is raised if the job fails.
-
-    The version of the function does not support:
-    * Adding or removing workers mid training
-    * Restarting the training if a worker fails.
-
-    Params:
-    namespace - the namespace that the job is to run in. Within a kubeflow component, you can
-                code the literal  '{{workflow.namespace}}', which will be replaced with the workflow's
-                namespace when the pipeline is executed.
-    pytorch_job_name  - the unique name for the job. Within a Kubeflow component, you can code
-                        the literal {{workflow.name}} to use the workflow's name as the job name.
-    pvcs      - list of PVCs to mount to each worker node. Most distributed training applications
-                will require at least one PVC to share information between pods. PVCs should be created
-                with read-write-many capabilities.
-    owning_workflow - The created job will be garbage collected with the owning workflow is destroyed.
-                Within a kubeflow component, you can create this value like this:
-                owning_workflow=OwningWorkFlow(name="{{workflow.name}}", uid="{{workflow.uid}}")
-                The workflow's name and uid will be set by the pipeline when the pipeline runs.
-    command - list of command & arguments. Typically this will be something like:
-              command=[
-                "python",
-                "-m",
-                "torch.distributed.run",
-                <<< your script + args here >>>
-               ]
-    num_workers - the number of workers (pods) to use in the training
-    worker_image - the container image for the workers to use
-    gpus_per_worker - gpus to assign to each worker (default is 1)
-    env - the environment variables to pass to each worker (optional)
-    working_dir - working directory for each worker (optional)
-    image_pull_pollicy - when to pull a new container image (optional, default is IfNotPresent)
-    completion_timeout - how long to wait for the training to complete (optional, default is one year)
-    load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
-                             you will need to initialize the config before calling the method.
+    Executes the job template and waits for completion
     """
     start_time = int(time.time())
 
     def remaining_time() -> int:
         return completion_timeout - (start_time - int(time.time()))
 
-    if load_in_cluster_config:
-        config.load_incluster_config()
+    assert pytorchjob_template.metadata is not None
 
-    pytorchjob_template = template.build_pytorch_job_template(
-        namespace=namespace,
-        pytorch_job_name=pytorch_job_name,
-        pvcs=pvcs,
-        owning_workflow=owning_workflow,
-        command=command,
-        num_workers=num_workers,
-        worker_image=worker_image,
-        gpus_per_worker=gpus_per_worker,
-        env=env,
-        working_dir=working_dir,
-        image_pull_policy=image_pull_policy,
-    )
-
-    if log_pytorch_job_template:
-        logger.debug(yaml.dump(pytorchjob_template.to_dict()))
+    namespace = pytorchjob_template.metadata.namespace
+    pytorch_job_name = pytorchjob_template.metadata.name
 
     # Within the scope of this with, all events targeting the pytorch job will appear in the log
     with event_logger.EventLogger(
@@ -179,3 +118,117 @@ def run_pytorch_job(
         name=pytorch_job_name, job_kind=constants.PYTORCHJOB_KIND
     ):
         raise RuntimeError(f"Job {pytorch_job_name} Failed!")
+
+
+def _delete_pytorch_job(pytorchjob_template: KubeflowOrgV1PyTorchJob) -> None:
+    """
+    Deletes the pytorch job
+    """
+    assert pytorchjob_template.metadata is not None
+    namespace = pytorchjob_template.metadata.namespace
+    name = pytorchjob_template.metadata.name
+
+    try:
+        training_client = TrainingClient()
+        training_client.delete_pytorchjob(name=name, namespace=namespace)
+    except RuntimeError as e:
+        logger.exception(e)
+
+
+def _execute_pytorch_job_and_delete(
+    pytorchjob_template: KubeflowOrgV1PyTorchJob, completion_timeout: int
+) -> None:
+    """Executes the pytorch job and deletes on completion.
+
+    Also responds to signal SIGTERM and deletes the job
+    """
+
+    def hndlr(signal, stackframe) -> None:
+        logger.error("SIGTERM received, deleting the pytorch job")
+        _delete_pytorch_job(pytorchjob_template)
+
+    signal.signal(signal.SIGTERM, hndlr)
+
+    try:
+        _execute_job(pytorchjob_template, completion_timeout)
+    finally:
+        _delete_pytorch_job(pytorchjob_template)
+        signal.signal(signal.SIGTERM, None)
+
+
+def run_pytorch_job(
+    namespace: str,
+    pytorch_job_name: str,
+    pvcs: List[template.PvcMount],
+    owning_workflow: Optional[template.OwningWorkFlow],
+    command: List[str],
+    num_workers: int,
+    worker_image: str,
+    gpus_per_worker: int = 1,
+    env: Optional[Dict[str, str]] = None,
+    working_dir: Optional[str] = None,
+    image_pull_policy: str = "IfNotPresent",
+    completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
+    log_pytorch_job_template: bool = True,
+    load_in_cluster_config=True,
+) -> None:
+    """
+    Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
+    RuntimeError is raised if the job fails.
+
+    The version of the function does not support:
+    * Adding or removing workers mid training
+    * Restarting the training if a worker fails.
+
+    Params:
+    namespace - the namespace that the job is to run in. Within a kubeflow component, you can
+                code the literal  '{{workflow.namespace}}', which will be replaced with the workflow's
+                namespace when the pipeline is executed.
+    pytorch_job_name  - the unique name for the job. Within a Kubeflow component, you can code
+                        the literal {{workflow.name}} to use the workflow's name as the job name.
+    pvcs      - list of PVCs to mount to each worker node. Most distributed training applications
+                will require at least one PVC to share information between pods. PVCs should be created
+                with read-write-many capabilities.
+    owning_workflow - The created job will be garbage collected with the owning workflow is destroyed.
+                Within a kubeflow component, you can create this value like this:
+                owning_workflow=OwningWorkFlow(name="{{workflow.name}}", uid="{{workflow.uid}}")
+                The workflow's name and uid will be set by the pipeline when the pipeline runs.
+    command - list of command & arguments. Typically this will be something like:
+              command=[
+                "python",
+                "-m",
+                "torch.distributed.run",
+                <<< your script + args here >>>
+               ]
+    num_workers - the number of workers (pods) to use in the training
+    worker_image - the container image for the workers to use
+    gpus_per_worker - gpus to assign to each worker (default is 1)
+    env - the environment variables to pass to each worker (optional)
+    working_dir - working directory for each worker (optional)
+    image_pull_pollicy - when to pull a new container image (optional, default is IfNotPresent)
+    completion_timeout - how long to wait for the training to complete (optional, default is one year)
+    load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
+                             you will need to initialize the config before calling the method.
+    """
+
+    if load_in_cluster_config:
+        config.load_incluster_config()
+
+    pytorchjob_template = template.build_pytorch_job_template(
+        namespace=namespace,
+        pytorch_job_name=pytorch_job_name,
+        pvcs=pvcs,
+        owning_workflow=owning_workflow,
+        command=command,
+        num_workers=num_workers,
+        worker_image=worker_image,
+        gpus_per_worker=gpus_per_worker,
+        env=env,
+        working_dir=working_dir,
+        image_pull_policy=image_pull_policy,
+    )
+
+    if log_pytorch_job_template:
+        logger.debug(yaml.dump(pytorchjob_template.to_dict()))
+
+    _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)
