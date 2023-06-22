@@ -21,6 +21,7 @@ import os
 import logging
 from typing import Dict, List, Optional
 import signal
+import sys
 import time
 import yaml
 
@@ -143,13 +144,18 @@ def _execute_pytorch_job_and_delete(
 
     Also responds to signal SIGTERM and deletes the job
     """
+    pid = os.getpid()
 
     def hndlr(signal, stackframe) -> None:
-        logger.error("SIGTERM received, deleting the pytorch job")
-        _delete_pytorch_job(pytorchjob_template)
+        # Don't try to delete from a running subprocess (which will also get a SIGTERM signal)
+        if os.getpid() == pid:
+            logger.error("SIGTERM received, deleting the pytorch job")
+            _delete_pytorch_job(pytorchjob_template)
+            sys.exit(143)
+        else:
+            sys.exit(143)
 
     signal.signal(signal.SIGTERM, hndlr)
-
     try:
         _execute_job(pytorchjob_template, completion_timeout)
     finally:
