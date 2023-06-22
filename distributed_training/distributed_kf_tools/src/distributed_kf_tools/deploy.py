@@ -147,8 +147,8 @@ def _execute_pytorch_job_and_delete(
     pid = os.getpid()
 
     def hndlr(signal, stackframe) -> None:
+        del signal, stackframe
         if os.getpid() == pid:
-            already_deleted = True
             logger.error(
                 f"SIGTERM received in pid {os.getpid()} , deleting the pytorch job"
             )
