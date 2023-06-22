@@ -154,7 +154,7 @@ def _execute_pytorch_job_and_delete(
         _execute_job(pytorchjob_template, completion_timeout)
     finally:
         _delete_pytorch_job(pytorchjob_template)
-        signal.signal(signal.SIGTERM, None)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 def run_pytorch_job(
@@ -214,6 +214,9 @@ def run_pytorch_job(
 
     if load_in_cluster_config:
         config.load_incluster_config()
+
+    assert namespace
+    assert pytorch_job_name
 
     pytorchjob_template = template.build_pytorch_job_template(
         namespace=namespace,

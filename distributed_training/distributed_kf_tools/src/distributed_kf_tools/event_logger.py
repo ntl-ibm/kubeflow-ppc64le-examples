@@ -157,7 +157,7 @@ class EventLogger:
             try:
                 for event in w.stream(
                     api.list_namespaced_event,
-                    self.namespace,
+                    namespace=self.namespace,
                     timeout_seconds=10,
                     resource_version=resource_version,
                 ):
