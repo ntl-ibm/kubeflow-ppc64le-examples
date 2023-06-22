@@ -24,11 +24,13 @@ import signal
 import sys
 import time
 import yaml
+import http.client
 
 from kubeflow.training import TrainingClient
 from kubeflow.training import KubeflowOrgV1PyTorchJob
 from kubeflow.training.constants import constants
 from kubernetes import config
+from kubernetes.client import ApiException
 
 import distributed_kf_tools.template as template
 import distributed_kf_tools.syncjob as syncjob
@@ -133,6 +135,11 @@ def _delete_pytorch_job(pytorchjob_template: KubeflowOrgV1PyTorchJob) -> None:
         training_client = TrainingClient()
         logger.info(f"Deleting pytorch job {name}")
         training_client.delete_pytorchjob(name=name, namespace=namespace)
+    except ApiException as e:
+        if not e.status == http.client.NOT_FOUND:
+            logger.exception(e)
+        else:
+            pass
     except RuntimeError as e:
         logger.exception(e)
 
