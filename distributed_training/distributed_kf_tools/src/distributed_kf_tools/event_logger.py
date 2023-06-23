@@ -235,9 +235,7 @@ class EventLogger:
         else:
             source = ""
 
-        msg = (
-            f"{event.type:10.10s} {ts.isoformat()} {name:30s} {source} {event.message}"
-        )
+        msg = f"<EVENT> {event.type:10.10s} {ts.isoformat()} {name:30s} {source} {event.message}"
         return msg
 
     @classmethod
@@ -277,6 +275,7 @@ class EventLogger:
         )
         api = client.CoreV1Api()
         state = WatchState.initialize(self.namespace, api)
+        
         self.is_monitoring.set()
 
         while not self.stop_monitoring.is_set():
