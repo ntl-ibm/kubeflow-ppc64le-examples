@@ -72,7 +72,7 @@ class WatchState:
 
     namespace: str
     resource: CoreV1EventList
-    processed_uids: Set[str] = set()
+    processed_uids: Set[str]
 
     @property
     def unprocessed(self) -> Generator[CoreV1Event, None, None]:
@@ -149,7 +149,7 @@ class WatchState:
             logger.warn(f"Error when retrieving namespaced events {e}")
             resource = CoreV1EventList()
 
-        return WatchState(namespace=namespace, resource=resource)
+        return WatchState(namespace=namespace, resource=resource, processed_uids=set())
 
     def mark_event_processed(self, core_event: CoreV1Event):
         if core_event.metadata and core_event.metadata.uid:
