@@ -43,7 +43,7 @@ from kubernetes import client, watch
 from kubernetes.client import ApiException, CoreV1Event, CoreV1EventList, CoreV1Api
 
 logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get("EVENT_LOGGER_LOGLEVEL", "INFO"))
+logger.setLevel(os.environ.get("EVENT_LOGGER_LOGLEVEL", "WARNING"))
 
 
 class InvolvedObject(NamedTuple):
@@ -275,7 +275,16 @@ class EventLogger:
         )
         api = client.CoreV1Api()
         state = WatchState.initialize(self.namespace, api)
-        
+
+        # Potentially, we could mark events prior to this point as processed, since they happened before
+        # we started monitoring (for example if a pod name got reused)
+        # Unfortunatly, sometimes pods need to start so that we have a name before we can
+        # monitor events for them. And then removing events prior to this point
+        # drop events relevant to instances of pods that are being monitored.
+        # Rather than complicating the solution, I push this back on the
+        # reviewer of the log to understand that some events might be from
+        # previous invocations of the pod. And this aligns with the way that
+        # kubectl describe pod works, so I think it's OK.
         self.is_monitoring.set()
 
         while not self.stop_monitoring.is_set():
