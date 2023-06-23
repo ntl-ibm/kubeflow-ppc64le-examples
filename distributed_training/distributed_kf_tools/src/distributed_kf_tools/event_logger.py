@@ -63,7 +63,7 @@ class InvolvedObject(NamedTuple):
 
 
 @dataclass
-class WatchState(NamedTuple):
+class WatchState:
     """This class tracks the current list of events, and which ones have been processed
 
     It includes changes to watch for new events, and process those new events as they
@@ -72,7 +72,7 @@ class WatchState(NamedTuple):
 
     namespace: str
     resource: CoreV1EventList
-    processed_uids: Set[str]
+    processed_uids: Set[str] = set()
 
     @property
     def unprocessed(self) -> Generator[CoreV1Event, None, None]:
@@ -149,7 +149,7 @@ class WatchState(NamedTuple):
             logger.warn(f"Error when retrieving namespaced events {e}")
             resource = CoreV1EventList()
 
-        return WatchState(namespace=namespace, resource=resource, processed_uids=set())
+        return WatchState(namespace=namespace, resource=resource)
 
     def mark_event_processed(self, core_event: CoreV1Event):
         if core_event.metadata and core_event.metadata.uid:
