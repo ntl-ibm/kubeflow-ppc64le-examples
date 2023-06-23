@@ -277,11 +277,6 @@ class EventLogger:
         )
         api = client.CoreV1Api()
         state = WatchState.initialize(self.namespace, api)
-
-        # Ignore events from before we started monitoring, these can happen if a pod name is reused
-        # Example: Someone terminates a pipeline run and retries. The pod keeps the same name, and
-        # the previous events are still around.
-        state.mark_all_events_as_processed()
         self.is_monitoring.set()
 
         while not self.stop_monitoring.is_set():
