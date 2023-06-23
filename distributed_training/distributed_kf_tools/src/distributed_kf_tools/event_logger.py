@@ -165,10 +165,20 @@ class WatchState:
 
     def reload_event_list(self, api: CoreV1Api) -> None:
         try:
-            resource = api.list_namespaced_event(self.namespace)
+            self.resource = api.list_namespaced_event(self.namespace)
+
+            # If events have been deleted, we can remove them from
+            # our processed list, since we'll never compare again
+            loaded_uids = {
+                core_event.metadata.uid
+                for core_event in self.resource.items
+                if (core_event.metadata and core_event.metadata.uid)
+            }
+            self.processed_uids = self.processed_uids & loaded_uids
+
         except ApiException as e:
             logger.warn(f"Error when reloading namespaced events {e}")
-            resource = CoreV1EventList()
+            self.resource = CoreV1EventList()
 
 
 class EventLogger:
