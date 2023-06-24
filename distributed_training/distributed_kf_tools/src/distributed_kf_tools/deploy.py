@@ -38,7 +38,7 @@ import distributed_kf_tools.event_logger as event_logger
 import distributed_kf_tools.pod_log_streamer as pod_log_streamer
 
 logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
+logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
 
 
 def _pytorch_job_exists(
@@ -270,6 +270,6 @@ def run_pytorch_job(
     )
 
     if log_pytorch_job_template:
-        logger.debug(yaml.dump(pytorchjob_template.to_dict()))
+        logger.info(yaml.dump(pytorchjob_template.to_dict()))
 
     _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)

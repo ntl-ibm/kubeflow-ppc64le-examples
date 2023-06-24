@@ -253,11 +253,14 @@ if __name__ == "__main__":
 
     metrics = {}
     trainer.fit(model, mnist)
-    if "val_f1" in trainer.callback_metrics:
-        # If we load from checkpoint, and the model was previusly trained
-        # for max epochs, it won't train further and there will be no
-        # metrics recorded.
-        metrics["train_f1"] = trainer.callback_metrics["val_F1"]
+    # If we load from checkpoint, and the model was previusly trained
+    # for max epochs, it won't train further and there will be no
+    # metrics recorded. Just use -1 in that case
+    metrics["train_f1"] = (
+        trainer.callback_metrics["val_F1"]
+        if "val_F1" in trainer.callback_metrics
+        else -1
+    )
 
     trainer.test(model, mnist)
     metrics["test_f1"] = trainer.callback_metrics["test_F1"]
