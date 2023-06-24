@@ -215,7 +215,9 @@ if __name__ == "__main__":
 
     chkpt_path = os.path.join(args.root_dir, "last.ckpt")
     if os.path.exists(chkpt_path):
-        rank_zero_info(f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}")
+        rank_zero_info(
+            f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}"
+        )
         model = MNISTModel.load_from_checkpoint(chkpt_path)
 
     else:
@@ -251,7 +253,11 @@ if __name__ == "__main__":
 
     metrics = {}
     trainer.fit(model, mnist)
-    metrics["train_f1"] = trainer.callback_metrics["val_F1"]
+    if "val_f1" in trainer.callback_metrics:
+        # If we load from checkpoint, and the model was previusly trained
+        # for max epochs, it won't train further and there will be no
+        # metrics recorded.
+        metrics["train_f1"] = trainer.callback_metrics["val_F1"]
 
     trainer.test(model, mnist)
     metrics["test_f1"] = trainer.callback_metrics["test_F1"]

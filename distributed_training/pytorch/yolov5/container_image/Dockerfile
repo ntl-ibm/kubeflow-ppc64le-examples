@@ -16,7 +16,7 @@ FROM $ROOT_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
 # These arguments define where to install the distributed kf tools package from.
-ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.1"
+ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.2"
 ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed_training/distributed_kf_tools"
 ARG DISTRIBUTED_KF_TOOLS_GIT="https://github.com/ntl-ibm/kubeflow-ppc64le-examples@${DISTRIBUTED_KF_TOOLS_BRANCH}#subdirectory=${DISTRIBUTED_KF_TOOLS_SUBDIR}"
 
