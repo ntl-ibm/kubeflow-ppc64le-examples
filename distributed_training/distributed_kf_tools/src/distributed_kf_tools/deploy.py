@@ -41,6 +41,22 @@ logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
 
 
+def _pytorch_job_exists(
+    training_client: TrainingClient, name: str, namespace: str
+) -> bool:
+    """Tests to see if the job already exists
+
+    Any API error is considered an indication that the job
+    doesn't exist.
+    """
+    try:
+        training_client.get_pytorchjob(name=name, namespace=namespace)
+        return True
+    except RuntimeError as e:
+        logger.debug(f"Check for existing job failed with {e}")
+        return False
+
+
 def _execute_job(
     pytorchjob_template: KubeflowOrgV1PyTorchJob, completion_timeout: int
 ) -> None:
@@ -63,7 +79,12 @@ def _execute_job(
         {event_logger.InvolvedObject(constants.PYTORCHJOB_KIND, name=pytorch_job_name)},
     ):
         training_client = TrainingClient()
-        training_client.create_pytorchjob(pytorchjob_template)
+
+        if not _pytorch_job_exists(training_client, pytorch_job_name, namespace):
+            # Its possible in some recovery scenarios that both the job and this
+            # pod have been restarted. We rather not destroy the running job
+            # if that is the case
+            training_client.create_pytorchjob(pytorchjob_template)
 
         syncjob.wait_for_job_conditions(
             training_client,
