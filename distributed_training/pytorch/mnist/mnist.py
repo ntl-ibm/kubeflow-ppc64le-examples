@@ -25,6 +25,7 @@ from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import torch.distributed as dst
 from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from typing import Dict
 import os
@@ -90,17 +91,18 @@ class MNISTModel(L.LightningModule):
     MNIST classifier
     """
 
-    def __init__(self):
+    def __init__(self, pDropout1: float = 0.25, pDropout2: float = 0.5):
         super().__init__()
+        self.save_hyperparameters()
 
         # Model Layers
         self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
         self.conv2 = torch.nn.Conv2d(
             in_channels=32, out_channels=64, kernel_size=(3, 3)
         )
-        self.dropout1 = torch.nn.Dropout(p=0.25)
+        self.dropout1 = torch.nn.Dropout(p=pDropout1)
         self.fc1 = torch.nn.Linear(in_features=9216, out_features=128)
-        self.dropout2 = torch.nn.Dropout(p=0.5)
+        self.dropout2 = torch.nn.Dropout(p=pDropout2)
         self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
@@ -211,38 +213,62 @@ if __name__ == "__main__":
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
         )
 
-    model = MNISTModel()
+    chkpt_path = os.path.join(args.root_dir, "last.ckpt")
+    if os.path.exists(chkpt_path):
+        rank_zero_info(
+            f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}"
+        )
+        model = MNISTModel.load_from_checkpoint(chkpt_path)
+
+    else:
+        model = MNISTModel()
+        chkpt_path = None
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
+    )
+
     mnist = MNISTDataModule(
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
     )
 
-    # Initialize a trainer
     trainer = L.Trainer(
         accelerator="auto",
-        strategy="ddp",
+        # strategy needs to be ddp, find_unused_parameters is due to
+        # https://github.com/Lightning-AI/lightning/discussions/6761
+        strategy="ddp_find_unused_parameters_false",
         num_nodes=num_workers,
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
         else -1,
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
-        enable_checkpointing=False,
         enable_progress_bar=False,
+        callbacks=[checkpoint_callback],
+        # Note: resume_from_checkpoint is depreciated and will be
+        # removed in 2.0, instead use chkpt_path on trainer.fit()
+        # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
+        resume_from_checkpoint=chkpt_path,
     )
 
     metrics = {}
-    # Train the model
     trainer.fit(model, mnist)
-    metrics["train_f1"] = trainer.callback_metrics["val_F1"]
+    # If we load from checkpoint, and the model was previusly trained
+    # for max epochs, it won't train further and there will be no
+    # metrics recorded. Just use -1 in that case
+    metrics["train_f1"] = (
+        trainer.callback_metrics["val_F1"]
+        if "val_F1" in trainer.callback_metrics
+        else -1
+    )
 
-    # Test the model
     trainer.test(model, mnist)
     metrics["test_f1"] = trainer.callback_metrics["test_F1"]
 
     rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
     rank_zero_info(f"Test F1 = {metrics['test_f1']}")
 
-    # Save outputs (Model and metrics)
+    # Save outputs
     model.save(args.model)
     if args.kubeflow_ui_metadata:
         create_kubeflow_ui_metadata(args.kubeflow_ui_metadata, metrics)
