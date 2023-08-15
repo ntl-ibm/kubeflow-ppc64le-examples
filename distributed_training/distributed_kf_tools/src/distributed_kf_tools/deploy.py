@@ -195,21 +195,22 @@ def _execute_pytorch_job_and_delete(
 
 
 def run_pytorch_job(
-    namespace: str,
     pytorch_job_name: str,
     pvcs: List[template.PvcMount],
     owning_workflow: Optional[template.OwningWorkFlow],
     command: List[str],
     num_workers: int,
     worker_image: str,
+    namespace: Optional[str] = None,
     gpus_per_worker: int = 1,
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
     image_pull_policy: str = "IfNotPresent",
     completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
     log_pytorch_job_template: bool = True,
-    load_in_cluster_config=True,
-) -> None:
+    load_in_cluster_config: bool = True,
+    dry_run: bool = False,
+) -> KubeflowOrgV1PyTorchJob:
     """
     Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
     RuntimeError is raised if the job fails.
@@ -247,12 +248,18 @@ def run_pytorch_job(
     completion_timeout - how long to wait for the training to complete (optional, default is one year)
     load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
                              you will need to initialize the config before calling the method.
+    dry_run - if true, does not actually create the job. This can be used to obtain the K8S resource description
+              to run the job outside of a pipeline or notebook.
     """
 
     if load_in_cluster_config:
         config.load_incluster_config()
 
-    assert namespace
+    if not namespace:
+        # Try to get the namespace from the current pod's service account
+        with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
+            namespace = f.read()
+
     assert pytorch_job_name
 
     pytorchjob_template = template.build_pytorch_job_template(
@@ -272,4 +279,7 @@ def run_pytorch_job(
     if log_pytorch_job_template:
         logger.info(yaml.dump(pytorchjob_template.to_dict()))
 
-    _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)
+    if not dry_run:
+        _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)
+
+    return pytorchjob_template
