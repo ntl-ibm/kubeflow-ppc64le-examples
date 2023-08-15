@@ -176,9 +176,6 @@ def build_pytorch_job_template(
     # Defines the container image, command, and volume mounts
     pod_template = V1PodTemplateSpec(
         metadata=V1ObjectMeta(
-            name=pytorch_job_name,
-            namespace=namespace,
-            owner_references=workflow_ownership,
             # https://github.com/kubeflow/website/issues/2011
             annotations={"sidecar.istio.io/inject": "false"},
         ),
