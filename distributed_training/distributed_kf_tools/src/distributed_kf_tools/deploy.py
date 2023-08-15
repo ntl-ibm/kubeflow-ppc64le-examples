@@ -208,8 +208,9 @@ def run_pytorch_job(
     image_pull_policy: str = "IfNotPresent",
     completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
     log_pytorch_job_template: bool = True,
-    load_in_cluster_config=True,
-) -> None:
+    load_in_cluster_config: bool = True,
+    dry_run: bool = False,
+) -> KubeflowOrgV1PyTorchJob:
     """
     Builds a kubernetes PytorchJob template, creates the job, and waits for completion.
     RuntimeError is raised if the job fails.
@@ -272,4 +273,7 @@ def run_pytorch_job(
     if log_pytorch_job_template:
         logger.info(yaml.dump(pytorchjob_template.to_dict()))
 
-    _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)
+    if not dry_run:
+        _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)
+
+    return pytorchjob_template
