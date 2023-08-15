@@ -248,6 +248,8 @@ def run_pytorch_job(
     completion_timeout - how long to wait for the training to complete (optional, default is one year)
     load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
                              you will need to initialize the config before calling the method.
+     dry_run - if true, does not actually create the job. This can be used to obtain the K8S resource description
+               to run the job outside of a pipeline or notebook.
     """
 
     if load_in_cluster_config:
