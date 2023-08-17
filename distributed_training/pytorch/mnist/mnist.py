@@ -31,6 +31,7 @@ from typing import Dict, Optional, Any
 import os
 import json
 import time
+import logging
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -102,7 +103,21 @@ class MNISTModel(L.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.metric_log_file = metric_log_file
+        # Logging
+        self.metric_logger = logging.getLogger("MNISTModel")
+        self.metric_logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%SZ",
+        )
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        self.metric_logger.addHandler(ch)
+        if metric_log_file:
+            fh = logging.FileHandler(metric_log_file)
+            fh.setFormatter(formatter)
+            self.metric_logger.addHandler(fh)
+
         self.lr = lr
 
         # Model Layers
@@ -159,23 +174,19 @@ class MNISTModel(L.LightningModule):
 
     def on_train_epoch_end(self):
         """
-        Logs the F1 score for the validation set to stdout and file.
+        Logs the metrics for the validation set.
 
-        This text document is in a format that is understood by the
+        This data is in a format that is understood by the
         Katib metrics collector when the collector is defined as:
 
         https://www.kubeflow.org/docs/components/katib/experiment/#metrics-collector
 
+        The TEXT format is the default, so that's what is used here, even though
+        JSON is a bit easier to read in the log.
         """
-        metrics_text = (
-            f"epoch {self.trainer.current_epoch}:\n"
-            + f'f1={self.trainer.callback_metrics["val_F1"]}\n'
-            + f'acc={self.trainer.callback_metrics["val_acc"]}\n'
-            + f"timestamp={time.time()}\n"
-        )
-
-        rank_zero_info(metrics_text)
-        self.log_parameters_to_file(metrics_text)
+        self.log_metric(f"epoch {self.trainer.current_epoch}:")
+        self.log_metric(f'acc={self.trainer.callback_metrics["val_acc"]}')
+        self.log_metric(f'f1={self.trainer.callback_metrics["val_F1"]}')
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -186,11 +197,9 @@ class MNISTModel(L.LightningModule):
         torch.save(self, model_dest)
 
     @rank_zero_only
-    def log_parameters_to_file(self, metrics: str):
+    def log_metric(self, metrics: str):
         """Logs to the metrics file, if the metrics file is defined"""
-        if self.metric_log_file:
-            with open(self.metric_log_file, "a+") as f:
-                f.write(metrics + "\n")
+        self.metric_logger.info(metrics)
 
 
 def parse_args() -> argparse.Namespace:
@@ -232,9 +241,7 @@ def parse_args() -> argparse.Namespace:
 def write_test_evaluation_metrics(path: str, metrics: Dict[str, float]):
     """Writes training and test data metrics to the specified path"""
     with open(path, "w") as f:
-        jmetrics = json.dumps(metrics)
-        print(f"Saving metrics {jmetrics} to {path}")
-        f.write(jmetrics)
+        json.dump(metrics, f)
 
 
 if __name__ == "__main__":
