@@ -171,6 +171,7 @@ class MNISTModel(L.LightningModule):
             f"epoch {self.trainer.current_epoch}:\n"
             + f'f1={self.trainer.callback_metrics["val_F1"]}\n'
             + f'acc={self.trainer.callback_metrics["val_acc"]}\n'
+            + f"timestamp={time.time()}\n"
         )
 
         rank_zero_info(metrics_text)
@@ -295,19 +296,19 @@ if __name__ == "__main__":
     # for max epochs, it won't train further and there will be no
     # metrics recorded. Just use -1 in that case
     metrics["train_f1"] = (
-        trainer.callback_metrics["val_F1"]
+        float(trainer.callback_metrics["val_F1"])
         if "val_F1" in trainer.callback_metrics
         else -1
     )
     metrics["train_acc"] = (
-        trainer.callback_metrics["val_acc"]
+        float(trainer.callback_metrics["val_acc"])
         if "val_acc" in trainer.callback_metrics
         else -1
     )
 
     trainer.test(model, mnist)
-    metrics["test_f1"] = trainer.callback_metrics["test_F1"]
-    metrics["test_acc"] = trainer.callback_metrics["test_acc"]
+    metrics["test_f1"] = float(trainer.callback_metrics["test_F1"])
+    metrics["test_acc"] = float(trainer.callback_metrics["test_acc"])
 
     rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
     rank_zero_info(f"Training Valiation accuracy = {metrics['train_acc']}")
