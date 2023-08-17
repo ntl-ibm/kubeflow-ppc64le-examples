@@ -231,12 +231,13 @@ def parse_args() -> argparse.Namespace:
 def write_test_evaluation_metrics(path: str, metrics: Dict[str, float]):
     """Writes training and test data metrics to the specified path"""
     with open(path, "w") as f:
-        json.dump(metrics, f)
+        jmetrics = json.dumps(metrics)
+        print(f"Saving metrics {jmetrics} to {path}")
+        f.write(jmetrics)
 
 
 if __name__ == "__main__":
     torch.manual_seed(0)
-
     args = parse_args()
 
     num_workers = int(os.environ.get("WORLD_SIZE", 1))
