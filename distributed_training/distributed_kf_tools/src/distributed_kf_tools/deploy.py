@@ -29,7 +29,7 @@ import http.client
 from kubeflow.training import TrainingClient
 from kubeflow.training import KubeflowOrgV1PyTorchJob
 from kubeflow.training.constants import constants
-from kubernetes import config
+from kubernetes import config, client
 from kubernetes.client import ApiException
 
 import distributed_kf_tools.template as template
@@ -277,7 +277,11 @@ def run_pytorch_job(
     )
 
     if log_pytorch_job_template:
-        logger.info(yaml.dump(pytorchjob_template.to_dict()))
+        logger.info(
+            yaml.dump(
+                client.ApiClient().sanitize_for_serialization(pytorchjob_template)
+            )
+        )
 
     if not dry_run:
         _execute_pytorch_job_and_delete(pytorchjob_template, completion_timeout)

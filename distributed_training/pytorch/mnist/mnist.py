@@ -13,7 +13,9 @@
 # limitations under the License.
 """
 This module is an example of how to train a MNIST model using pytorch lightning 
-with DDP.
+with or without DDP.
+
+It logs metrics using a format understood by Katib hyperparameter optimization.
 """
 import argparse
 import pytorch_lightning as L
@@ -166,7 +168,6 @@ class MNISTModel(L.LightningModule):
         x, y = batch
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
-
         self.test_f1.update(preds, y)
         self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
         self.test_acc.update(preds, y)
@@ -198,7 +199,7 @@ class MNISTModel(L.LightningModule):
 
     @rank_zero_only
     def log_metric(self, metrics: str):
-        """Logs to the metrics file, if the metrics file is defined"""
+        """Logs to the metrics"""
         self.metric_logger.info(metrics)
 
 
@@ -227,7 +228,6 @@ def parse_args() -> argparse.Namespace:
         help="Output file for TEXT logs, used by Katib Metrics Collectors",
         default=None,
     )
-
     parser.add_argument(
         "--checkpoint",
         dest="checkpoint",
