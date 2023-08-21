@@ -18,6 +18,8 @@
 """
 from dataclasses import dataclass
 from typing import Optional, List, Dict
+import uuid
+
 from kubeflow.training import (
     KubeflowOrgV1ElasticPolicy,
     KubeflowOrgV1PyTorchJob,
@@ -174,9 +176,6 @@ def build_pytorch_job_template(
     # Defines the container image, command, and volume mounts
     pod_template = V1PodTemplateSpec(
         metadata=V1ObjectMeta(
-            name=pytorch_job_name,
-            namespace=namespace,
-            owner_references=workflow_ownership,
             # https://github.com/kubeflow/website/issues/2011
             annotations={"sidecar.istio.io/inject": "false"},
         ),
@@ -226,7 +225,7 @@ def build_pytorch_job_template(
             # this example needs to be a simple pass/fail type of thing.
             elastic_policy=KubeflowOrgV1ElasticPolicy(
                 rdzv_backend="c10d",
-                rdzv_id=pytorch_job_name,
+                rdzv_id=str(uuid.uuid4()),
                 n_proc_per_node=gpus_per_worker,
                 min_replicas=num_workers,
                 max_replicas=num_workers,

@@ -13,23 +13,27 @@
 # limitations under the License.
 """
 This module is an example of how to train a MNIST model using pytorch lightning 
-with DDP.
+with or without DDP.
+
+It logs metrics using a format understood by Katib hyperparameter optimization.
 """
 import argparse
 import pytorch_lightning as L
 import torch
 from torch.nn import functional as F
 from torchvision import transforms
-from torchmetrics import F1Score
+from torchmetrics import F1Score, Accuracy
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import torch.distributed as dst
 from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from typing import Dict
+from typing import Dict, Optional, Any
 import os
 import json
+import time
+import logging
 
 
 class MNISTDataModule(L.LightningDataModule):
@@ -91,9 +95,32 @@ class MNISTModel(L.LightningModule):
     MNIST classifier
     """
 
-    def __init__(self, pDropout1: float = 0.25, pDropout2: float = 0.5):
+    def __init__(
+        self,
+        pDropout1: float = 0.25,
+        pDropout2: float = 0.5,
+        lr: float = 0.02,
+        metric_log_file: Optional[str] = None,
+    ):
         super().__init__()
         self.save_hyperparameters()
+
+        # Logging
+        self.metric_logger = logging.getLogger("MNISTModel")
+        self.metric_logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%SZ",
+        )
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        self.metric_logger.addHandler(ch)
+        if metric_log_file:
+            fh = logging.FileHandler(metric_log_file)
+            fh.setFormatter(formatter)
+            self.metric_logger.addHandler(fh)
+
+        self.lr = lr
 
         # Model Layers
         self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
@@ -106,8 +133,10 @@ class MNISTModel(L.LightningModule):
         self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
-        self.val_f1 = F1Score(task="multiclass", num_classes=10)
-        self.test_f1 = F1Score(task="multiclass", num_classes=10)
+        self.val_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
+        self.val_acc = Accuracy(task="multiclass", num_classes=10)
+        self.test_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
+        self.test_acc = Accuracy(task="multiclass", num_classes=10)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -129,8 +158,11 @@ class MNISTModel(L.LightningModule):
         x, y = batch
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
+
         self.val_f1.update(preds, y)
         self.log("val_F1", self.val_f1, on_epoch=True, prog_bar=True)
+        self.val_acc.update(preds, y)
+        self.log("val_acc", self.val_acc, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         x, y = batch
@@ -138,23 +170,37 @@ class MNISTModel(L.LightningModule):
         preds = torch.argmax(logits, dim=1)
         self.test_f1.update(preds, y)
         self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
+        self.test_acc.update(preds, y)
+        self.log("test_acc", self.test_acc, on_epoch=True, prog_bar=True)
 
     def on_train_epoch_end(self):
         """
-        Prints the F1 score for the validation set after each epoch.
+        Logs the metrics for the validation set.
+
+        This data is in a format that is understood by the
+        Katib metrics collector when the collector is defined as:
+
+        https://www.kubeflow.org/docs/components/katib/experiment/#metrics-collector
+
+        The TEXT format is the default, so that's what is used here, even though
+        JSON is a bit easier to read in the log.
         """
-        rank_zero_info(
-            f">>>> Finished training epoch {self.trainer.current_epoch} / {self.trainer.max_epochs} "
-            + f"val_F1 = {self.trainer.callback_metrics['val_F1']}"
-        )
+        self.log_metric(f"epoch {self.trainer.current_epoch}:")
+        self.log_metric(f'acc={self.trainer.callback_metrics["val_acc"]}')
+        self.log_metric(f'f1={self.trainer.callback_metrics["val_F1"]}')
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.02)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     @rank_zero_only
     def save(self, model_dest: str):
         """Saves the model to the destination file"""
         torch.save(self, model_dest)
+
+    @rank_zero_only
+    def log_metric(self, metrics: str):
+        """Logs to the metrics"""
+        self.metric_logger.info(metrics)
 
 
 def parse_args() -> argparse.Namespace:
@@ -166,45 +212,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root_dir", type=str, help="Root Directory")
     parser.add_argument("--model", type=str, help="Output trained model file")
     parser.add_argument(
-        "--kubeflow_ui_metadata", type=str, default=None, help="Ouput metrics json"
+        "--evaluation_metrics",
+        type=str,
+        default=None,
+        help="Metrics file from evaluation of validation and test data",
     )
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument(
         "--batch_size", type=int, help="Effective batch size (across all workers)"
     )
+    parser.add_argument("--lr", type=float, help="learning rate", default=0.02)
+    parser.add_argument(
+        "--metric_log_file",
+        type=str,
+        help="Output file for TEXT logs, used by Katib Metrics Collectors",
+        default=None,
+    )
+    parser.add_argument(
+        "--checkpoint",
+        dest="checkpoint",
+        action=argparse.BooleanOptionalAction,
+        help="Enable checkpointing?",
+    )
     return parser.parse_args()
 
 
 @rank_zero_only
-def create_kubeflow_ui_metadata(path: str, metadata: Dict[str, str]):
-    """Writes training and test data metrics to the specified path
-
-    The file is formatted such that Kubeflow can display it as a visualization
-    of a component.
-    """
-    headings = list(metadata.keys())
-
-    metadata = {
-        "outputs": [
-            {
-                "type": "table",
-                "storage": "inline",
-                "format": "csv",
-                "header": headings,
-                "source": ",".join(
-                    [f"{metadata[heading].item():.4f}" for heading in headings]
-                ),
-            }
-        ]
-    }
-
+def write_test_evaluation_metrics(path: str, metrics: Dict[str, float]):
+    """Writes training and test data metrics to the specified path"""
     with open(path, "w") as f:
-        json.dump(metadata, f)
+        json.dump(metrics, f)
 
 
 if __name__ == "__main__":
     torch.manual_seed(0)
-
     args = parse_args()
 
     num_workers = int(os.environ.get("WORLD_SIZE", 1))
@@ -214,19 +255,24 @@ if __name__ == "__main__":
         )
 
     chkpt_path = os.path.join(args.root_dir, "last.ckpt")
-    if os.path.exists(chkpt_path):
+    if args.checkpoint and os.path.exists(chkpt_path):
         rank_zero_info(
             f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}"
         )
         model = MNISTModel.load_from_checkpoint(chkpt_path)
 
     else:
-        model = MNISTModel()
+        model = MNISTModel(lr=args.lr, metric_log_file=args.metric_log_file)
         chkpt_path = None
 
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
-    )
+    callbacks = []
+
+    if args.checkpoint:
+        callbacks.append(
+            ModelCheckpoint(
+                dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
+            )
+        )
 
     mnist = MNISTDataModule(
         data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
@@ -244,11 +290,11 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
-        callbacks=[checkpoint_callback],
+        callbacks=callbacks,
         # Note: resume_from_checkpoint is depreciated and will be
         # removed in 2.0, instead use chkpt_path on trainer.fit()
         # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        resume_from_checkpoint=chkpt_path,
+        resume_from_checkpoint=chkpt_path if args.checkpoint else None,
     )
 
     metrics = {}
@@ -257,18 +303,26 @@ if __name__ == "__main__":
     # for max epochs, it won't train further and there will be no
     # metrics recorded. Just use -1 in that case
     metrics["train_f1"] = (
-        trainer.callback_metrics["val_F1"]
+        float(trainer.callback_metrics["val_F1"])
         if "val_F1" in trainer.callback_metrics
+        else -1
+    )
+    metrics["train_acc"] = (
+        float(trainer.callback_metrics["val_acc"])
+        if "val_acc" in trainer.callback_metrics
         else -1
     )
 
     trainer.test(model, mnist)
-    metrics["test_f1"] = trainer.callback_metrics["test_F1"]
+    metrics["test_f1"] = float(trainer.callback_metrics["test_F1"])
+    metrics["test_acc"] = float(trainer.callback_metrics["test_acc"])
 
     rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
+    rank_zero_info(f"Training Valiation accuracy = {metrics['train_acc']}")
     rank_zero_info(f"Test F1 = {metrics['test_f1']}")
+    rank_zero_info(f"Test accuracy = {metrics['test_acc']}")
 
     # Save outputs
     model.save(args.model)
-    if args.kubeflow_ui_metadata:
-        create_kubeflow_ui_metadata(args.kubeflow_ui_metadata, metrics)
+    if args.evaluation_metrics:
+        write_test_evaluation_metrics(args.evaluation_metrics, metrics)
