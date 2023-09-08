@@ -60,7 +60,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && fix-permissions ~/.pip
 
 RUN pip install -vvv kserve==0.10.1 && pip cache purge
-RUN pip install -vvv ibm-db=3.2.0 && pip cache purge
+RUN pip install -vvv ibm-db==3.2.0 && pip cache purge
 RUN pip install -vvv alibi==0.9.4 && pip cache purge
 RUN pip install evidently==0.2.6  && pip cache purge
 RUN fix-permissions ${CONDA_DIR}  
