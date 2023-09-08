@@ -1,11 +1,17 @@
 import kserve
-from typing import Dict
+from typing import Dict, Any
+from kubernetes import client
+import json
+import os
 
 
-class AlexNetModel(kserve.Model):
+class CreditRiskModel(kserve.Model):
     def __init__(self, name: str):
         super().__init__(name)
         self.name = name
+        self.preprocess_path = "/mnt/models/preprocess.pkl"
+        self.model_path = "/mnt/models/model.onnx"
+
         self.load()
 
     def load(self):
@@ -16,5 +22,5 @@ class AlexNetModel(kserve.Model):
 
 
 if __name__ == "__main__":
-    model = AlexNetModel("custom-model")
+    model = CreditRiskModel("credit-rick")
     kserve.ModelServer().start([model])
