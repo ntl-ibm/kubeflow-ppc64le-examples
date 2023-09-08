@@ -27,7 +27,7 @@ ENV PATH=${CONDA_DIR}/bin:${PATH}
 ## OS Dependencies
 RUN dnf install -y bzip2  \
     && dnf group -y install "Development Tools" \
-    && dnf clean all -y 
+    && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum 
 
 # Copy a script that we will use to correct permissions after running certain commands
 COPY fix-permissions /usr/local/bin/fix-permissions
@@ -56,14 +56,15 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
     && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
-    && pip install -vvv kserve==0.10.1 \
-                   ibm-db==3.2.0 \
-                   alibi==0.9.4 \
-                   evidently==0.2.6 \
-    && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
-    && pip cache purge \
     && fix-permissions ${CONDA_DIR}  \
     && fix-permissions ~/.pip
+
+RUN pip install -vvv kserve==0.10.1 && pip cache purge
+RUN pip install -vvv ibm-db=3.2.0 && pip cache purge
+RUN pip install -vvv alibi==0.9.4 && pip cache purge
+RUN pip install evidently==0.2.6  && pip cache purge
+RUN fix-permissions ${CONDA_DIR}  
+RUN fix-permissions ~/.pip
 
 
 
