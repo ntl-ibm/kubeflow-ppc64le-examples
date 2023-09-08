@@ -52,6 +52,10 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::tf2onnx==1.13.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
     python-kubernetes \
+    matplotlib \
+    pillow \
+    numpy \
+    pandas \
     && rm /tmp/micromamba \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
