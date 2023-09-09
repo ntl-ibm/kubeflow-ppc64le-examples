@@ -55,6 +55,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     python-kubernetes \
     matplotlib \
     pillow \
+    statsmodels==0.13.5  \
     && rm /tmp/micromamba \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
