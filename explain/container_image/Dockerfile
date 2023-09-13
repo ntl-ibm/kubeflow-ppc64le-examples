@@ -49,7 +49,8 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     mamba \
     conda \
     rocketce::tensorflow-cpu==2.12.0 \
-    rocketce::sklearn-pandas==2.1.0 \
+    rocketce::pandas==2.0.3 \
+    rocketce::scikit-learn==1.3.0 \
     rocketce::tensorboard==2.12.2 \
     rocketce::tf2onnx==1.13.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
