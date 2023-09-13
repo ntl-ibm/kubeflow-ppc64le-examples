@@ -58,7 +58,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     matplotlib \
     pillow \
     statsmodels==0.13.5  \
-    && mamba install -c conda-forge -c defaults --yes conda-forge::ibm_db \
+    && mamba install -c conda-forge -c rocketce -c defaults --yes conda-forge::ibm_db==3.1.1 rocketce::numactl==2.0.16\
     && rm /tmp/micromamba \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
