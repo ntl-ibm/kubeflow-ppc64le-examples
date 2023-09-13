@@ -53,12 +53,12 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::tensorboard==2.12.2 \
     rocketce::tf2onnx==1.13.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
-    rocketce::numactl \
     nltk \
     python-kubernetes \
     matplotlib \
     pillow \
     statsmodels==0.13.5  \
+    && mamba install -c conda-forge -c defaults --yes conda-forge::ibm_db \
     && rm /tmp/micromamba \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
@@ -66,17 +66,18 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && fix-permissions ${CONDA_DIR}  \
     && fix-permissions ~/.pip
 
-RUN pip install kserve==0.10.1 && pip cache purge
-RUN pip install ibm-db==3.2.0 && pip cache purge
-RUN pip install alibi==0.9.4 && pip cache purge
-RUN pip install evidently==0.2.6  && pip cache purge
-RUN fix-permissions ${CONDA_DIR}  
-RUN fix-permissions ~/.pip
+RUN pip install kserve==0.10.1 \
+    && pip install alibi==0.9.4 \
+    && pip install evidently==0.2.6 \
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR}  \
+    && fix-permissions ~/.pip
 
 
 
 WORKDIR /workspace
 ENV PYTHONPATH /workspace
+ENV HOME /workspace
 RUN fix-permissions /workspace
 
 USER 1000:0
