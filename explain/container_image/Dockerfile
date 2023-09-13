@@ -25,7 +25,7 @@ ENV CONDA_DIR="/opt/conda"
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
 ## OS Dependencies
-RUN dnf install -y bzip2  \
+RUN dnf install -y bzip2 wget zip unzip ca-certificates git compat-openssl10 numactl-libs \
     && dnf group -y install "Development Tools" \
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum 
 
@@ -58,7 +58,6 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     matplotlib \
     pillow \
     statsmodels==0.13.5  \
-    && mamba install -c conda-forge -c rocketce -c defaults --yes conda-forge::ibm_db==3.1.1 rocketce::numactl==2.0.16\
     && rm /tmp/micromamba \
     && mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
@@ -67,6 +66,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && fix-permissions ~/.pip
 
 RUN pip install kserve==0.10.1 \
+    && pip install ibm_db==3.2.0 \
     && pip install alibi==0.9.4 \
     && pip install evidently==0.2.6 \
     && pip cache purge \
