@@ -52,7 +52,6 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::tensorflow-cpu==2.12.0 \
     main::pandas==2.0.3 \
     main::scikit-learn==1.3.0 \
-    rocketce::scipy==1.8.1 \
     rocketce::numpy==1.23.5 \
     rocketce::tensorboard==2.12.2 \
     rocketce::tf2onnx==1.13.0 \
