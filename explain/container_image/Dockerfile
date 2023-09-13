@@ -49,13 +49,6 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     pip \
     mamba \
     conda \
-    && rm /tmp/micromamba \
-    && fix-permissions ${CONDA_DIR}
-
-RUN mamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
-    -c rocketce \
-    -c defaults \
-    --yes \
     rocketce::tensorflow-cpu==2.12.0 \
     rocketce::pandas==2.0.3 \
     rocketce::scikit-learn==1.3.0 \
@@ -68,6 +61,7 @@ RUN mamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     matplotlib \
     pillow \
     statsmodels==0.13.5  \
+    && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}
 
 RUN mkdir ~/.pip  \
