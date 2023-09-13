@@ -24,6 +24,9 @@ WORKDIR /root
 ENV CONDA_DIR="/opt/conda"
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
+# https://stackoverflow.com/questions/58424974/anaconda-importerror-usr-lib64-libstdc-so-6-version-glibcxx-3-4-21-not-fo
+ENV LD_LIBRARY_PATH=${CONDA_DIR}/lib
+
 ## OS Dependencies
 RUN dnf install -y bzip2 wget zip unzip ca-certificates git compat-openssl10 numactl-libs \
     && dnf group -y install "Development Tools" \

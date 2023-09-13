@@ -3,6 +3,8 @@ from typing import Dict, Any
 from kubernetes import client
 import json
 import os
+import tensorflow as tf
+import pandas as pd
 
 
 class CreditRiskModel(kserve.Model):
@@ -10,12 +12,16 @@ class CreditRiskModel(kserve.Model):
         super().__init__(name)
         self.name = name
         self.preprocess_path = "/mnt/models/preprocess.pkl"
-        self.model_path = "/mnt/models/model.onnx"
+        self.model_path = "/mnt/models/model.keras"
+        self.target_processing_config = "/mnt/models/"
+        self.preprocess = None
+        self.model = None
 
         self.load()
 
     def load(self):
-        pass
+        self.preprocess = pd.read_pickle(self.preprocess_path)
+        self.model = tf.keras.models.load_model(self.model_path)
 
     def predict(self, request: Dict) -> Dict:
         pass
