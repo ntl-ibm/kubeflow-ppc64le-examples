@@ -45,9 +45,17 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     -c defaults \
     --yes \
     rocketce::python==3.9.16 \
+    python-kubernetes \
     pip \
     mamba \
     conda \
+    && rm /tmp/micromamba \
+    && fix-permissions ${CONDA_DIR}
+
+RUN ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
+    -c rocketce \
+    -c defaults \
+    --yes \
     rocketce::tensorflow-cpu==2.12.0 \
     rocketce::pandas==2.0.3 \
     rocketce::scikit-learn==1.3.0 \
@@ -55,15 +63,14 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::tf2onnx==1.13.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
     nltk \
-    python-kubernetes \
     matplotlib \
     pillow \
     statsmodels==0.13.5  \
-    && rm /tmp/micromamba \
-    && mkdir ~/.pip  \
+    && fix-permissions ${CONDA_DIR}
+
+RUN mkdir ~/.pip  \
     && echo "[global]" >> ~/.pip/pip.conf  \
     && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
-    && fix-permissions ${CONDA_DIR}  \
     && fix-permissions ~/.pip
 
 RUN pip install kserve==0.10.1 \
