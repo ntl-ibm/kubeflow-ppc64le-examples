@@ -52,7 +52,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}
 
-RUN ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
+RUN mamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c defaults \
     --yes \
