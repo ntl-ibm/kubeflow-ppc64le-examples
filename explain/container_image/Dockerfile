@@ -59,6 +59,8 @@ RUN ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     rocketce::tensorflow-cpu==2.12.0 \
     rocketce::pandas==2.0.3 \
     rocketce::scikit-learn==1.3.0 \
+    rocketce::scipy==1.8.1 \
+    rocketce::numpy==1.23.5 \
     rocketce::tensorboard==2.12.2 \
     rocketce::tf2onnx==1.13.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
