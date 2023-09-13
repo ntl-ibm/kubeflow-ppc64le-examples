@@ -50,7 +50,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     mamba \
     conda \
     rocketce::tensorflow-cpu==2.12.0 \
-    rocketce::pandas==2.0.3 \
+    main::pandas==2.0.3 \
     rocketce::scikit-learn==1.3.0 \
     rocketce::scipy==1.8.1 \
     rocketce::numpy==1.23.5 \
