@@ -13,18 +13,27 @@ class CreditRiskModel(kserve.Model):
         self.name = name
         self.preprocess_path = "/mnt/models/preprocess.pkl"
         self.model_path = "/mnt/models/model.keras"
-        self.target_processing_config = "/mnt/models/"
-        self.preprocess = None
+        self.target_processing_config_path = "/mnt/models/"
+        self.preprocessor = None
         self.model = None
+        self.column_info = json.loads(os.environ["COLUMNS"])
 
         self.load()
 
     def load(self):
-        self.preprocess = pd.read_pickle(self.preprocess_path)
+        self.preprocessor = pd.read_pickle(self.preprocess_path)
         self.model = tf.keras.models.load_model(self.model_path)
+        self.target_processing_config = json.load(self.target_processing_config_path)
+        self.column_info = json.loads(os.environ["COLUMNS"])
 
     def predict(self, request: Dict) -> Dict:
-        pass
+          X = self.preprocessor.transform(dataset)
+          y_prob = self.model.predict(X)
+
+          predictions = y_prob
+    dataset["Prediction"] = pd.Series(y_prob).apply(
+        lambda p: 1 if p > self.target_processing_config_dict["threshold"] else 0
+    )
 
 
 if __name__ == "__main__":
