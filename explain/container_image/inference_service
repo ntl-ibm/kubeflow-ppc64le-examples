@@ -5,7 +5,9 @@ import json
 import os
 import tensorflow as tf
 import pandas as pd
+import http
 
+http.HTTPStatus.NOT_FOUND
 
 class CreditRiskModel(kserve.Model):
     def __init__(self, name: str):
