@@ -1,43 +1,57 @@
 import kserve
-from typing import Dict, Any
-from kubernetes import client
-import json
+from typing import Dict, Union
 import os
-import tensorflow as tf
-import pandas as pd
-import http
+import numpy as np
+from ray import serve
+import logging
+from tritonclient.grpc.service_pb2 import ModelInferRequest
+import onnxruntime as ort
+from kserve.protocol import InferRequest, InferResponse, InferOutput
 
-http.HTTPStatus.NOT_FOUND
+logging.basicConfig()
+logging.getLogger().addHandler(logging.StreamHandler())
+logging.getLogger().setLevel(logging.INFO)
 
-class CreditRiskModel(kserve.Model):
+
+@serve.deployment(name="credit-risk-transformer", config={"num_replicas": 2})
+class CreditRiskPredictor(kserve.Model):
+    MODEL_PATH = "/mnt/models/model.onnx"
+    RISK_THRESHOLD = int(os.environ["THRESHOLD"])
+
     def __init__(self, name: str):
         super().__init__(name)
         self.name = name
-        self.preprocess_path = "/mnt/models/preprocess.pkl"
-        self.model_path = "/mnt/models/model.keras"
-        self.target_processing_config_path = "/mnt/models/"
-        self.preprocessor = None
-        self.model = None
-        self.column_info = json.loads(os.environ["COLUMNS"])
-
         self.load()
+        self.ready = True
 
     def load(self):
-        self.preprocessor = pd.read_pickle(self.preprocess_path)
-        self.model = tf.keras.models.load_model(self.model_path)
-        self.target_processing_config = json.load(self.target_processing_config_path)
-        self.column_info = json.loads(os.environ["COLUMNS"])
+        self.INFERENCE_SESSION = ort.InferenceSession(
+            CreditRiskPredictor.MODEL_PATH, providers=["CPUExecutionProvider"]
+        )
 
-    def predict(self, request: Dict) -> Dict:
-          X = self.preprocessor.transform(dataset)
-          y_prob = self.model.predict(X)
+    def predict(
+        self,
+        payload: Union[Dict, InferRequest, ModelInferRequest],
+        headers: Dict[str, str] = None,
+    ) -> InferResponse:
+        if isinstance(payload, ModelInferRequest):
+            payload = InferRequest.from_grpc(payload)
+        elif isinstance(payload, Dict):
+            payload = InferRequest.from_rest(payload)
 
-          predictions = y_prob
-    dataset["Prediction"] = pd.Series(y_prob).apply(
-        lambda p: 1 if p > self.target_processing_config_dict["threshold"] else 0
-    )
+        scores = self.INFERENCE_SESSION.run([], {"input": payload.inputs[0].contents})
+        scores = scores[0].reshape(-1, 1)
+        result = np.ndarray(
+            [1 if score > CreditRiskPredictor.THRESHOLD else 0 for score in scores],
+            dtype=np.uint8,
+        )
+        output_0 = InferOutput(name="risk", share=result.shape, datatype="UINT8")
+        output_0.set_data_from_numpy(result)
+
+        return InferResponse(
+            id=payload.id, model_name=self.name, infer_outputs=[output_0]
+        )
 
 
 if __name__ == "__main__":
-    model = CreditRiskModel("credit-rick")
-    kserve.ModelServer().start([model])
+    kserve.ModelServer().start({"credit-risk-predictor": CreditRiskPredictor})

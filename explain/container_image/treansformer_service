@@ -1,0 +1,70 @@
+from typing import Dict, Any, Optional, Union
+import pandas as pd
+import http
+from ray import serve
+import logging
+
+import tornado
+import kserve
+from kserve.protocol import InferRequest, InferInput, InferResponse
+
+
+logging.basicConfig()
+logging.getLogger().addHandler(logging.StreamHandler())
+logging.getLogger().setLevel(logging.INFO)
+
+
+@serve.deployment(name="credit-risk-transformer", config={"num_replicas": 2})
+class CreditRiskTransformer(kserve.Model):
+    MODEL_INPUT_NAME = "input"
+    PREPROCESSOR_PATH = "/mnt/models/preprocess.pkl"
+
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.name = name
+        self.preprocessor = None
+
+        self.load()
+        self.ready = True
+
+    def load(self):
+        self.preprocessor = pd.read_pickle(self.preprocess_path)
+
+    def preprocess(
+        self, inputs: Dict, headers: Optional[Dict[str, str]] = None
+    ) -> InferRequest:
+        """Preprocesses the incomming json"""
+        try:
+            X = self.preprocessor.transform(pd.DataFrame(inputs))
+
+            input_0 = InferInput("input", X.shape, "FP32")
+            input_0.set_data_from_numpy(X)
+        except (ValueError, KeyError, TypeError, IOError, AttributeError) as e:
+            logging.exception(e)
+            raise tornado.web.HTTPError(
+                status_code=http.HTTPStatus.BAD_REQUEST,
+                reason="The input data was not valid!",
+            )
+
+        return InferRequest(id=None, model_name="credit-risk", inputs=[input_0])
+
+    def postprocess(self, response: Union[Dict, InferResponse]) -> Dict[Any, Any]:
+        """Convert model outputs from the prediction to the JSON response"""
+
+        logging.debug("post processing....")
+
+        if not isinstance(response, InferResponse):
+            response = InferResponse.from_rest("credit-risk", response)
+
+        tensor = response.outputs[0].as_numpy()
+
+        payload = {
+            "predictions": ["Risk" if score == 1 else "No Risk" for score in tensor]
+        }
+
+        logging.debug(f"done post processing. {payload}")
+        return payload
+
+
+if __name__ == "__main__":
+    kserve.ModelServer().start({"credit-risk-transformer": CreditRiskTransformer})
