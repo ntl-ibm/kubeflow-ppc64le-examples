@@ -61,6 +61,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
     rocketce::tensorflow-io \
     rocketce::tensorflow-estimator \
+    rocketce::spacy==3.3.1 \
     nltk \
     matplotlib \
     pillow \
