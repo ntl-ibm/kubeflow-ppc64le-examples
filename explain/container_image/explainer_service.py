@@ -146,9 +146,16 @@ if __name__ == "__main__":
         "--model_name", help="The name that the model is served under.", required=True
     )
 
+    # Deterimes whether REST or GRPC will be used to communicate with the predictor
+    # The default is REST/JSON format. The value provided must match the interface
+    # that is exposed by the predictor.
+    parser.add_argument(
+        "--protocol", help="The protocol for the predictor", default="v2"
+    )
+
     args, _ = parser.parse_known_args()
 
     model = CreditRiskExplainer(
-        name=args.model_name, predictor_host=args.predictor_host, protocol="grpc-v2"
+        name=args.model_name, predictor_host=args.predictor_host, protocol=args.protocol
     )
     kserve.ModelServer().start([model])
