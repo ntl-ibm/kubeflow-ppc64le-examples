@@ -54,7 +54,7 @@ class CreditRiskPredictor(kserve.Model):
         payload: Union[Dict, InferRequest, ModelInferRequest],
         headers: Dict[str, str] = None,
     ) -> InferResponse:
-        logging.debug(f"Predict was called with a payload type of {type(payload)}")
+        logging.info(f"Predict was called with a payload type of {type(payload)}")
         if isinstance(payload, ModelInferRequest):
             payload = InferRequest.from_grpc(payload)
         elif isinstance(payload, Dict):

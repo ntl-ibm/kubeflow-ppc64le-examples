@@ -51,6 +51,9 @@ class CreditRiskExplainer(kserve.Model):
         self.protocol = protocol
         self.load()
         self.ready = True
+        logging.info(
+            f"Started server with predictor {self.predictor_host}, protocol {self.protocol}"
+        )
 
     def load(self):
         logging.info(f"Loading explainer from {CreditRiskExplainer.EXPLAINER_PATH}")
@@ -80,16 +83,16 @@ class CreditRiskExplainer(kserve.Model):
         else:
             raise NotImplementedError()
 
-        logging.debug("Bulding inference request")
+        logging.info("Bulding inference request")
         input_0 = InferInput(name="input_1", shape=X.shape, datatype="FP32", data=X)
         request = InferRequest(
             model_name=self.name, infer_inputs=[input_0], request_id=None
         )
 
-        logging.debug("Invoking inference request")
+        logging.info("Invoking inference request")
         response = self.predict(request)
 
-        logging.debug(f"Deserializing respone of type {type(response)}")
+        logging.info(f"Deserializing respone of type {type(response)}")
         response = InferResponse.from_grpc(response)
 
         return response.outputs[0].as_numpy()
@@ -119,7 +122,7 @@ class CreditRiskExplainer(kserve.Model):
 
     def explain(self, payload: Dict, headers: Dict[str, str] = None) -> Dict:
         try:
-            logging.debug(f"Preprocessing payload {payload}")
+            logging.info(f"Preprocessing payload {payload}")
             X = self.preprocessor.transform(pd.DataFrame(payload)).astype(np.float32)
         except ValueError as e:
             logging.exception(e)
@@ -128,7 +131,7 @@ class CreditRiskExplainer(kserve.Model):
                 reason=str(e),
             ) from None
 
-        logging.debug(f"Explaining preprocessed inputs (shape {X.shape})")
+        logging.info(f"Explaining preprocessed inputs (shape {X.shape})")
         return {"explanations": [self._explain_example(example) for example in X]}
 
 
