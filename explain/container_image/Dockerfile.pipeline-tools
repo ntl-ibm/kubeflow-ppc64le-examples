@@ -23,9 +23,12 @@ RUN mamba install \
     -c rocketce \
     -c defaults \
     --yes \
-    rocketce::tf2onnx==1.13.0 \
     main::matplotlib==3.7.2 \
     statsmodels==0.13.5 \
+    rocketce::tensorflow-cpu==2.12.0 \
+    rocketce::tensorflow-io \
+    rocketce::tensorflow-estimator \
+    rocketce::tf2onnx==1.13.0 \
     && mamba clean --all --yes \
     && fix-permissions ${CONDA_DIR}
 
