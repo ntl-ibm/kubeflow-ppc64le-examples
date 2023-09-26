@@ -18,6 +18,11 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 USER root
 WORKDIR /workspace
 
+RUN mamba install -c rocketce --yes \
+    rocketce::numpy==1.23.5 \
+    && mamba clean --all --yes \
+    && fix-permissions ${CONDA_DIR}
+
 RUN pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
