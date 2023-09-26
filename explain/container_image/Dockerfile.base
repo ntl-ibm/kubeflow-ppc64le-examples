@@ -56,23 +56,24 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     main::pandas==2.0.3 \
     main::scikit-learn==1.3.0 \
     rocketce::numpy==1.23.5 \
-    rocketce::tensorboard==2.12.2 \
-    rocketce::tf2onnx==1.13.0 \
+    #rocketce::tensorboard==2.12.2 \
+    rocketce::tf2onnx==1.9.2 \
+    rocketce::onnx==1.7.0 \
     rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
     rocketce::tensorflow-io \
     rocketce::tensorflow-estimator \
     main::spacy==3.5.3  \
     nltk==3.8.1  \
-    matplotlib==3.7.2\
+    matplotlib==3.7.2 \
     pillow==9.4.0  \
     statsmodels==0.13.5  \
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}
 
-#RUN mkdir ~/.pip  \
-    #&& echo "[global]" >> ~/.pip/pip.conf  \
-    #&& echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
-#    && fix-permissions ~/.pip
+RUN mkdir ~/.pip  \
+    && echo "[global]" >> ~/.pip/pip.conf  \
+    && echo "extra-index-url = https://repo.fury.io/mgiessing" >> ~/.pip/pip.conf \
+    && fix-permissions ~/.pip
 
 RUN pip install kserve==0.10.1 \
     && pip install ibm_db==3.2.0 \
