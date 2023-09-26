@@ -18,31 +18,12 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 USER root
 WORKDIR /workspace
 
-RUN mamba install -c rocketce --yes \
-    rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
-    # Needed for alibi, installing spacy here avoids building a pip wheel
-    # The rocketce version of spacy doesn't work
-    # Rocketce does not have a python 3.9 numpy that is new enough
-    main::spacy==3.5.3  \
-    main::scikit-image==0.20.0 \
-    main::matplotlib==3.7.2 \
-    main::numpy==1.25.2 \
-    main::pillow==9.4.0 \
-    && mamba clean --all --yes \
-    && fix-permissions ${CONDA_DIR}
-
 RUN pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
-                   alibi==0.9.4 \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR}
 
-COPY inference_service.py .
-COPY transformer_service.py .
-COPY explainer_service.py .
-RUN fix-permissions /workspace
-
 RUN pip check
 
-
+CMD ["bash"]
 USER 1000:0
