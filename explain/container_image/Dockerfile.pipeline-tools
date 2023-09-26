@@ -11,16 +11,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 ARG BASE_CONTAINER
 FROM $BASE_CONTAINER
+
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
 USER root
-WORKDIR /workspace
 
-COPY inference_service.py .
-COPY transformer_service.py .
-COPY explainer_service.py .
-RUN fix-permissions /workspace
+RUN mamba install \
+    -c rocketce \
+    -c defaults \
+    --yes \
+    rocketce::tf2onnx==1.13.0 \
+    main::matplotlib==3.7.2 \
+    statsmodels==0.13.5 \
+    && mamba clean --all --yes \
+    && fix-permissions ${CONDA_DIR}
+
+# db2 and data quality
+RUN pip install ibm_db==3.2.0 \
+                evidently==0.2.6 \
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR}
+
+RUN pip check
 
 USER 1000:0
