@@ -25,7 +25,9 @@ RUN mamba install \
     --yes \
     main::matplotlib==3.7.2 \
     statsmodels==0.13.5 \
-    main::nltk \
+    main::nltk==3.8.1 \
+    main::plotly==5.9.0 \
+    main::pyyaml==5.4.1 \
     rocketce::tensorflow-cpu==2.12.0 \
     rocketce::tensorflow-io \
     rocketce::tensorflow-estimator \
