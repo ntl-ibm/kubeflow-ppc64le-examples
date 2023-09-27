@@ -59,7 +59,7 @@ class CreditRiskExplainer(kserve.Model):
         logging.info(f"Loading explainer from {CreditRiskExplainer.EXPLAINER_PATH}")
         with open(CreditRiskExplainer.EXPLAINER_PATH, "rb") as f:
             self.explainer = dill.load(f)
-            self.explainer.predictor.predict_fn = self._predict_fn
+            self.explainer.reset_predictor(self._predict_fn)
 
         logging.info(
             f"Loading preprocessor from {CreditRiskExplainer.PREPROCESSOR_PATH}"

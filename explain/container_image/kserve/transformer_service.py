@@ -33,7 +33,7 @@ import joblib
 import kserve
 import numpy as np
 import pandas as pd
-import tornado
+from fastapi import HTTPException
 from kserve.protocol.grpc.grpc_predict_v2_pb2 import ModelInferResponse
 from kserve.protocol.infer_type import InferInput, InferRequest, InferResponse
 
@@ -65,9 +65,9 @@ class CreditRiskTransformer(kserve.Model):
             X = self.preprocessor.transform(pd.DataFrame(inputs)).astype(np.float32)
         except ValueError as e:
             logging.exception(e)
-            raise tornado.web.HTTPError(
+            raise HTTPException(
                 status_code=http.HTTPStatus.BAD_REQUEST,
-                reason=str(e),
+                detail=f"Invalid request: {e}",
             ) from None
 
         logging.debug("Building inference request...")
