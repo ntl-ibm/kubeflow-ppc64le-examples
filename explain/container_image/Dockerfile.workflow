@@ -38,6 +38,7 @@ RUN mamba install \
     rocketce::tensorflow-cpu==2.12.0 \
     rocketce::tensorflow-io \
     rocketce::tensorflow-estimator \
+    rocketce::onnxruntime==1.15.1=hd867603_cpu_py39_pb4.21.12_1 \
     rocketce::tf2onnx==1.13.0 \
     && mamba clean --all --yes \
     && fix-permissions ${CONDA_DIR}
