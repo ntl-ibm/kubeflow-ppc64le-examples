@@ -30,5 +30,5 @@ RUN fix-permissions /workspace
 
 RUN pip check
 
-CMD ["python", "/workspace/transformer_service.py"]
+ENTRYPOINT ["python", "/workspace/transformer_service.py"]
 USER 1000:0

@@ -28,5 +28,5 @@ RUN fix-permissions /workspace
 
 RUN pip check
 
-CMD ["python", "/workspace/inference_service.py"]
+ENTRYPOINT ["python", "/workspace/inference_service.py"]
 USER 1000:0
