@@ -27,6 +27,7 @@ import argparse
 import http
 import logging
 from typing import Dict, List, Union
+import asyncio
 
 import dill
 import joblib
@@ -90,7 +91,8 @@ class CreditRiskExplainer(kserve.Model):
         )
 
         logging.info("Invoking inference request")
-        response = self.predict(request)
+        loop = asyncio.get_running_loop()  # type: ignore
+        response = loop.run_until_complete(self.predict(request))
 
         logging.info(f"Deserializing respone of type {type(response)}")
         response = InferResponse.from_grpc(response)
