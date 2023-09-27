@@ -33,7 +33,7 @@ import joblib
 import kserve
 import numpy as np
 import pandas as pd
-import tornado
+from fastapi import HTTPException
 from alibi.explainers.anchors.anchor_tabular import AnchorTabular
 from kserve.protocol.infer_type import InferInput, InferRequest, InferResponse
 from sklearn.pipeline import Pipeline
@@ -126,9 +126,9 @@ class CreditRiskExplainer(kserve.Model):
             X = self.preprocessor.transform(pd.DataFrame(payload)).astype(np.float32)
         except ValueError as e:
             logging.exception(e)
-            raise tornado.web.HTTPError(
+            raise HTTPException(
                 status_code=http.HTTPStatus.BAD_REQUEST,
-                reason=str(e),
+                reason=f"Invalid Request: {str(e)}",
             ) from None
 
         logging.info(f"Explaining preprocessed inputs (shape {X.shape})")

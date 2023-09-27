@@ -67,7 +67,7 @@ class CreditRiskTransformer(kserve.Model):
             logging.exception(e)
             raise HTTPException(
                 status_code=http.HTTPStatus.BAD_REQUEST,
-                detail=f"Invalid request: {e}",
+                detail=f"Invalid request: {str(e)}",
             ) from None
 
         logging.debug("Building inference request...")
