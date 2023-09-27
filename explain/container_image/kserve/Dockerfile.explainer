@@ -20,7 +20,7 @@ WORKDIR /workspace
 
 RUN mamba install -c rocketce --yes \
     # Needed for alibi, installing spacy here avoids building a pip wheel
-    # The rocketce version of spacy doesn't work
+    # spacy 3.3.1 causes the import of alibi to fail, 3.5.3 works OK
     main::spacy==3.5.3  \
     main::scikit-image==0.20.0 \
     main::matplotlib==3.7.2 \

@@ -27,6 +27,8 @@ RUN mamba install \
     main::python-kubernetes==23.6.0 \
     main::pandas==2.0.3 \
     main::scikit-learn==1.3.0 \
+    main::scikit-image==0.19.3 \
+    main::spacy==3.5.3 \
     rocketce::numpy==1.23.5 \
     main::matplotlib==3.7.2 \
     statsmodels==0.13.5 \
@@ -43,8 +45,10 @@ RUN mamba install \
 # db2 and data quality
 RUN pip install ibm_db==3.2.0 \
                 evidently==0.2.6 \
+                alibi==0.9.4 \
     && pip cache purge \
-    && fix-permissions ${CONDA_DIR}
+    && fix-permissions ${CONDA_DIR} \
+    && fix-permissions ${HOME}
 
 RUN pip check
 
