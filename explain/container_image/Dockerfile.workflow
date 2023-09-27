@@ -24,6 +24,7 @@ RUN mamba install \
     -c rocketce \
     -c defaults \
     --yes \
+    main::python-kubernetes==23.6.0 \
     main::pandas==2.0.3 \
     main::scikit-learn==1.3.0 \
     rocketce::numpy==1.23.5 \
