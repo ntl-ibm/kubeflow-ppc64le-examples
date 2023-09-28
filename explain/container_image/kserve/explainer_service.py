@@ -75,7 +75,7 @@ class CreditRiskExplainer(kserve.Model):
         )
         self.preprocessor = joblib.load(CreditRiskExplainer.PREPROCESSOR_PATH)
 
-    def sync_predict_init():
+    def sync_predict_init(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
