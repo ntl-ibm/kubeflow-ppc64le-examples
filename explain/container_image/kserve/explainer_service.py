@@ -112,7 +112,9 @@ class CreditRiskExplainer(kserve.Model):
         )
 
         logging.info("Invoking inference request")
-        future = self.async_executor.submit(self.sync_predict)
+        future = self.async_executor.submit(
+            self.sync_predict, payload=request, headers={}
+        )
         response = future.result()
 
         logging.info(f"Deserializing respone of type {type(response)}")
