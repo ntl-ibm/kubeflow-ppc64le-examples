@@ -51,8 +51,8 @@ class CreditRiskExplainer(kserve.Model):
         super().__init__(name)
         self.predictor_host = predictor_host
         self.protocol = protocol
+        self.async_executor = ThreadPoolExecutor(max_workers=1)
         self.load()
-        self.executor = ThreadPoolExecutor(max_workers=1)
         self.ready = True
         logging.info(
             f"Started server with predictor {self.predictor_host}, protocol {self.protocol}"
@@ -93,7 +93,7 @@ class CreditRiskExplainer(kserve.Model):
         )
 
         logging.info("Invoking inference request")
-        future = self.executor.submit(
+        future = self.async_executor.submit(
             lambda: asyncio.run(self.predict(request, headers={}))
         )
 
