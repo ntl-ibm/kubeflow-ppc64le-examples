@@ -91,8 +91,14 @@ class CreditRiskExplainer(kserve.Model):
         )
 
         logging.info("Invoking inference request")
-        loop = asyncio.get_running_loop()  # type: ignore
-        response = loop.run_until_complete(self.predict(request))
+        async_predict = lambda: self.predict(request)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            response = asyncio.run(async_predict)
+        else:
+            response = loop.run_until_complete(async_predict)
 
         logging.info(f"Deserializing respone of type {type(response)}")
         response = InferResponse.from_grpc(response)
