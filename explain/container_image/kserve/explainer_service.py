@@ -95,9 +95,9 @@ class CreditRiskExplainer(kserve.Model):
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            response = asyncio.run(self.predict(request))
+            response = asyncio.run(self.predict(request, headers={}))
         else:
-            response = loop.run_until_complete(self.predict(request))
+            response = loop.run_until_complete(self.predict(request, headers={}))
 
         logging.info(f"Deserializing respone of type {type(response)}")
         response = InferResponse.from_grpc(response)
