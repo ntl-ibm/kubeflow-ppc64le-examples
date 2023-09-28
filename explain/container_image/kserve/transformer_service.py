@@ -60,6 +60,13 @@ class CreditRiskTransformer(kserve.Model):
         self, inputs: Dict, headers: Optional[Dict[str, str]] = None
     ) -> InferRequest:
         """Preprocesses the incomming json"""
+
+        if not isinstance(inputs, Dict):
+            raise HTTPException(
+                status_code=http.HTTPStatus.BAD_REQUEST,
+                detail="The provided input must be a json dictionary"
+            )
+
         try:
             logging.debug(f"Preprocessing request with batch size {len(inputs)}")
             X = self.preprocessor.transform(pd.DataFrame(inputs)).astype(np.float32)

@@ -38,6 +38,10 @@ import pandas as pd
 from fastapi import HTTPException
 from alibi.explainers.anchors.anchor_tabular import AnchorTabular
 from kserve.protocol.infer_type import InferInput, InferRequest, InferResponse
+from kserve.protocol.grpc.grpc_predict_v2_pb2 import (
+    ModelInferRequest,
+    ModelInferResponse,
+)
 from sklearn.pipeline import Pipeline
 
 
@@ -51,7 +55,9 @@ class CreditRiskExplainer(kserve.Model):
         super().__init__(name)
         self.predictor_host = predictor_host
         self.protocol = protocol
-        self.async_executor = ThreadPoolExecutor(max_workers=1)
+        self.async_executor = ThreadPoolExecutor(
+            max_workers=1, initializer=self.sync_predict_init
+        )
         self.load()
         self.ready = True
         logging.info(
@@ -68,6 +74,19 @@ class CreditRiskExplainer(kserve.Model):
             f"Loading preprocessor from {CreditRiskExplainer.PREPROCESSOR_PATH}"
         )
         self.preprocessor = joblib.load(CreditRiskExplainer.PREPROCESSOR_PATH)
+
+    def sync_predict_init():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    def sync_predict(
+        self,
+        payload: Union[Dict, InferRequest, ModelInferRequest],
+        headers: Dict[str, str] = None,
+    ) -> Union[Dict, InferResponse, ModelInferResponse]:
+        loop = asyncio.get_event_loop()
+
+        return loop.run_until_complete(self.predict(payload, headers={}), debug=True)
 
     def _predict_fn(self, arr: Union[np.ndarray, List]) -> np.ndarray:
         """
@@ -93,10 +112,7 @@ class CreditRiskExplainer(kserve.Model):
         )
 
         logging.info("Invoking inference request")
-        future = self.async_executor.submit(
-            lambda: asyncio.run(self.predict(request, headers={}))
-        )
-
+        future = self.async_executor.submit(self.sync_predict)
         response = future.result()
 
         logging.info(f"Deserializing respone of type {type(response)}")
@@ -128,6 +144,12 @@ class CreditRiskExplainer(kserve.Model):
         }
 
     def explain(self, payload: Dict, headers: Dict[str, str] = None) -> Dict:
+        if not isinstance(payload, Dict):
+            raise HTTPException(
+                status_code=http.HTTPStatus.BAD_REQUEST,
+                detail="The provided input must be a json dictionary",
+            )
+
         try:
             logging.info(f"Preprocessing payload {payload}")
             X = self.preprocessor.transform(pd.DataFrame(payload)).astype(np.float32)
@@ -135,7 +157,7 @@ class CreditRiskExplainer(kserve.Model):
             logging.exception(e)
             raise HTTPException(
                 status_code=http.HTTPStatus.BAD_REQUEST,
-                reason=f"Invalid Request: {str(e)}",
+                detail=f"Invalid Request: {str(e)}",
             ) from None
 
         logging.info(f"Explaining preprocessed inputs (shape {X.shape})")
