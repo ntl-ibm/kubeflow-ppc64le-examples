@@ -86,7 +86,7 @@ class CreditRiskExplainer(kserve.Model):
     ) -> Union[Dict, InferResponse, ModelInferResponse]:
         loop = asyncio.get_event_loop()
 
-        return loop.run_until_complete(self.predict(payload, headers={}), debug=True)
+        return loop.run_until_complete(self.predict(payload, headers={}))
 
     def _predict_fn(self, arr: Union[np.ndarray, List]) -> np.ndarray:
         """
