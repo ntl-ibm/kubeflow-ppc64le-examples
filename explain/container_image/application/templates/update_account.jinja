@@ -1,0 +1,81 @@
+{% from "column_tools.jinja" import build_form_inputs %} 
+{% from "column_tools.jinja" import render_cat_feature %} 
+{% from "column_tools.jinja" import render_explain_anchors %}
+<!DOCTYPE html>
+<html lang="en">
+  <script src="./scripts/handleFormSubmit.js"/>
+
+  <head>
+    <meta charset="utf-8" />
+    <title>View/Edit client account {{ client_id }} </title>
+    <link rel="stylesheet" href="./templates/style.css">
+  </head>
+
+  <body>
+    <form id="client_info">
+      <div>
+      <fieldset>
+        <legend>Client Info</legend>
+        <div class="twocol">
+          <label for="client-id"> Member Id</label>
+          <input id="client-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
+        </div>
+      </fieldset>
+        <BR/>
+        <fieldset form="client_info" name="Client Data" {% if view_only_mode %} disabled="disabled" {% endif %}>
+        <legend>Client Details</legend>
+        <div class="settings">
+          {{ build_form_inputs(schema, client_info_values) }}
+        </div>
+        <BR/>
+        <div class="twocol">
+          {% set risk_levels = schema.label_columns['Risk'] + ["Not Verified"] %}
+          {{ render_cat_feature('VerifiedRisk', 
+                                risk_levels, 
+                                client_info_values['Risk'] if client_info_values['Risk'] else "Not Verified") 
+          }}
+        </div>
+        </fieldset>
+        <BR/>
+        {% if view_only_mode %}
+        <fieldset >
+        <legend>Predicted Risk Assessment</legend>
+       {% if client_info_values['PredictedRisk'] == 'Risk' %}
+        <div class="risk">
+       {% else %}
+        <div class="twocol">
+       {% endif %}
+          <label for="PredictedRisk">Assessment</label>
+          <input id="PredictedRisk" value="{{client_info_values['PredictedRisk']}}" readonly/>
+
+          {% if client_info_values['ExplainRisk'] %}
+            <label for="ExplainRisk">Explaination</label>
+            {%set explaination = render_explain_anchors(client_info_values['ExplainRisk'])%}
+            <textarea id="ExplainRisk" rows="5" cols="50" readonly>
+              {{- explaination -}}
+            </textarea>
+
+          {% endif %}
+        {% if client_info_values['PredictedRisk'] == 'Risk' %}
+        </div>
+       {% else %}
+        </div>
+       {% endif %}
+        </fieldset>
+      {% else %}
+         <input  id="update-account" value="Submit Changes" type="submit">
+      {%endif%}
+      </div>
+        
+    </form>
+  </body>
+
+  {% if not view_only_mode %}
+  <script>
+    const exampleForm = document.getElementById("client_info");
+    exampleForm.addEventListener("submit", handleFormSubmit);
+  </script>
+  {% else %}
+    <A HREF="{{url}}"> Edit Client information </A>
+  {% endif %}
+</html>

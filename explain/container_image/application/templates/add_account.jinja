@@ -1,0 +1,28 @@
+{% from "column_tools.jinja" import build_form_inputs %} 
+<!DOCTYPE html>
+<html lang="en">
+  <script src="./scripts/handleFormSubmit.js"/>
+
+  <head>
+    <meta charset="utf-8" />
+    <title>Add a new account</title>
+    <link rel="stylesheet" href="./templates/style.css">
+  </head>
+
+  <body>
+    <form id="client_info">
+    <fieldset>
+    <Legend>New Client Info</Legend>
+    <div class="settings">
+      {{ build_form_inputs(schema, form_defaults) }}
+      <input  id="add-account" value="Create Account" type="submit">
+    </div>
+    </fieldset>
+    </form>
+  </body>
+
+  <script>
+    const exampleForm = document.getElementById("client_info");
+    exampleForm.addEventListener("submit", handleFormSubmit);
+  </script>
+</html>
