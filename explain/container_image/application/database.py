@@ -111,7 +111,9 @@ class DB2DataBaseConnection:
         row = ibm_db.fetch_tuple(stmt)
         return row[0]
 
-    def get_clients(self, offset: int = 0, limit: int = 25) -> Generator[int]:
+    def get_clients(
+        self, offset: int = 0, limit: int = 25
+    ) -> Generator[int, None, None]:
         query = f"SELECT CLIENT_ID FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?"
         logging.debug(f"preparing statement {query}")
         stmt = ibm_db.prepare(self.conn, query)
