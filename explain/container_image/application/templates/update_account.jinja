@@ -76,6 +76,6 @@
     exampleForm.addEventListener("submit", handleFormSubmit);
   </script>
   {% else %}
-    <A HREF="{{url}}"> Edit Client information </A>
+    <A HREF="{{url_for(update_client_info, id=client_info_values['CLIENT_ID'] ))}}"> Edit Client information </A>
   {% endif %}
 </html>
