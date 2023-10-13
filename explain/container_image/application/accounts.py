@@ -10,7 +10,7 @@ import os
 import json
 from typing import Dict, Any
 
-COLUMN_INFO = json.loads(os.environ("COLUMN_INFO", {}))
+COLUMN_INFO = json.loads(os.environ.get("COLUMN_INFO", {}))
 bp = Blueprint("Accounts", __name__, url_prefix="/accounts")
 
 
