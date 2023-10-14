@@ -39,7 +39,7 @@ def create_account_defaults() -> Dict[str, Any]:
     }
 
 
-@bp.route("/", methods=("POST"))
+@bp.route("/", methods=["POST"])
 def create_account():
     client_info = request.get_json(force=True)
 
@@ -48,7 +48,7 @@ def create_account():
         return redirect(url_for(retrieve_client_info, id=client_id))
 
 
-@bp.route("/", methods=("GET"))
+@bp.route("/", methods=["GET"])
 def list_or_create_accounts():
     request_new = bool(request.args.get("new", False))
 
@@ -65,7 +65,7 @@ def list_or_create_accounts():
     raise NotImplementedError()
 
 
-@bp.route("/<int>:id", methods=("GET"))
+@bp.route("/<int>:id", methods=["GET"])
 def retrieve_client_info(id: int):
     for_edit = bool(request.args.get("for_edit", False))
 
@@ -80,7 +80,7 @@ def retrieve_client_info(id: int):
     )
 
 
-@bp.route("/<int>:id", methods=("PUT"))
+@bp.route("/<int>:id", methods=["PUT"])
 def update_client_info(id: int):
     new_client_info = request.get_json(force=True)
 
@@ -90,6 +90,6 @@ def update_client_info(id: int):
     return redirect(url_for(retrieve_client_info, id=id))
 
 
-@bp.route("/<int>:id", methods=("DELETE"))
+@bp.route("/<int>:id", methods=["DELETE"])
 def delete_client_info(id: int):
     raise NotImplementedError()
