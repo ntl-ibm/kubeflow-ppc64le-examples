@@ -1,9 +1,15 @@
-from flask import Flask
+from flask import Flask, Response
 import re
 import accounts
+import http
 
 app = Flask(__name__, instance_relative_config=True)
 app.register_blueprint(accounts.bp)
+
+
+@app.route("/alive", methods=["GET"])
+def index():
+    return Response(status=http.HTTPStatus.OK)
 
 
 @app.template_global(name="human_readable")
