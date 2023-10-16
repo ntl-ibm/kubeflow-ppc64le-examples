@@ -23,7 +23,7 @@ class DB2DataBaseConnection:
     Connection to a DB2 Database
     """
 
-    def __init__(self, client_info_table_name: str = "CLIENT_INFO"):
+    def __init__(self, client_info_table_name: str = "CLIENT_DATA"):
         self.conn: ibm_db.IBM_DBConnection = _create_db2_conn()
         self.client_info_table_name = client_info_table_name
         self.column_names = self._get_column_names()

@@ -1,17 +1,17 @@
-div.fourcol {
+form {
   display: grid;
   grid-template-columns: max-content max-content max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-div.fourcol label {
+form label {
   text-align: left;
 }
-div.fourcol label:after {
+form label:after {
   content: ":";
 }
 
-div.fourcol fieldset {
+form fieldset {
   margin: auto;
   border: 0px;
 }
