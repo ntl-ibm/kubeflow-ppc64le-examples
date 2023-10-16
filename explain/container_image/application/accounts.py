@@ -46,7 +46,7 @@ def create_account():
     current_app.logger.info(json.dumps(client_info, indent=2))
     with DB2DataBaseConnection() as db:
         client_id = db.insert_account_from_row_dict(client_info)
-        return redirect(url_for("Accounts.retrieve_client_info", id=client_id))
+        return redirect(url_for("Accounts.retrieve_account_info", id=client_id))
 
 
 @bp.route("/", methods=["GET"])
@@ -69,12 +69,12 @@ def list_or_create_accounts():
     raise NotImplementedError()
 
 
-@bp.route("/<id>", methods=["GET"])
-def retrieve_client_info(id: int):
+@bp.route("/<account_id>", methods=["GET"])
+def retrieve_account_info(account_id: int):
     for_edit = bool(request.args.get("for_edit", False))
 
     with DB2DataBaseConnection() as db:
-        client_info = db.get_client_info(int(id))
+        client_info = db.get_client_info(int(account_id))
 
     return render_template(
         "update_account.jinja",
@@ -84,16 +84,16 @@ def retrieve_client_info(id: int):
     )
 
 
-@bp.route("/<id>", methods=["PUT"])
-def update_client_info(id: int):
+@bp.route("/<account_id>", methods=["PUT"])
+def update_client_info(account_id: int):
     new_client_info = request.get_json(force=True)
 
     with DB2DataBaseConnection() as db:
-        db.update_client_info_from_row_change_dict(int(id), new_client_info)
+        db.update_client_info_from_row_change_dict(int(account_id), new_client_info)
 
-    return redirect(url_for(retrieve_client_info, id=id))
+    return redirect(url_for(retrieve_account_info, id=account_id))
 
 
-@bp.route("/<id>", methods=["DELETE"])
-def delete_client_info(id: int):
+@bp.route("/<account_id>", methods=["DELETE"])
+def delete_client_info(account_id: int):
     raise NotImplementedError()

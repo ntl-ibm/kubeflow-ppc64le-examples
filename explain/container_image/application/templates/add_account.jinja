@@ -10,13 +10,11 @@
 
   <body>
     <form id="client_info" action="{{- create_account_url -}}">
-     <div class="fourcol">
       <fieldset>
-      <Legend>New Client Info</Legend>
-        {{ build_form_inputs(schema, form_defaults) }}
+          <Legend>New Client Info</Legend>
+          {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
-       <input  id="add-account" value="Create Account" type="submit">
-      </div>
+      <input  id="add-account" value="Create Account" type="submit">
     </form>
   </body>
 
