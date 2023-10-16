@@ -29,7 +29,7 @@
 {% macro build_form_inputs(schema, form_defaults) %}
  {# category columns #} 
       {% for feature, label_list in schema.label_columns.items() %} 
-        {% if feature not in schema.non_features %}
+        {% if feature != 'Risk' %}
           {% if feature in form_defaults %}
             {{ render_cat_feature(feature, label_list, form_defaults[feature]) }} 
           {% else %}
@@ -40,7 +40,7 @@
       
       {# int columns #} 
       {% for feature in schema.int_columns %}
-       {% if feature not in schema.non_features %}
+       {% if feature != 'Risk' %}
           {% if feature in form_defaults %}
             {% set dft = form_defaults[feature] %}
           {% else %}

@@ -9,12 +9,10 @@ from database import DB2DataBaseConnection
 import os
 import json
 from typing import Dict, Any
-import logging
+from flask import current_app
 
 COLUMN_INFO = json.loads(os.environ.get("COLUMN_INFO", {}))
 bp = Blueprint("Accounts", __name__, url_prefix="/accounts")
-
-logging.info(f"COLUMN_INFO:\n {json.dumps(COLUMN_INFO, indent=2)}")
 
 
 def create_account_defaults() -> Dict[str, Any]:
@@ -54,7 +52,7 @@ def create_account():
 @bp.route("/", methods=["GET"])
 def list_or_create_accounts():
     request_new = bool(request.args.get("new", False))
-
+    current_app.logger.debug(f"COLUMN_INFO\n {json.dumps(COLUMN_INFO, indent=2)}")
     if request_new:
         return render_template(
             "add_account.jinja",
