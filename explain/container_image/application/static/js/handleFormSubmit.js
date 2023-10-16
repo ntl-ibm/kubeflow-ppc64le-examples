@@ -44,8 +44,8 @@ async function postFormDataAsJson({ url, formData }) {
  * @param {SubmitEvent} event
  */
 async function handleFormSubmit(event) {
-  console.log(event);
   event.preventDefault();
+  console.log(event);
 
   const form = event.target;
   const url = form.action;

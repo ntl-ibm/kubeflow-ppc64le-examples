@@ -6,6 +6,7 @@
     <meta charset="utf-8" />
     <title>Add a new account</title>
     <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
+    <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   </head>
 
   <body>
@@ -15,13 +16,8 @@
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
       <BR/>
-      <input  id="add-account" value="Create Account" type="button">
+      <button id="add-account" onclick="handleFormSubmit">Create Account </button>
     </form>
   </body>
 
-  <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
-  <script>
-    const exampleForm = document.getElementById("client_info");
-    exampleForm.addEventListener("submit", handleFormSubmit);
-  </script>
 </html>
