@@ -15,20 +15,23 @@ async function postFormDataAsJson({ url, formData }) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Accept: "application/json",
+      Accept: "text/html",
     },
+    redirect: "manual",
     body: formDataJsonString,
   };
   console.log("payload: ");
   console.log(fetchOptions);
   const response = await fetch(url, fetchOptions);
 
+  if (response.headers.has("Location")) {
+    replace(response.headers.get("Location"));
+  }
+
   if (!response.ok) {
     const errorMessage = await response.text();
     throw new Error(errorMessage);
   }
-
-  return response.json();
 }
 
 /**
@@ -47,9 +50,7 @@ async function handleFormSubmit(event) {
 
   try {
     const formData = new FormData(form);
-    const responseData = await postFormDataAsJson({ url, formData });
-
-    console.log({ responseData });
+    await postFormDataAsJson({ url, formData });
   } catch (error) {
     console.error(error);
   }
