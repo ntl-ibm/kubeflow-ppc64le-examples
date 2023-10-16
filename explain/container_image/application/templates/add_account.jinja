@@ -1,16 +1,16 @@
 {% from "column_tools.jinja" import build_form_inputs %} 
 <!DOCTYPE html>
 <html lang="en">
-  <script src="./scripts/handleFormSubmit.js"/>
+  <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"/>
 
   <head>
     <meta charset="utf-8" />
     <title>Add a new account</title>
-    <link rel="stylesheet" href="./templates/style.css">
+    <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}">
   </head>
 
   <body>
-    <form id="client_info" action="{{ create_account_url }}">
+    <form id="client_info" action="{{- create_account_url -}}">
     <fieldset>
     <Legend>New Client Info</Legend>
     <div class="settings">
