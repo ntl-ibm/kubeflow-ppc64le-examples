@@ -1,13 +1,13 @@
-.fourcol {
+div.fourcol {
   display: grid;
   grid-template-columns: max-content max-content max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-.fourcol label {
+div.fourcol label {
   text-align: left;
 }
-.fourcol label:after {
+div.fourcol label:after {
   content: ":";
 }
 
@@ -20,34 +20,34 @@
   grid-column: 3;
 }
 
-.twocol {
+div.twocol {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
 
-.twocol label {
+div.twocol label {
   text-align: left;
 }
-.twocol label:after {
+div.twocol label:after {
   content: ":";
 }
 
-.risk {
+div.risk {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-.risk label {
+div.risk label {
   text-align: left;
 }
-.risk label:after {
+div.risk label:after {
   content: ":";
 }
 
-.risk input {
+div.risk input {
   color: red;
   font-weight: bold;
 }
