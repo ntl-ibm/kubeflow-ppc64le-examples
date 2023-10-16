@@ -1,23 +1,31 @@
-div.fourcol {
+form {
   display: grid;
   grid-template-columns: max-content max-content max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-div.fourcol label {
+
+form label {
   text-align: left;
 }
-div.fourcol label:after {
+
+form label:after {
   content: ":";
 }
 
-#add-account {
+form button {
   font-size: 25px;
   text-align: center;
   margin-left: -50%;
   margin-right: auto;
   position: relative;
   grid-column: 3;
+}
+
+form fieldset {
+  border-color: black;
+  border-style: solid;
+  margin-right: auto;
 }
 
 div.twocol {
@@ -30,28 +38,6 @@ div.twocol {
 div.twocol label {
   text-align: left;
 }
-div.twocol label:after {
-  content: ":";
-}
-form {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  grid-gap: 5px;
-  margin: auto;
-}
-
-form input {
-  background: lightgrey;
-  padding: 0.7em;
-  width: 100%;
-  border: 0;
-}
-
-fieldset {
-  border-color: black;
-  border-style: solid;
-  margin-right: auto;
-}
 
 div.risk label {
   text-align: left;
@@ -63,4 +49,11 @@ div.risk label:after {
 div.risk input {
   color: red;
   font-weight: bold;
+}
+
+#update-account {
+  font-size: 25px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }

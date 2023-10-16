@@ -45,8 +45,8 @@ def create_account():
     client_info = request.get_json(force=True)
     current_app.logger.info(json.dumps(client_info, indent=2))
     with DB2DataBaseConnection() as db:
-        client_id = db.insert_account_from_row_dict(client_info)
-        return redirect(url_for("Accounts.retrieve_account_info", id=client_id))
+        account_id = db.insert_account_from_row_dict(client_info)
+        return redirect(url_for("Accounts.retrieve_account_info", account=account_id))
 
 
 @bp.route("/", methods=["GET"])
@@ -91,7 +91,7 @@ def update_client_info(account_id: int):
     with DB2DataBaseConnection() as db:
         db.update_client_info_from_row_change_dict(int(account_id), new_client_info)
 
-    return redirect(url_for(retrieve_account_info, id=account_id))
+    return redirect(url_for(retrieve_account_info, account_id=account_id))
 
 
 @bp.route("/<account_id>", methods=["DELETE"])
