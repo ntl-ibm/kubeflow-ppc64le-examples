@@ -29,7 +29,7 @@ class DB2DataBaseConnection:
         self.column_names = self._get_column_names()
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self):
         self.conn.close()
@@ -41,7 +41,7 @@ class DB2DataBaseConnection:
     def sql_safe_clint_info_table_name(self) -> str:
         return self.client_info_table_name.replace('"', "")
 
-    def insert_client_from_row_dict(
+    def insert_account_from_row_dict(
         self,
         row_dict: Dict[str, Union[str, int]],
     ):

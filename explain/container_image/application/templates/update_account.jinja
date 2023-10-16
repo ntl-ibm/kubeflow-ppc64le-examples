@@ -3,12 +3,11 @@
 {% from "column_tools.jinja" import render_explain_anchors %}
 <!DOCTYPE html>
 <html lang="en">
-  <script src="./scripts/handleFormSubmit.js"/>
 
   <head>
     <meta charset="utf-8" />
     <title>View/Edit client account {{ client_id }} </title>
-    <link rel="stylesheet" href="./templates/style.css">
+    <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
   </head>
 
   <body>
@@ -71,6 +70,7 @@
   </body>
 
   {% if not view_only_mode %}
+   <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   <script>
     const exampleForm = document.getElementById("client_info");
     exampleForm.addEventListener("submit", handleFormSubmit);

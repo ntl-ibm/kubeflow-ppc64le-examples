@@ -43,16 +43,18 @@ def create_account_defaults() -> Dict[str, Any]:
 @bp.route("/", methods=["POST"])
 def create_account():
     client_info = request.get_json(force=True)
-
+    current_app.logger.info(json.dumps(client_info, indent=2))
     with DB2DataBaseConnection() as db:
-        client_id = db.insert_client_from_row_dict(client_info)
-        return redirect(url_for(retrieve_client_info, id=client_id))
+        client_id = db.insert_account_from_row_dict(client_info)
+        return redirect(url_for("Accounts.retrieve_client_info", id=client_id))
 
 
 @bp.route("/", methods=["GET"])
 def list_or_create_accounts():
     request_new = bool(request.args.get("new", False))
-    current_app.logger.debug(f"COLUMN_INFO\n {json.dumps(COLUMN_INFO, indent=2)}")
+
+    current_app.logger.info(f"COLUMN_INFO\n {json.dumps(COLUMN_INFO, indent=2)}")
+
     if request_new:
         return render_template(
             "add_account.jinja",
