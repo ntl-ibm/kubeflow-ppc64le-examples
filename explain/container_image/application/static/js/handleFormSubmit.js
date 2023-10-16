@@ -24,8 +24,9 @@ async function postFormDataAsJson({ url, formData }) {
   console.log(fetchOptions);
   const response = await fetch(url, fetchOptions);
 
-  if (response.headers.has("Location")) {
-    replace(response.headers.get("Location"));
+  if (response.status == 302 && response.headers.has("Location")) {
+    location.replace(response.headers.get("Location"));
+    return;
   }
 
   if (!response.ok) {
