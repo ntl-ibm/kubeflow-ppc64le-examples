@@ -20,7 +20,7 @@ async function postFormDataAsJson({ url, formData }) {
     body: formDataJsonString,
   };
   console.log("payload: ");
-  console.lof(fetchOptions);
+  console.log(fetchOptions);
   console.log("posting to url " + url);
   const response = await fetch(url, fetchOptions);
   console.log(response);
