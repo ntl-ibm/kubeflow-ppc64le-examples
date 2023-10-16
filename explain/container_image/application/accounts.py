@@ -88,7 +88,7 @@ def retrieve_account_info(account_id):
 
 
 @bp.route("/<account_id>", methods=["PUT"])
-def update_client_info(account_id):
+def update_account_info(account_id):
     new_client_info = request.get_json(force=True)
 
     with DB2DataBaseConnection() as db:
@@ -98,5 +98,5 @@ def update_client_info(account_id):
 
 
 @bp.route("/<account_id>", methods=["DELETE"])
-def delete_client_info(account_id: int):
+def delete_account_info(account_id: int):
     raise NotImplementedError()
