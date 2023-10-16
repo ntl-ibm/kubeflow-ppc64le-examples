@@ -24,7 +24,8 @@ async function postFormDataAsJson({ url, formData }) {
   console.log(fetchOptions);
   const response = await fetch(url, fetchOptions);
 
-  if (response.status == 302 && response.headers.has("Location")) {
+  console.log(response);
+  if (response.status == 302) {
     location.replace(response.headers.get("Location"));
     return;
   }
@@ -43,7 +44,7 @@ async function postFormDataAsJson({ url, formData }) {
  * @param {SubmitEvent} event
  */
 async function handleFormSubmit(event) {
-  console.info(event);
+  console.log(event);
   event.preventDefault();
 
   const form = event.target;
@@ -53,6 +54,6 @@ async function handleFormSubmit(event) {
     const formData = new FormData(form);
     await postFormDataAsJson({ url, formData });
   } catch (error) {
-    console.error(error);
+    console.log(error);
   }
 }
