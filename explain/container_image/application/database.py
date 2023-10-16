@@ -44,7 +44,7 @@ class DB2DataBaseConnection:
     def insert_account_from_row_dict(
         self,
         row_dict: Dict[str, Union[str, int]],
-    ):
+    ) -> int:
         row_cols = set(row_dict.keys())
         iStmtColsSql = ",".join([f'"{col}"' for col in row_cols])
         iValues = ",".join(["?" for _ in range(len(row_cols))])
@@ -60,6 +60,7 @@ class DB2DataBaseConnection:
 
         client_id = ibm_db.fetch_tuple(stmt)[0]
         logging.debug(f"Created client with ID {client_id}")
+        return client_id
 
     def update_client_from_row_change_dict(
         self,
