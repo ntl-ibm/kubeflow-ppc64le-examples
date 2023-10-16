@@ -1,19 +1,14 @@
-form {
+.fourcol {
   display: grid;
   grid-template-columns: max-content max-content max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-form label {
+.fourcol label {
   text-align: left;
 }
-form label:after {
+.fourcol label:after {
   content: ":";
-}
-
-form fieldset {
-  margin: auto;
-  border: 0px;
 }
 
 #add-account {
@@ -25,33 +20,34 @@ form fieldset {
   grid-column: 3;
 }
 
-div.twocol {
+.twocol {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-div.twocol label {
+
+.twocol label {
   text-align: left;
 }
-div.twocol label:after {
+.twocol label:after {
   content: ":";
 }
 
-div.risk {
+.risk {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
-div.risk label {
+.risk label {
   text-align: left;
 }
-div.risk label:after {
+.risk label:after {
   content: ":";
 }
 
-div.risk input {
+.risk input {
   color: red;
   font-weight: bold;
 }

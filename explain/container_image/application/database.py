@@ -51,7 +51,7 @@ class DB2DataBaseConnection:
 
         iSql = f'SELECT CLIENT_ID FROM FINAL TABLE (INSERT INTO "{self.sql_safe_clint_info_table_name}" ({iStmtColsSql}) VALUES({iValues}))'
 
-        logging.debug(f"preparing statement {iSql}")
+        print(f"preparing statement {iSql}")
         stmt = ibm_db.prepare(self.conn, iSql)
 
         for idx, col in enumerate(row_cols):

@@ -7,7 +7,7 @@
 
 {% macro render_cat_feature(feature, levels, dft) -%}
 <label for="{{- feature -}}"> {{ human_readable(feature) }} </label>
-<select name="{{- human_readable(feature) -}}" id="{{- feature -}}">
+<select name="{{- feature -}}" id="{{- feature -}}">
     {% for level in levels -%}
         <option value="{{- level -}}"  {% if level == dft %} selected {% endif %}>
           {{ human_readable(level) }}
@@ -20,7 +20,7 @@
 <label for="{{- feature -}}">{{ human_readable(feature) }}</label>
 <input type="number" 
        step="1" 
-       name="{{- human_readable(feature) -}}" 
+       name="{{- feature -}}" 
        id="{{- feature -}}"
        value="{{- dft -}}"
        />
