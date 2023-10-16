@@ -57,6 +57,7 @@ def list_or_create_accounts():
             "add_account.jinja",
             schema=COLUMN_INFO,
             form_defaults=create_account_defaults(),
+            create_account_url=url_for(create_account),
         )
 
     limit = int(request.args.get("limit", 100))
