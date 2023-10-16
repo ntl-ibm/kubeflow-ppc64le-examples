@@ -31,7 +31,11 @@ class DB2DataBaseConnection:
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        del exception_type
+        del exception_value
+        del exception_traceback
+
         self.conn.close()
 
     def close(self):

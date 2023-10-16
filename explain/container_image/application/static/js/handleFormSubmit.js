@@ -21,9 +21,7 @@ async function postFormDataAsJson({ url, formData }) {
   };
   console.log("payload: ");
   console.log(fetchOptions);
-  console.log("posting to url " + url);
   const response = await fetch(url, fetchOptions);
-  console.log(response);
 
   if (!response.ok) {
     const errorMessage = await response.text();
