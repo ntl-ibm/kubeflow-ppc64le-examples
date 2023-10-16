@@ -19,7 +19,8 @@ async function postFormDataAsJson({ url, formData }) {
     },
     body: formDataJsonString,
   };
-  console.log("payload " + fetchOptions);
+  console.log("payload: ");
+  console.lof(fetchOptions);
   console.log("posting to url " + url);
   const response = await fetch(url, fetchOptions);
   console.log(response);
@@ -40,10 +41,10 @@ async function postFormDataAsJson({ url, formData }) {
  * @param {SubmitEvent} event
  */
 async function handleFormSubmit(event) {
-  console.warn(event);
+  console.info(event);
   event.preventDefault();
 
-  const form = event.currentTarget;
+  const form = event.target;
   const url = form.action;
 
   try {
