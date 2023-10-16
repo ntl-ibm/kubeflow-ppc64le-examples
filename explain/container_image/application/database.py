@@ -36,7 +36,7 @@ class DB2DataBaseConnection:
         del exception_value
         del exception_traceback
 
-        self.conn.close()
+        ibm_db.close(self.conn)
 
     def close(self):
         self.__exit__()
