@@ -25,7 +25,7 @@
       const form = document.getElementById("account_info");
       const formData = new FormData(form);
       event.target.disabled = true;
-      postFormDataAsJson("{{- create_account_url -}}", formData);
+      postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });
   </script>
 </html>
