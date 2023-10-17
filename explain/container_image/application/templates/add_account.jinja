@@ -10,14 +10,18 @@
   </head>
 
   <body>
-    <form id="client_info" action="{{- create_account_url -}}" method="POST">
+    <form id="account_info" action="{{- create_account_url -}}" method="POST">
       <fieldset>
-          <Legend>New Client Info</Legend>
+          <Legend>New Account Info</Legend>
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
       <BR/>
-      <button type="submit" id="add-account" onclick="handleFormSubmit">Create Account </button>
+      <input type="submit" id="add-account" value="Create Account" />
     </form>
   </body>
 
+  <script>
+    const exampleForm = document.getElementById("account_info");
+    exampleForm.addEventListener("submit", handleFormSubmit);
+  </script>
 </html>
