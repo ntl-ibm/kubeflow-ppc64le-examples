@@ -34,7 +34,7 @@ def inject_ai(db_row: Dict[str, Any]) -> Dict[str, Any]:
             current_app.logger.info(json.dumps(explain, indent=2))
 
             anchors = explain["explanations"][0]["anchor"]
-            db_row["ExplainRisk"] = " AND ".join(anchors)
+            db_row["ExplainRisk"] = ",".join(anchors)
 
     return db_row
 

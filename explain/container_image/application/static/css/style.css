@@ -40,6 +40,22 @@ label:after {
   color: #666666;
 }
 
+.fade-out {
+  opacity: 0.25;
+}
+
+loading_img {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.show {
+  display: block;
+}
+
 div.twocol {
   display: grid;
   grid-template-columns: max-content max-content;

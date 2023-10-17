@@ -1,5 +1,5 @@
 {% macro render_explain_anchors(anchors) %}
-  {%- for anchor in anchors -%}
+  {%- for anchor in anchors.split(",") -%}
     {%- if loop.index > 1 %} AND{{ '\n' }}{% endif -%}
     {{- human_readable(anchor) -}}
   {%- endfor -%}

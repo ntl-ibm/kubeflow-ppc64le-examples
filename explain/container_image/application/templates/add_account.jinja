@@ -5,6 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Add a new account</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" />
     <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
     <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   </head>
@@ -17,14 +18,19 @@
       </fieldset>
     </form>
     <button id="submit">Create Account </button>
+    <img src="{{- url_for('static', 'loading.jpg') -}}" id="spinner" class="loading_img"/> 
   </body>
 
   <script>
     const submitButton = document.getElementById("submit")
     submitButton.addEventListener("click", (event) => {
       const form = document.getElementById("account_info");
+      const spinner = document.getElementById('spinner');
       const formData = new FormData(form);
       event.target.disabled = true;
+      form.classList.toggle('fade-out')
+      spinner.classList.toggle('show')
+
       postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });
   </script>
