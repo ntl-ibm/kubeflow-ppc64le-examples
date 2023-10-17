@@ -13,7 +13,7 @@ def _create_db2_conn() -> ibm_db.IBM_DBConnection:
         f"DATABASE=BLUDB;HOSTNAME={os.environ['db2_host']};PORT={os.environ['db2_port']};PROTOCOL=TCPIP;UID={os.environ['db2_user']};Pwd={os.environ['db2_pwd']};SECURITY=SSL;"
     )
 
-    conn = ibm_db.connect(conn_str, "", "")
+    conn = ibm_db.pconnect(conn_str, "", "")
 
     return conn
 

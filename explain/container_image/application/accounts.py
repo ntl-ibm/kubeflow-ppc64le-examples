@@ -12,9 +12,23 @@ import json
 from typing import Dict, Any
 from flask import current_app
 from http import HTTPStatus
+import requests
 
 COLUMN_INFO = json.loads(os.environ.get("COLUMN_INFO", {}))
+PREDICT_URL = os.environ.get("PREDICT_URL", None)
+EXPLAIN_URL = os.environ.get("EXPLAIN_URL", None)
+
 bp = Blueprint("Accounts", __name__, url_prefix="/accounts")
+
+
+def inject_ai(db_row: Dict[str, Any]) -> Dict[str, Any]:
+    if PREDICT_URL:
+        db_row["PredictedRisk"] = requests.post(PREDICT_URL, json=db_row)
+
+        if db_row["PredictedRisk"] == "Risk" and EXPLAIN_URL:
+            db_row["ExplainRisk"] = requests.post(EXPLAIN_URL, json=db_row)
+
+    return db_row
 
 
 def create_account_defaults() -> Dict[str, Any]:
@@ -46,6 +60,8 @@ def create_account_defaults() -> Dict[str, Any]:
 def create_account():
     client_info = request.get_json(force=True)
     current_app.logger.info(json.dumps(client_info, indent=2))
+
+    client_info = inject_ai(client_info)
     with DB2DataBaseConnection() as db:
         account_id = db.insert_account_from_row_dict(client_info)
         current_app.logger.info(f"Account id {account_id} was created")
