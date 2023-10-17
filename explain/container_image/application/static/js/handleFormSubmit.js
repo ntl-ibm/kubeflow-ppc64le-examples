@@ -26,7 +26,7 @@ async function postFormDataAsJson({ url, formData }) {
 
   console.log(response);
   if (response.status == 302) {
-    location.replace(response.headers.get("Location"));
+    location.href = response.headers.get("Location");
     return;
   }
 
@@ -53,7 +53,7 @@ async function handleFormSubmit(event) {
   try {
     const formData = new FormData(form);
     await postFormDataAsJson({ url, formData });
-    return false;  
+    return false;
   } catch (error) {
     console.log(error);
   }
