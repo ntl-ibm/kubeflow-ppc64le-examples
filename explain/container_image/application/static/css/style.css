@@ -45,16 +45,19 @@ label:after {
   opacity: 0.25;
 }
 
-#spinner {
+#pageloader {
   display: none;
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
 }
-
-.show {
-  display: block;
+#pageloader img {
+  left: 50%;
+  margin-left: -32px;
+  margin-top: -32px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 div.twocol {

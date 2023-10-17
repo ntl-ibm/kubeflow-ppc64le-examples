@@ -11,7 +11,9 @@
   </head>
 
   <body>
-    <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner" class="hide"/> 
+    <div id="pageloader">
+      <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner"/> 
+    </div>
     <form id="account_info" onsubmit="return false;">
       <fieldset id="new_account_details">
           <Legend>New Account Info</Legend>
@@ -30,9 +32,8 @@
       event.target.disabled = true;
       document.getElementById('new_account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
-      spinner = document.getElementById('spinner')
-      spinner.classList.remove('hide')
-      spinner.classList.toggle('show')
+      pageloader = document.getElementById('pageloader')
+      pageloader.fadeIn();
 
       postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });
