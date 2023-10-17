@@ -58,7 +58,7 @@ label:after {
   z-index: 2;
 }
 #pageloader img {
-  width: 10%;
+  width: 200px;
   margin-left: auto;
   margin-top: auto;
   animation: rotation 1s infinite linear;
