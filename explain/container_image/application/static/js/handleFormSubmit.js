@@ -53,6 +53,7 @@ async function handleFormSubmit(event) {
   try {
     const formData = new FormData(form);
     await postFormDataAsJson({ url, formData });
+    return false;  
   } catch (error) {
     console.log(error);
   }
