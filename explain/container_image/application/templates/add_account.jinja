@@ -10,17 +10,22 @@
   </head>
 
   <body>
-    <form id="account_info" action="{{- create_account_url -}}" method="POST">
+    <form id="account_info" onsubmit="return false;">
       <fieldset>
           <Legend>New Account Info</Legend>
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
-      <input type="submit" id="submit" value="Create Account" />
-      </form>
+    </form>
+    <button id="submit">Create Account </button>
   </body>
 
   <script>
-    const submitButton = document.getElementById("submit");
-    submitButton.addEventListener("click", handleFormSubmit);
+    const submitButton = document.getElementById("submit")
+    submitButton.addEventListener("click", (event) => {
+      const form = document.getElementById("account_info");
+      const formData = new FormData(form);
+      event.target.disabled = true;
+      await postFormDataAsJson("{{- create_account_url -}}", formData);
+    });
   </script>
 </html>

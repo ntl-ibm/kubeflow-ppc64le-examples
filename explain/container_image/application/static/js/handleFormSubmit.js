@@ -45,9 +45,9 @@ async function postFormDataAsJson({ url, formData }) {
  * @param {SubmitEvent} event
  */
 async function handleFormSubmit(event) {
+  console.log(event);
   event.preventDefault();
   event.submitter.disabled = true;
-  console.log(event);
 
   const form = event.target;
   const url = form.action;
