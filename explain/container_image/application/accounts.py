@@ -23,13 +23,14 @@ bp = Blueprint("Accounts", __name__, url_prefix="/accounts")
 
 def inject_ai(db_row: Dict[str, Any]) -> Dict[str, Any]:
     if PREDICT_URL:
-        predictions = requests.post(PREDICT_URL, json=db_row).json()
+        df = {k: {"0": v} for k, v in db_row.items()}
+        predictions = requests.post(PREDICT_URL, json=df).json()
         current_app.logger.info(json.dumps(predictions, indent=2))
 
         db_row["PredictedRisk"] = predictions["predictions"][0]
 
         if db_row["PredictedRisk"] == "Risk" and EXPLAIN_URL:
-            explain = requests.post(EXPLAIN_URL, json=db_row).json()
+            explain = requests.post(EXPLAIN_URL, json=df).json()
             current_app.logger.info(json.dumps(explain, indent=2))
 
             anchors = explain["explanations"][0]["anchor"]
