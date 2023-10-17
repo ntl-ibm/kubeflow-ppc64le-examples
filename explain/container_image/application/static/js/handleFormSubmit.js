@@ -17,7 +17,8 @@ async function postFormDataAsJson({ url, formData }) {
       "Content-Type": "application/json",
       Accept: "text/html",
     },
-    redirect: "manual",
+    redirect: "error",
+    mode: "same-orgin",
     body: formDataJsonString,
   };
   console.log("payload: ");
@@ -32,6 +33,7 @@ async function postFormDataAsJson({ url, formData }) {
 
   if (!response.ok) {
     const errorMessage = await response.text();
+    alert("Error happend on the submit!");
     throw new Error(errorMessage);
   }
 }
@@ -45,6 +47,7 @@ async function postFormDataAsJson({ url, formData }) {
  */
 async function handleFormSubmit(event) {
   event.preventDefault();
+  event.submitter.disabled = true;
   console.log(event);
 
   const form = event.target;
