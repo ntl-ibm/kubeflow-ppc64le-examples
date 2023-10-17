@@ -13,7 +13,7 @@
   <body>
     <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner" class="hide"/> 
     <form id="account_info" onsubmit="return false;">
-      <fieldset>
+      <fieldset id="new_account_details">
           <Legend>New Account Info</Legend>
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
@@ -26,10 +26,12 @@
     const submitButton = document.getElementById("submit")
     submitButton.addEventListener("click", (event) => {
       const form = document.getElementById("account_info");
-      const spinner = document.getElementById('spinner');
       const formData = new FormData(form);
       event.target.disabled = true;
+      document.getElementById('new_account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
+      spinner = document.getElementById('spinner')
+      spinner.classList.remove('hide')
       spinner.classList.toggle('show')
 
       postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
