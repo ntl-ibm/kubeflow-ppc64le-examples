@@ -10,7 +10,7 @@
   </head>
 
   <body>
-    <form id="client_info" action="{{- create_account_url -}}">
+    <form id="client_info" action="{{- create_account_url -}}" method="POST">
       <fieldset>
           <Legend>New Client Info</Legend>
           {{ build_form_inputs(schema, form_defaults) }}
