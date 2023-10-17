@@ -57,7 +57,7 @@ label:after {
   margin-top: -32px;
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
+  animation: rotation 1s infinite linear;
 }
 
 div.twocol {

@@ -33,7 +33,7 @@
       document.getElementById('new_account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
       pageloader = document.getElementById('pageloader')
-      pageloader.fadeIn();
+      pageloader.style.display = "block";
 
       postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });
