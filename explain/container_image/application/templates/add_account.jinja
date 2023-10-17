@@ -11,10 +11,10 @@
   </head>
 
   <body>
-    <div id="pageloader">
-      <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner"/> 
-    </div>
     <form id="account_info" onsubmit="return false;">
+      <div id="pageloader">
+        <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
+      </div>
       <fieldset id="new_account_details">
           <Legend>New Account Info</Legend>
           {{ build_form_inputs(schema, form_defaults) }}
