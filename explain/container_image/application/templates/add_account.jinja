@@ -5,12 +5,13 @@
   <head>
     <meta charset="utf-8" />
     <title>Add a new account</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
     <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
     <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   </head>
 
   <body>
+    <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner" class="hide"/> 
     <form id="account_info" onsubmit="return false;">
       <fieldset>
           <Legend>New Account Info</Legend>
@@ -18,7 +19,7 @@
       </fieldset>
     </form>
     <button id="submit">Create Account </button>
-    <img src="{{- url_for('static', filename='loading.jpg') -}}" id="spinner" class="loading_img"/> 
+   
   </body>
 
   <script>
