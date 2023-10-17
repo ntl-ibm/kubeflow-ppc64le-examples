@@ -18,15 +18,24 @@ label:after {
   content: ":";
 }
 
-button {
+#submit {
   display: block;
   margin-left: auto;
   margin-right: auto;
   width: 80px;
+  background-color: burlywood;
 }
 
-button:hover {
+#submit:hover,
+#submit[hover] {
   background: gold;
+}
+
+#submit:disabled,
+#submit[disabled] {
+  border: 1px solid #999999;
+  background-color: #cccccc;
+  color: #666666;
 }
 
 div.twocol {

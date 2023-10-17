@@ -18,7 +18,6 @@ async function postFormDataAsJson({ url, formData }) {
       Accept: "text/html",
     },
     redirect: "error",
-    mode: "same-orgin",
     body: formDataJsonString,
   };
   console.log("payload: ");
