@@ -22,8 +22,10 @@ label:after {
   display: block;
   margin-left: auto;
   margin-right: auto;
-  width: 80px;
+  width: min-content;
+  border: 1px solid #999999;
   background-color: burlywood;
+  color: #666666;
 }
 
 #submit:hover,

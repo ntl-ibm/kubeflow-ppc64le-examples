@@ -16,11 +16,11 @@
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
       <input type="submit" id="submit" value="Create Account" />
-    </form>
+      </form>
   </body>
 
   <script>
-    const exampleForm = document.getElementById("account_info");
-    exampleForm.addEventListener("submit", handleFormSubmit);
+    const submitButton = document.getElementById("submit");
+    submitButton.addEventListener("click", handleFormSubmit);
   </script>
 </html>
