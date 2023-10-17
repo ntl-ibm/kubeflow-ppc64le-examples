@@ -25,15 +25,13 @@ async function postFormDataAsJson(url, formData) {
   const response = await fetch(url, fetchOptions);
 
   console.log(response);
-  if (response.status == 302) {
-    location.href = response.headers.get("Location");
-    return;
-  }
 
   if (!response.ok) {
     const errorMessage = await response.text();
     alert("Error happend on the submit!");
     throw new Error(errorMessage);
+  } else {
+    window.location.replace(response.headers.get("Location"));
   }
 }
 

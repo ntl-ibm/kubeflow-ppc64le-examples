@@ -4,12 +4,14 @@ from flask import (
     render_template,
     request,
     url_for,
+    Response,
 )
 from database import DB2DataBaseConnection
 import os
 import json
 from typing import Dict, Any
 from flask import current_app
+from http import HTTPStatus
 
 COLUMN_INFO = json.loads(os.environ.get("COLUMN_INFO", {}))
 bp = Blueprint("Accounts", __name__, url_prefix="/accounts")
@@ -47,8 +49,14 @@ def create_account():
     with DB2DataBaseConnection() as db:
         account_id = db.insert_account_from_row_dict(client_info)
         current_app.logger.info(f"Account id {account_id} was created")
-        return redirect(
-            url_for("Accounts.retrieve_account_info", account_id=account_id)
+        return Response(
+            status=HTTPStatus.CREATED,
+            headers=[
+                (
+                    "Location",
+                    url_for("Accounts.retrieve_account_info", account_id=account_id),
+                )
+            ],
         )
 
 
