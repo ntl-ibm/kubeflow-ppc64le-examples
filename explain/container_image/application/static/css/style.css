@@ -58,11 +58,9 @@ label:after {
   z-index: 2;
 }
 #pageloader img {
-  top: 50%;
-  left: 50%;
-  margin-left: -32px;
-  margin-top: -32px;
-  position: absolute;
+  width: 10%;
+  margin-left: auto;
+  margin-top: auto;
   animation: rotation 1s infinite linear;
 }
 
