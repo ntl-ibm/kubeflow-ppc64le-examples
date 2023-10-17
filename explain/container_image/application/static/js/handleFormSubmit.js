@@ -7,7 +7,7 @@
  * @param {FormData} options.formData - `FormData` instance
  * @return {Object} - Response body from URL that was POSTed to
  */
-async function postFormDataAsJson({ url, formData }) {
+async function postFormDataAsJson(url, formData) {
   const plainFormData = Object.fromEntries(formData.entries());
   const formDataJsonString = JSON.stringify(plainFormData);
 
