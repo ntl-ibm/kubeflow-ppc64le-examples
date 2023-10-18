@@ -108,7 +108,9 @@ def list_or_create_accounts():
         accounts = db.get_accounts(offset=offset, limit=limit)
         num_accounts = db.get_number_of_accounts()
 
-    return render_template("list_accounts.jinja", limit=limit, offset=offset)
+    return render_template(
+        "list_accounts.jinja", limit=limit, offset=offset, max_rows=num_accounts
+    )
 
 
 @bp.route("/<account_id>", methods=["GET"])
