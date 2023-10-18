@@ -19,13 +19,13 @@
       </div>
 
       <fieldset id="account_header"">
-        <legend>Account Info</legend>
+        <legend>Account</legend>
         <label for="account-id"> Account Id</label>
         <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
       </fieldset>
 
       <fieldset id="account_details" disabled="disabled">
-        <legend>Account Info</legend>
+        <legend>Account Details</legend>
        
           {{ build_form_inputs(schema, client_info_values) }}
       
@@ -54,11 +54,13 @@
       </fieldset>
     
      <button id="edit">Edit Account </button>
-     <button id="submit" hidden>Update Account</button>
+     <button id="submit">Update Account</button>
     </form>
   </body>
 
   <script>
+    document.getElementById("edit").style.display = 'block'
+    document.getElementById("submit").style.display = 'none'
     const pr = document.getElementById("PredictedRisk")  
     if (pr.value == 'Risk') {
       pr.classList.add('risk')
@@ -72,10 +74,12 @@
     editButton.addEventListener("click", (event) => {
       const account_details = document.getElementById("account_details")
       account_details.disabled = false;
+      const predicted_risk_assessment = document.getElementById("predicted_risk_assessment")
+      predicted_risk_assessment.style.display = "none"
       event.target.disabled = true;
-      event.target.style.visibiliity = 'hidden';
+      event.target.style.display = 'none';
       const submitButton = document.getElementById("submit");
-      submitButton.style.visibility = 'visible';
+      submitButton.style.display = 'block';
     })
   </script>
 
@@ -85,7 +89,7 @@
       const form = document.getElementById("account_info");
       const formData = new FormData(form);
       event.target.disabled = true;
-      document.getElementById('new_account_details').disabled = "disabled"
+      document.getElementById('account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
       pageloader = document.getElementById('pageloader')
       pageloader.style.display = "block";
