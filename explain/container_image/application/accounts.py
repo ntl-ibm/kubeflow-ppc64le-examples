@@ -93,8 +93,6 @@ def create_account():
 def list_or_create_accounts():
     request_new = bool(request.args.get("new", False))
 
-    current_app.logger.info(f"COLUMN_INFO\n {json.dumps(COLUMN_INFO, indent=2)}")
-
     if request_new:
         return render_template(
             "add_account.jinja",
@@ -106,21 +104,20 @@ def list_or_create_accounts():
     limit = int(request.args.get("limit", 100))
     offset = int(request.args.get("offset", 0))
 
-    raise NotImplementedError()
+    with DB2DataBaseConnection() as db:
+        accounts = db.get_accounts(offset=offset, limit=limit)
+        num_accounts = db.get_number_of_accounts()
+
+    return render_template("list_accounts.jinja", limit=limit, offset=offset)
 
 
 @bp.route("/<account_id>", methods=["GET"])
 def retrieve_account_info(account_id):
-    for_edit = bool(request.args.get("for_edit", False))
-
     with DB2DataBaseConnection() as db:
         client_info = db.get_account_info(int(account_id))
 
     return render_template(
-        "update_account.jinja",
-        schema=COLUMN_INFO,
-        client_info_values=client_info,
-        view_only_mode=(not for_edit),
+        "update_account.jinja", schema=COLUMN_INFO, client_info_values=client_info
     )
 
 

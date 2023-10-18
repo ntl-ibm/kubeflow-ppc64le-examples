@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+  <meta charset="utf-8" />
+    <title>Accounts </title>
+    <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
+    <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
+    <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
+  </head>
+
+  <body>
+    <table>
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Predicted Risk</th>
+                <th>Risk</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%- for row in rows -%}
+                <tr><A href="{{- url_for('Accounts.retrieve_account_info', account_id=row['CLIENT_ID']) -}}"> {{ row['CLIENT_ID'] }} </A> </tr>
+                <tr> {{ row['PredictedRisk'] }} </tr>
+                <tr> {{ row['Risk'] }} </tr>
+            {%- endfor -%}
+        </tbody>
+    </table>
+            {%- if offset > 0 %}
+                {% set new_offset = offset if offset - limit%}
+                <A href="{{- url_for('Accounts.list_or_create_accounts', offset=(offset - limit) if (offset - limit >= 0) else 0, limit=limit)}}">
+                PREV
+                </A>
+            {%- endif -%}
+            {%- if offset + limit <= maxrows -%}
+             <A href="{{- url_for('Accounts.list_or_create_accounts', offset=(offset + limit), limit=limit)}}">
+                NEXT
+                </A>
+            {%- endif -%}
+  </body>
+
+  </html>

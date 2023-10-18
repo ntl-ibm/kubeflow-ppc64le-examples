@@ -1,7 +1,7 @@
 import ibm_db
 import json
 import os
-from typing import List, Dict, Union, Generator
+from typing import List, Dict, Union, Generator, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ class DB2DataBaseConnection:
 
         return col_names
 
-    def get_number_of_clients(self) -> int:
+    def get_number_of_accounts(self) -> int:
         query = f"SELECT COUNT(*) FROM {self.client_info_table_name}"
         logging.debug(f"preparing statement {query}")
         stmt = ibm_db.prepare(self.conn, query)
@@ -120,18 +120,18 @@ class DB2DataBaseConnection:
         row = ibm_db.fetch_tuple(stmt)
         return row[0]
 
-    def get_clients(
+    def get_accounts(
         self, offset: int = 0, limit: int = 25
-    ) -> Generator[int, None, None]:
-        query = f"SELECT CLIENT_ID FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?"
+    ) -> Generator[Dict[str, Any], None, None]:
+        query = f'SELECT CLIENT_ID, "Risk", "PredictedRisk" FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?'
         logging.debug(f"preparing statement {query}")
         stmt = ibm_db.prepare(self.conn, query)
         ibm_db.execute(stmt, (limit, offset))
 
-        row = ibm_db.fetch_tuple(stmt)
+        row = ibm_db.fetch_assoc(stmt)
         while row:
-            yield row[0]
-            row = ibm_db.fetch_tuple(stmt)
+            yield row
+            row = ibm_db.fetch_assoc(stmt)
 
     def get_account_info(self, client_id: int) -> Dict[str, Union[str, int]]:
         json_obj_kv = lambda col_name: f"'{col_name}' VALUE " + f'"{col_name}"'
