@@ -161,7 +161,7 @@ th {
   display: block;
   width: 120px;
   margin: auto;
-  border: 1px solid #000;
+  border: none;
 }
 
 #previous {
@@ -192,6 +192,7 @@ th {
   align-items: normal;
   font-family: sans-serif;
   border: 1px solid #000;
+  padding: 5px;
 }
 
 #main_nav_bar li {
@@ -212,4 +213,10 @@ th {
 #main_nav_bar a:hover {
   background-color: darkblue;
   color: yellow;
+}
+
+#demo_title {
+  font-family: "Brush Script MT", cursive;
+  font-size: 20px;
+  color: blue;
 }
