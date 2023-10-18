@@ -84,7 +84,7 @@ class DB2DataBaseConnection:
 
         cols = list(changes.keys())
         col_assign = ", ".join([f'"{col}" = ?' for col in cols])
-        iSql = f'UPDATE "{self.table_name}" SET {col_assign} WHERE CLIENT_ID = ?'
+        iSql = f'UPDATE "{self.client_info_table_name}" SET {col_assign} WHERE CLIENT_ID = ?'
 
         logging.debug(f"preparing statement {iSql}")
         stmt = ibm_db.prepare(self.conn, iSql)
