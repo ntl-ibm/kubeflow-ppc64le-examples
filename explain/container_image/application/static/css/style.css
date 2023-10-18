@@ -191,6 +191,7 @@ th {
   justify-content: space-around;
   align-items: normal;
   font-family: sans-serif;
+  border: 1px solid #000;
 }
 
 #main_nav_bar li {
