@@ -184,3 +184,31 @@ th {
   background-color: darkblue;
   color: yellow;
 }
+
+#main_nav_bar {
+  list-style: none;
+  display: flex;
+  justify-content: space-around;
+  align-items: normal;
+  font-family: sans-serif;
+}
+
+#main_nav_bar li {
+  display: block;
+  width: 120px;
+  margin: auto;
+  border: 1px solid #000;
+}
+
+#main_nav_bar a {
+  display: block;
+  padding: 3px;
+  text-decoration: none;
+  background-color: darkblue;
+  color: white;
+}
+
+#main_nav_bar a:hover {
+  background-color: darkblue;
+  color: yellow;
+}

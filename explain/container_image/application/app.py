@@ -1,4 +1,4 @@
-from flask import Flask, Response
+from flask import Flask, Response, render_template
 import re
 import accounts
 import http
@@ -8,8 +8,13 @@ app.register_blueprint(accounts.bp)
 
 
 @app.route("/alive", methods=["GET"])
-def index():
+def alive():
     return Response(status=http.HTTPStatus.OK)
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return render_template("home.jinja")
 
 
 @app.template_global(name="human_readable")
