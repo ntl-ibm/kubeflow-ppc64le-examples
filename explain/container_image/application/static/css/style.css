@@ -124,6 +124,21 @@ label:after {
   background: gold;
 }
 
+#reset {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: min-content;
+  border: 1px solid #999999;
+  background-color: burlywood;
+  color: #666666;
+}
+
+#reset:hover,
+#submit[hover] {
+  background: gold;
+}
+
 table,
 th,
 td {
@@ -228,6 +243,7 @@ footer {
   border: 1px solid #000;
   padding: 5px;
   background-color: lightgrey;
+  margin: 15px;
 }
 
 footer p {
