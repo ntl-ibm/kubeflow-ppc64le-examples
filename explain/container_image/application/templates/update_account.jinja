@@ -53,6 +53,8 @@
         {% endif %}
       </fieldset>
     
+     <button id="edit">Edit Account </button>
+     <button id="submit" class="hide">Edit Account </button>
     </form>
   </body>
 
@@ -64,4 +66,17 @@
       pr.classList.add('norisk')
     }
   </script>
+
+  <script>
+    const editButton = document.getElementById("edit")
+    editButton.addEventListener("click", (event) => {
+      const account_details = document.getElementById("account_details")
+      account_details.disabled = "false"
+      event.target.disabled = true
+      event.target.classList.add("hide")
+      const submitButton = document.getElementById("submit")
+      submitButton.classList.remove("hide")
+    })
+  </script>
+  
 </html>
