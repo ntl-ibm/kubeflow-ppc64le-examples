@@ -76,7 +76,7 @@ class DB2DataBaseConnection:
         if "Risk" in changes and changes["Risk"] == "Unknown":
             changes["Risk"] = None
 
-        current_data = self.get_client_info(client_id)
+        current_data = self.get_account_info(client_id)
 
         changes = {
             col: value
