@@ -54,7 +54,7 @@
       </fieldset>
     
      <button id="edit">Edit Account </button>
-     <button id="submit" class="hide">Edit Account </button>
+     <button id="submit" hidden>Update Account</button>
     </form>
   </body>
 
@@ -71,12 +71,27 @@
     const editButton = document.getElementById("edit")
     editButton.addEventListener("click", (event) => {
       const account_details = document.getElementById("account_details")
-      account_details.disabled = "false"
-      event.target.disabled = true
-      event.target.classList.add("hide")
-      const submitButton = document.getElementById("submit")
-      submitButton.classList.remove("hide")
+      account_details.disabled = false;
+      event.target.disabled = true;
+      event.target.style.visibiliity = 'hidden';
+      const submitButton = document.getElementById("submit");
+      submitButton.style.visibility = 'visible';
     })
   </script>
-  
+
+   <script>
+    const submitButton = document.getElementById("submit")
+    submitButton.addEventListener("click", (event) => {
+      const form = document.getElementById("account_info");
+      const formData = new FormData(form);
+      event.target.disabled = true;
+      document.getElementById('new_account_details').disabled = "disabled"
+      form.classList.toggle('fade-out')
+      pageloader = document.getElementById('pageloader')
+      pageloader.style.display = "block";
+
+      postFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
+    });
+  </script>
+
 </html>
