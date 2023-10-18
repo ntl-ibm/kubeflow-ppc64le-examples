@@ -11,6 +11,7 @@
   </head>
 
   <body>
+    {% include 'nav_bar.jinja' %}
     <form id="account_info" onsubmit="return false;">
       <div id="pageloader">
         <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 

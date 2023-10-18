@@ -13,6 +13,7 @@
   </head>
 
   <body>
+    {% include 'nav_bar.jinja' %}
     <form id="account_info" onsubmit="return false">
       <div id="pageloader">
         <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
@@ -55,12 +56,14 @@
     
      <button id="edit">Edit Account </button>
      <button id="submit">Update Account</button>
+     <input id="reset" type="reset" value="Reset"/>
     </form>
   </body>
 
   <script>
     document.getElementById("edit").style.display = 'block'
     document.getElementById("submit").style.display = 'none'
+    document.getElementById("reset").style.display = 'none'
     const pr = document.getElementById("PredictedRisk")  
     if (pr.value == 'Risk') {
       pr.classList.add('risk')
@@ -80,6 +83,7 @@
       event.target.style.display = 'none';
       const submitButton = document.getElementById("submit");
       submitButton.style.display = 'block';
+       document.getElementById("reset").style.display = 'block'
     })
   </script>
 
