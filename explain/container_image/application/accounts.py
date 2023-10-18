@@ -109,7 +109,11 @@ def list_or_create_accounts():
         num_accounts = db.get_number_of_accounts()
 
     return render_template(
-        "list_accounts.jinja", limit=limit, offset=offset, max_rows=num_accounts
+        "list_accounts.jinja",
+        rows=accounts,
+        limit=limit,
+        offset=offset,
+        max_rows=num_accounts,
     )
 
 
