@@ -193,6 +193,7 @@ th {
   font-family: sans-serif;
   border: 1px solid #000;
   padding: 5px;
+  background-color: lightgrey;
 }
 
 #main_nav_bar li {
@@ -217,6 +218,6 @@ th {
 
 #demo_title {
   font-family: "Brush Script MT", cursive;
-  font-size: 20px;
+  font-size: 40px;
   color: blue;
 }
