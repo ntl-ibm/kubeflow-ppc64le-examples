@@ -32,7 +32,7 @@
                 PREV
                 </A>
             {%- endif -%}
-            {%- if offset + limit <= maxrows -%}
+            {%- if offset + limit <= max_rows -%}
              <A href="{{- url_for('Accounts.list_or_create_accounts', offset=(offset + limit), limit=limit)}}">
                 NEXT
                 </A>
