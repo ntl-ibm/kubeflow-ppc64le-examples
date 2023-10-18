@@ -8,13 +8,14 @@ fieldset {
   grid-gap: 5px;
   margin: auto;
   transition: opacity 0.6s ease-out;
+  margin-bottom: 16px;
 }
 
 fieldset legend {
   background: #1f497d;
   color: #fff;
   padding: 5px 10px;
-  font-size: 16px;
+  font-size: 12px;
   border-radius: 2px;
   box-shadow: 0 0 0 2px #ddd;
   margin-left: 10px;

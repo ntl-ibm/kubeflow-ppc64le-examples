@@ -7,7 +7,7 @@
  * @param {FormData} options.formData - `FormData` instance
  * @return {Object} - Response body from URL that was POSTed to
  */
-async function postFormDataAsJson(url, method, formData) {
+async function sendFormDataAsJson(url, method, formData) {
   const plainFormData = Object.fromEntries(formData.entries());
   const formDataJsonString = JSON.stringify(plainFormData);
 
@@ -32,29 +32,5 @@ async function postFormDataAsJson(url, method, formData) {
     throw new Error(errorMessage);
   } else {
     window.location.replace(response.headers.get("Location"));
-  }
-}
-
-/**
- * Event handler for a form submit event.
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/submit_event
- *
- * @param {SubmitEvent} event
- */
-async function handleFormSubmit(event) {
-  console.log(event);
-  event.preventDefault();
-  event.submitter.disabled = true;
-
-  const form = event.target;
-  const url = form.action;
-
-  try {
-    const formData = new FormData(form);
-    await postFormDataAsJson({ url, formData });
-    return false;
-  } catch (error) {
-    console.log(error);
   }
 }

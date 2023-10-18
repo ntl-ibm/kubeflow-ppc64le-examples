@@ -94,7 +94,7 @@
       pageloader = document.getElementById('pageloader')
       pageloader.style.display = "block";
 
-      postFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
+      sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
     });
   </script>
 

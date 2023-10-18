@@ -66,7 +66,7 @@ class DB2DataBaseConnection:
         logging.debug(f"Created client with ID {client_id}")
         return client_id
 
-    def update_client_from_row_change_dict(
+    def update_account_from_row_change_dict(
         self,
         client_id: int,
         changes: Dict[str, Union[str, int]],

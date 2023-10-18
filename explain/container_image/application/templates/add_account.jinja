@@ -35,7 +35,7 @@
       pageloader = document.getElementById('pageloader')
       pageloader.style.display = "block";
 
-      postFormDataAsJson("{{- create_account_url -}}", "POST", formData);
+      sendFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });
   </script>
 </html>

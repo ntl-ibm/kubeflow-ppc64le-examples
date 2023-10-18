@@ -67,14 +67,14 @@ def create_account_defaults() -> Dict[str, Any]:
 @bp.route("/", methods=["POST"])
 def create_account():
     current_app.logger.setLevel("DEBUG")
-    client_info = request.get_json(force=True)
-    current_app.logger.info(json.dumps(client_info, indent=2))
+    account_info = request.get_json(force=True)
+    current_app.logger.info(json.dumps(account_info, indent=2))
 
-    client_info = inject_ai(client_info)
-    current_app.logger.info(json.dumps(client_info, indent=2))
+    account_info = inject_ai(account_info)
+    current_app.logger.info(json.dumps(account_info, indent=2))
 
     with DB2DataBaseConnection() as db:
-        account_id = db.insert_account_from_row_dict(client_info)
+        account_id = db.insert_account_from_row_dict(account_info)
         current_app.logger.info(f"Account id {account_id} was created")
         return Response(
             status=HTTPStatus.CREATED,
@@ -124,10 +124,13 @@ def retrieve_account_info(account_id):
 
 @bp.route("/<account_id>", methods=["PUT"])
 def update_account_info(account_id):
-    new_client_info = request.get_json(force=True)
+    updated_account_info = request.get_json(force=True)
+
+    updated_account_info = inject_ai(updated_account_info)
+    current_app.logger.info(json.dumps(updated_account_info, indent=2))
 
     with DB2DataBaseConnection() as db:
-        db.update_client_info_from_row_change_dict(int(account_id), new_client_info)
+        db.update_account_from_row_change_dict(int(account_id), updated_account_info)
 
     return redirect(url_for("Accounts.retrieve_account_info", account_id=account_id))
 
