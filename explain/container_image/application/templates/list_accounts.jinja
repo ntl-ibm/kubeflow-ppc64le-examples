@@ -20,9 +20,11 @@
         </thead>
         <tbody>
             {%- for row in rows -%}
-                <tr><A href="{{- url_for('Accounts.retrieve_account_info', account_id=row['CLIENT_ID']) -}}"> {{ row['CLIENT_ID'] }} </A> </tr>
-                <tr> {{ row['PredictedRisk'] }} </tr>
-                <tr> {{ row['Risk'] }} </tr>
+                <tr>
+                    <td><A href="{{- url_for('Accounts.retrieve_account_info', account_id=row['CLIENT_ID']) -}}"> {{ row['CLIENT_ID'] }} </A> </td>
+                    <td> {{ row['PredictedRisk'] }} </td>
+                    <td> {{ row['Risk'] }} </td>
+                </tr>
             {%- endfor -%}
         </tbody>
     </table>
