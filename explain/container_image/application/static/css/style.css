@@ -96,6 +96,11 @@ label:after {
 }
 
 #predicted_risk_assessment label {
+  text-align: right;
+  float: left;
+}
+
+#predicted_risk_assessment label {
   text-align: left;
 }
 
