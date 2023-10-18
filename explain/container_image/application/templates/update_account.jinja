@@ -59,9 +59,9 @@
   <script>
     const pr = document.getElementById("PredictedRisk")  
     if (pr.value == 'Risk') {
-      pr.class = 'norisk'
+      pr.classList.add('risk')
     } else if (pr.value == 'No Risk') {
-      pr.class = 'risk'
+      pr.classList.add('norisk')
     }
   </script>
 </html>
