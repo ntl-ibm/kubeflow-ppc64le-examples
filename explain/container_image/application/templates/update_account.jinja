@@ -29,11 +29,11 @@
        
           {{ build_form_inputs(schema, client_info_values) }}
       
-          {% set risk_levels = schema.label_columns['Risk'] + ["Not Verified"] %}
-          {{ render_cat_feature('VerifiedRisk', 
+          {% set risk_levels = schema.label_columns['Risk'] + ["Unknown"] %}
+          {{ render_cat_feature('Risk', 
                                 risk_levels, 
                                 client_info_values['Risk'] if client_info_values['Risk'] 
-                                                           else "Not Verified") 
+                                                           else "Unknown") 
           }}
 
       </fieldset>

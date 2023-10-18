@@ -112,7 +112,7 @@ def retrieve_account_info(account_id):
     for_edit = bool(request.args.get("for_edit", False))
 
     with DB2DataBaseConnection() as db:
-        client_info = db.get_client_info(int(account_id))
+        client_info = db.get_account_info(int(account_id))
 
     return render_template(
         "update_account.jinja",
@@ -132,7 +132,15 @@ def update_account_info(account_id):
     with DB2DataBaseConnection() as db:
         db.update_account_from_row_change_dict(int(account_id), updated_account_info)
 
-    return redirect(url_for("Accounts.retrieve_account_info", account_id=account_id))
+    return Response(
+        status=HTTPStatus.NO_CONTENT,
+        headers=[
+            (
+                "Location",
+                url_for("Accounts.retrieve_account_info", account_id=account_id),
+            )
+        ],
+    )
 
 
 @bp.route("/<account_id>", methods=["DELETE"])

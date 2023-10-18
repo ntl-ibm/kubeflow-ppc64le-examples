@@ -73,7 +73,11 @@ class DB2DataBaseConnection:
     ):
         stmt = None
 
+        if "Risk" in changes and changes["Risk"] == "Unknown":
+            changes["Risk"] = None
+
         current_data = self.get_client_info(client_id)
+
         changes = {
             col: value
             for col, value in changes.items()
@@ -129,7 +133,7 @@ class DB2DataBaseConnection:
             yield row[0]
             row = ibm_db.fetch_tuple(stmt)
 
-    def get_client_info(self, client_id: int) -> Dict[str, Union[str, int]]:
+    def get_account_info(self, client_id: int) -> Dict[str, Union[str, int]]:
         json_obj_kv = lambda col_name: f"'{col_name}' VALUE " + f'"{col_name}"'
         key_values = ",".join([json_obj_kv(col_name) for col_name in self.column_names])
         sql_stmt_txt = f'SELECT JSON_OBJECT({key_values}) FROM "{self.sql_safe_clint_info_table_name}" WHERE CLIENT_ID = ?'
