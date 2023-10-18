@@ -5,63 +5,63 @@
 <html lang="en">
 
   <head>
-    <meta charset="utf-8" />
-    <title>View/Edit client account {{ client_id }} </title>
+  <meta charset="utf-8" />
+    <title>View/Edit account {{ client_info_values['CLIENT_ID'] }} </title>
+    <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
     <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
+    <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   </head>
 
   <body>
-    <form id="account_info">
-      <div>
-      <fieldset>
+    <form id="account_info" onsubmit="return false">
+      <div id="pageloader">
+        <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
+      </div>
+
+      <fieldset id="account_header"">
         <legend>Account Info</legend>
-        <label for="client-id"> Member Id</label>
-        <input id="client-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
+        <label for="account-id"> Account Id</label>
+        <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
       </fieldset>
 
-      <fieldset form="client_info" name="Client Data" {% if view_only_mode %} disabled="disabled" {% endif %}>
-        <legend>Client Details</legend>
+      <fieldset id="account_details" disabled="disabled">
+        <legend>Account Info</legend>
        
           {{ build_form_inputs(schema, client_info_values) }}
       
           {% set risk_levels = schema.label_columns['Risk'] + ["Not Verified"] %}
           {{ render_cat_feature('VerifiedRisk', 
                                 risk_levels, 
-                                client_info_values['Risk'] if client_info_values['Risk'] else "Not Verified") 
+                                client_info_values['Risk'] if client_info_values['Risk'] 
+                                                           else "Not Verified") 
           }}
-  
-        </fieldset>
 
-      {% if view_only_mode %}
-        <fieldset >
-          <legend>Predicted Risk Assessment</legend>
+      </fieldset>
+
+      <fieldset id="predicted_risk_assessment">
+        <legend>Predicted Risk Assessment</legend>
         
-          <label for="PredictedRisk">Assessment</label>
-          <input id="PredictedRisk" value="{{client_info_values['PredictedRisk']}}" readonly />
+        <label for="PredictedRisk">Assessment</label>
+        <input id="PredictedRisk" value="{{client_info_values['PredictedRisk']}}" readonly />
 
-            {% if client_info_values['ExplainRisk'] %}
-              <label for="ExplainRisk">Explaination</label>
+        {% if client_info_values['ExplainRisk'] %}
+           <label for="ExplainRisk">Explaination</label>
               {%set explaination = render_explain_anchors(client_info_values['ExplainRisk'])%}
-              <textarea id="ExplainRisk" rows="5" cols="50" readonly>
-                {{- explaination -}}
-              </textarea>
-            {% endif %}
-        </fieldset>
-      {% else %}
-         <input  id="update-account" value="Submit Changes" type="submit">
-      {%endif%}
-      </div>
-        
+                <textarea id="ExplainRisk" rows="5" cols="50" readonly>
+                  {{- explaination -}}
+                </textarea>
+        {% endif %}
+      </fieldset>
+    
     </form>
   </body>
 
-  {% if not view_only_mode %}
-   <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
   <script>
-    const exampleForm = document.getElementById("client_info");
-    exampleForm.addEventListener("submit", handleFormSubmit);
+    const pr = document.getElementById("PredictedRisk")  
+    if (pr.value == 'Risk') {
+      pr.class = 'norisk'
+    } else if (pr.value == 'No Risk') {
+      pr.class = 'risk'
+    }
   </script>
-  {% else %}
-    <A HREF="{{-url_for('Accounts.retrieve_account_info', account_id=client_info_values['CLIENT_ID']) -}}?for_edit=True"> Edit Client information </A>
-  {% endif %}
 </html>

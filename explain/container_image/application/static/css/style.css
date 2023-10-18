@@ -77,25 +77,23 @@ label:after {
   }
 }
 
-div.twocol {
+#predicted_risk_assessment {
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: auto auto;
   grid-gap: 5px;
   margin: auto;
 }
 
-div.twocol label {
+#predicted_risk_assessment label {
   text-align: left;
 }
 
-div.risk label {
-  text-align: left;
-}
-div.risk label:after {
-  content: ":";
+.norisk {
+  color: green;
+  font-weight: normal;
 }
 
-div.risk input {
+.risk {
   color: red;
   font-weight: bold;
 }
