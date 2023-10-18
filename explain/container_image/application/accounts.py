@@ -35,6 +35,8 @@ def inject_ai(db_row: Dict[str, Any]) -> Dict[str, Any]:
 
             anchors = explain["explanations"][0]["anchor"]
             db_row["ExplainRisk"] = ",".join(anchors)
+        else:
+            db_row["ExplainRisk"] = None
 
     return db_row
 
