@@ -114,33 +114,19 @@ label:after {
   font-weight: bold;
 }
 
-#edit {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-  width: min-content;
+#update_buttons {
+  margin: auto;
+  text-align: center;
+}
+
+#update_buttons button {
   border: 1px solid #999999;
   background-color: burlywood;
   color: #666666;
 }
 
-#edit:hover,
-#edit[hover] {
-  background: gold;
-}
-
-#reset {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-  width: min-content;
-  border: 1px solid #999999;
-  background-color: burlywood;
-  color: #666666;
-}
-
-#reset:hover,
-#submit[hover] {
+#update_buttons button:hover,
+#update_buttons button[hover] {
   background: gold;
 }
 

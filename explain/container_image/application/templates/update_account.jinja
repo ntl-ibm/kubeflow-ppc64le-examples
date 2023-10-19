@@ -55,8 +55,10 @@
       </fieldset>
     
      <button id="edit">Edit Account </button>
-     <button id="submit">Update Account</button>
-     <input id="reset" type="reset" value="Reset"/>
+     <div id="update_buttons">
+        <button id="submit">Update Account</button>
+        <input id="reset" type="reset" value="Reset"/>
+     </div>
     </form>
 
     {% include 'footer.jinja' %}
@@ -64,8 +66,7 @@
 
   <script>
     document.getElementById("edit").style.display = 'block'
-    document.getElementById("submit").style.display = 'none'
-    document.getElementById("reset").style.display = 'none'
+    document.getElementById("update_buttons").style.display = 'none'
     const pr = document.getElementById("PredictedRisk")  
     if (pr.value == 'Risk') {
       pr.classList.add('risk')
@@ -83,9 +84,7 @@
       predicted_risk_assessment.style.display = "none"
       event.target.disabled = true;
       event.target.style.display = 'none';
-      const submitButton = document.getElementById("submit");
-      submitButton.style.display = 'inline-block';
-       document.getElementById("reset").style.display = 'inline-block'
+      document.getElementById("update_buttons").style.display = 'block'
     })
   </script>
 
