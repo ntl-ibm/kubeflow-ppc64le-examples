@@ -249,8 +249,10 @@ footer p {
 
 .slideshow-container img {
   vertical-align: middle;
-  width: 75%;
-  height: max-content;
+  max-width:230px;
+  max-height:95px;
+  width: auto;
+  height: auto;
 }
 
 /* The dots/bullets/indicators */
