@@ -90,7 +90,7 @@ label:after {
 
 #predicted_risk_assessment {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
@@ -125,6 +125,8 @@ label:after {
   border: 1px solid #999999;
   background-color: burlywood;
   color: #666666;
+  margin-right: 50px;
+  padding: 5px;
 }
 
 .centered_button button:hover,
