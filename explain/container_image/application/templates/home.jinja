@@ -77,13 +77,8 @@
 
     function showSlides() {
       
-      var slides = document.getElementsByClassName("mySlides");
-      var dots = document.getElementsByClassName("slideshow-dot");
-      
       ssinterval = setInterval(function() {
-                                    curSlide = (curSlide + 1) % slides.length
-                                    showSlide(curSlide, slides, dots);
-                                    ;
+                                    showSlide((curSlide + 1) % slides.length);
                                  },
                                  5000
                                  );
