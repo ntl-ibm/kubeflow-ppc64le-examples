@@ -53,7 +53,7 @@
                 </textarea>
         {% endif %}
       </fieldset>
-     <div id="edit_button" class="centered_button"><
+     <div id="edit_buttons" class="centered_button"><
       <button id="edit">Edit</button>
      </div>
      <div id="update_buttons" class="centered_button">
@@ -84,7 +84,7 @@
       const predicted_risk_assessment = document.getElementById("predicted_risk_assessment")
       predicted_risk_assessment.style.display = "none"
       event.target.disabled = true;
-      document.getElementById("account_details").style.display = "none";
+      document.getElementById("edit_buttons").style.display = "none";
       document.getElementById("update_buttons").style.display = 'block';
     })
   </script>
