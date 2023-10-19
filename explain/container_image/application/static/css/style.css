@@ -120,6 +120,7 @@ label:after {
 }
 
 #update_buttons button {
+  display: inline-block;
   border: 1px solid #999999;
   background-color: burlywood;
   color: #666666;
