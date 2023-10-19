@@ -65,18 +65,21 @@
 
     function showSlide(slide_num, slides, dots) {
       let i
+      console.log("deactivating slides")
       for (i = 0; i < slides.length; i++)  {
         if (slides[i].classList.includes('mySlides-active')) {
           slides[i].classList.remove('mySlides-active')
         }
       }
 
+       console.log("deactivating dots")
       for (i = 0; i < dots.length; i++) {
         if (dots[i].classList.includes('slideshow-dot-active')) {
           dots[i].classList.remove('slideshow-dot-active')
         }
       }
 
+       console.log("activate slide " + slide_num)
       slides[slide_num].classList.add('mySlides-active')
       if (side_num < dots.length) {
         dots[slide_num].classList.add('mySlides-active')
@@ -85,16 +88,15 @@
     }
 
     function showSlides() {
-      let i = 0;
-      let slides = document.getElementsByClassName("mySlides");
-      let dots = document.getElementsByClassName("slideshow-dot");
+      var i = 0;
+      var slides = document.getElementsByClassName("mySlides");
+      var dots = document.getElementsByClassName("slideshow-dot");
       
-      while (true) {
-        if (i >= slides.length) {
-          i = 0
-        }
-        setTimeout(showSlide, 2000, i, slides, dots)
-      }
+      setInterval(function() {
+        showSlide(i, slides, dots);
+        i = (i + 1) % slides.length;
+        },
+        5000);
     }
   </script>
  {% include 'footer.jinja' %}
