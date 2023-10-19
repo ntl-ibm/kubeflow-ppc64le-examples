@@ -248,7 +248,8 @@ footer p {
 
 .slideshow-container img {
   vertical-align: middle;
-  width: 100%;
+  width: 75%;
+  height: max-content;
 }
 
 /* The dots/bullets/indicators */
@@ -282,12 +283,11 @@ footer p {
 }
 
 .center-heading {
-  font-family: "Brush Script MT", cursive;
+  font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
   font-size: 40px;
   color: blue;
   text-align: center;
-  width: 100%;
-  font-style: italic;
+  width: 75%;
 }
 
 .hidden {

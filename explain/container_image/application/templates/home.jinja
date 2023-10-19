@@ -35,19 +35,24 @@
   <br>
 
   <div style="text-align:center">
-    <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span>
-    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot" onclick="click_dot(0)"></span> 
+    <span class="slideshow-dot" onclick="click_dot(1)"></span> 
+    <span class="slideshow-dot" onclick="click_dot(2)"></span>
+    <span class="slideshow-dot" onclick="click_dot(3)"></span> 
   </div>
 
   <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
   <script>
-    let slideIndex = 0;
+    var curSlide = 0;
+    var SlideShowInterval = null;
+
     showSlides();
 
-    function showSlide(slide_num, slides, dots) {
+    function showSlide(slide_num) {
       let i
+
+      var slides = document.getElementsByClassName("mySlides");
+      var dots = document.getElementsByClassName("slideshow-dot");
   
       for (i = 0; i < slides.length; i++)  {
         if (slides[i].classList.contains('mySlides-active')) {
@@ -63,22 +68,40 @@
       }
 
       slides[slide_num].classList.add('mySlides-active')
-      if (slide_num < dots.length) {
-        dots[slide_num].classList.add('mySlides-active')
-      }
+      dots[slide_num].classList.add('slideshow-dot-active')
+      curSlide = slide_num
+      
 
     }
 
+
     function showSlides() {
-      var i = 0;
+      
       var slides = document.getElementsByClassName("mySlides");
       var dots = document.getElementsByClassName("slideshow-dot");
       
-      setInterval(function() {
-        showSlide(i, slides, dots);
-        i = (i + 1) % slides.length;
-        },
-        5000);
+      ssinterval = setInterval(function() {
+                                    curSlide = (curSlide + 1) % slides.length
+                                    showSlide(curSlide, slides, dots);
+                                    ;
+                                 },
+                                 5000
+                                 );
+    }
+
+    function click_dot(dot_num) {
+      if (interval) {
+        clearInterval(SlideShowInterval)
+        showSlide(dot_num)
+        return
+      }
+
+      if (cur_slide == dot_num) {
+        showSlides()
+        return
+      } else {
+        showSlide(dot_num)
+      }
     }
   </script>
  {% include 'footer.jinja' %}

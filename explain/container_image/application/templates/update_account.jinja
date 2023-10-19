@@ -58,7 +58,7 @@
      </div>
      <div id="update_buttons" class="centered_button">
         <button id="submit">Update</button>
-        <button id="reset" onclick="resetForm()">Reset</button>
+        <button id="restoreValues" onclick="resetForm()">Reset</button>
      </div>
     </form>
 
@@ -67,7 +67,8 @@
 
   <script>
     function resetForm() {
-      document.getElementById("account_info").reset();
+      from = document.getElementById("account_info")
+      form.reset();
     }
   </script>
 
