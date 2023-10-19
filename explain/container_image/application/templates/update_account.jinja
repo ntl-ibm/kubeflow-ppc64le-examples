@@ -19,7 +19,7 @@
         <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
       </div>
 
-      <fieldset id="account_header"">
+      <fieldset id="account_header"" class="fieldset_two_col">
         <legend>Account</legend>
         <label for="account-id"> Account Id</label>
         <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
@@ -39,7 +39,7 @@
 
       </fieldset>
 
-      <fieldset id="predicted_risk_assessment">
+      <fieldset id="predicted_risk_assessment" class="fieldset_two_col">
         <legend>Predicted Risk Assessment</legend>
         
         <label for="PredictedRisk">Assessment</label>

@@ -65,19 +65,19 @@ label:after {
   }
 }
 
-#predicted_risk_assessment {
+.fieldset_two_col {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-gap: 5px;
   margin: auto;
 }
 
-#predicted_risk_assessment label {
+.fieldset_two_col label {
   text-align: right;
   float: left;
 }
 
-#predicted_risk_assessment input {
+.fieldset_two_col input {
   text-align: left;
   float: left;
 }
@@ -207,6 +207,7 @@ th {
 #main_nav_bar a:hover {
   background-color: darkblue;
   color: yellow;
+  border: 2px solid gold;
 }
 
 #demo_title {
