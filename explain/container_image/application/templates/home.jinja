@@ -10,7 +10,8 @@
  {% include 'nav_bar.jinja' %}
 
   <div class="center-heading"> 
-    Enterprise AI using Open Source on IBM Power Systems
+    <p> Demo: Enterprise AI on IBM Power Systems </p>
+    <p> (Open Source, OpenShift, and DB2)</p>
   </div>
   <div class="slideshow-container">
 
@@ -44,6 +45,7 @@
   <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
   <script>
     var curSlide = 0;
+    var numSlides = document.getElementsByClassName("mySlides").length
     var SlideShowInterval = null;
 
     showSlides();
@@ -78,7 +80,7 @@
     function showSlides() {
       
       SlideShowInterval = setInterval(function() {
-                                    showSlide((curSlide + 1) % slides.length);
+                                    showSlide((curSlide + 1) % numSlides);
                                  },
                                  5000
                                  );
@@ -92,7 +94,7 @@
         return
       }
 
-      if (cur_slide == dot_num) {
+      if (curSlide == dot_num) {
         showSlides()
         return
       } else {

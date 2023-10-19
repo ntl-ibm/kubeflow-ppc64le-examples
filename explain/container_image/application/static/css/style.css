@@ -248,7 +248,7 @@ footer p {
 
 .slideshow-container img {
   vertical-align: middle;
-  width: 75%;
+  width: 100%;
   height: max-content;
 }
 
@@ -285,9 +285,9 @@ footer p {
 .center-heading {
   font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
   font-size: 40px;
-  color: blue;
+  color: steelblue;
   text-align: center;
-  width: 75%;
+  width: 100%;
 }
 
 .hidden {
