@@ -246,13 +246,14 @@ footer p {
   height: 60vh;
   position: relative;
   margin: auto;
-  align-items: center;
   text-align: center;
 }
 
 .slideshow-container img {
+  width: auto;
+  height: 60vh;
   vertical-align: middle;
-  object-fit: cover;
+  object-fit: scale-down;
 }
 
 /* The dots/bullets/indicators */
