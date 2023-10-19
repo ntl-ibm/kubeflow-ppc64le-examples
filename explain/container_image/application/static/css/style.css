@@ -153,7 +153,7 @@ th {
   display: block;
   width: 120px;
   margin: auto;
-  border: none;
+  border: 1px solid #999999;
 }
 
 #previous {
