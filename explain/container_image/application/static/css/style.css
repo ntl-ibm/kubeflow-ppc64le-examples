@@ -244,11 +244,12 @@ footer p {
   max-width: 1000px;
   position: relative;
   margin: auto;
+  align-items: center;
 }
 
 .slideshow-container img {
   vertical-align: middle;
-  width: 100%;
+  width: 75%;
   height: max-content;
 }
 
@@ -261,6 +262,10 @@ footer p {
   border-radius: 50%;
   display: inline-block;
   transition: background-color 0.6s ease;
+}
+
+.slideshow-dot:hover {
+  border-color: orangered;
 }
 
 .slideshow-dot-active {
@@ -284,7 +289,7 @@ footer p {
 
 .center-heading {
   font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
-  font-size: 40px;
+  font-size: 25px;
   color: steelblue;
   text-align: center;
   width: 100%;
