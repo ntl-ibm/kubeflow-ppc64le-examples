@@ -9,9 +9,12 @@
 <BODY>
  {% include 'nav_bar.jinja' %}
 
+  <div class="center-heading"> 
+    Enterprise AI using Open Source on IBM Power Systems
+  </div>
   <div class="slideshow-container">
 
-    <div class="mySlides slideshow-fade">
+    <div class="mySlides slideshow-fade mySlides-active">
       <img src="{{- url_for('static', filename='/slideshow/1.jpg') -}}"/>
     </div>
 
@@ -60,7 +63,7 @@
       }
 
       slides[slide_num].classList.add('mySlides-active')
-      if (side_num < dots.length) {
+      if (slide_num < dots.length) {
         dots[slide_num].classList.add('mySlides-active')
       }
 

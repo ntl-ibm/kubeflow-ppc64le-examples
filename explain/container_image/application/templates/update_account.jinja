@@ -58,12 +58,18 @@
      </div>
      <div id="update_buttons" class="centered_button">
         <button id="submit">Update</button>
-        <button id="reset" onclick="document.getElementById('account_info').reset();">Reset</button>
+        <button id="reset" onclick="resetForm()">Reset</button>
      </div>
     </form>
 
     {% include 'footer.jinja' %}
   </body>
+
+  <script>
+    function resetForm() {
+      document.getElementById("account_info").reset();
+    }
+  </script>
 
   <script>
     document.getElementById("update_buttons").classList.add('hidden')
