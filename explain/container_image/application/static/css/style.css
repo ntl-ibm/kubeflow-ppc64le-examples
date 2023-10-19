@@ -256,6 +256,7 @@ footer p {
   vertical-align: middle;
   width: auto;
   height: auto;
+  object-fit: cover;
 }
 
 /* The dots/bullets/indicators */
@@ -280,7 +281,7 @@ footer p {
 /* Fading animation */
 .slideshow-fade {
   animation-name: slideshow-fade;
-  animation-duration: 2s;
+  animation-duration: 1s;
 }
 
 @keyframes slideshow-fade {

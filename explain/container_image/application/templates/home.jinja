@@ -55,23 +55,23 @@
 
       var slides = document.getElementsByClassName("mySlides");
       var dots = document.getElementsByClassName("slideshow-dot");
-  
+
+      slides[slide_num].classList.add('mySlides-active')
+      dots[slide_num].classList.add('slideshow-dot-active')
+      curSlide = slide_num
+
       for (i = 0; i < slides.length; i++)  {
-        if (slides[i].classList.contains('mySlides-active')) {
+        if ((i != curSlide) && slides[i].classList.contains('mySlides-active')) {
           slides[i].classList.remove('mySlides-active')
         }
       }
 
 
       for (i = 0; i < dots.length; i++) {
-        if (dots[i].classList.contains('slideshow-dot-active')) {
+        if ((i != curSlide) && dots[i].classList.contains('slideshow-dot-active')) {
           dots[i].classList.remove('slideshow-dot-active')
         }
       }
-
-      slides[slide_num].classList.add('mySlides-active')
-      dots[slide_num].classList.add('slideshow-dot-active')
-      curSlide = slide_num
       
 
     }
