@@ -9,28 +9,94 @@
 <BODY>
  {% include 'nav_bar.jinja' %}
 
-<H1> Demo Objectives </H1>
-This demo implements a simple application to create new accounts for credit applications. The application intergrates an AI model to predict whether new accounts are a risk.
+  <div class="slideshow-container">
 
-The demo show-cases:
-<UL>
-<LI> Integrated AI model for predictions </LI>
-<LI> Model explainability </LI>
-<LI> Model training, deployment, and Monitoring on IBM Power systems using Kubeflow </LI>
-</UL>
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/1.jpg') -}}"/>
+    </div>
 
-<H2> Data and Features </H2>
-The same data and features are taken from the IBM Watsonx German Credit Risk sample dataset. The dataset is available under the MIT license <a href="https://dataplatform.cloud.ibm.com">here.</a>
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/2.jpg') -}}"/>
+    </div>
 
-<H2> Technologies </H2>
-<UL>
-<LI> Red Hat OpenShift </LI>
-<LI> Kubeflow </LI>
-<LI> KServe </LI>
-<LI> KNative </LI>
-<LI> Alibi Explainers </LI>
-</UL>
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/3.jpg') -}}"/>
+    </div>
 
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/4.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/5.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides sllideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/6.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/7.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/8.jpg') -}}"/>
+    </div>
+
+  </div>
+
+  <br>
+
+  <div style="text-align:center">
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span>
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span> 
+    <span class="slideshow-dot"></span>  
+  </div>
+
+  <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
+  <script>
+    let slideIndex = 0;
+    showSlides();
+
+    function showSlide(slide_num, slides, dots) {
+      let i
+      for (i = 0; i < slides.length; i++)  {
+        if (slides[i].classList.includes('mySlides-active')) {
+          slides[i].classList.remove('mySlides-active')
+        }
+      }
+
+      for (i = 0; i < dots.length; i++) {
+        if (dots[i].classList.includes('slideshow-dot-active')) {
+          dots[i].classList.remove('slideshow-dot-active')
+        }
+      }
+
+      slides[slide_num].classList.add('mySlides-active')
+      if (side_num < dots.length) {
+        dots[slide_num].classList.add('mySlides-active')
+      }
+
+    }
+
+    function showSlides() {
+      let i = 0;
+      let slides = document.getElementsByClassName("mySlides");
+      let dots = document.getElementsByClassName("slideshow-dot");
+      
+      while (true) {
+        if (i >= slides.length) {
+          i = 0
+        }
+        setTimeout(showSlide, 2000, i, slides, dots)
+      }
+    }
+  </script>
  {% include 'footer.jinja' %}
 </BODY>
 </HTML>
