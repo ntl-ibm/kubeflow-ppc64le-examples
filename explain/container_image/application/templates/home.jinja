@@ -77,7 +77,7 @@
 
     function showSlides() {
       
-      ssinterval = setInterval(function() {
+      SlideShowInterval = setInterval(function() {
                                     showSlide((curSlide + 1) % slides.length);
                                  },
                                  5000
@@ -85,8 +85,9 @@
     }
 
     function click_dot(dot_num) {
-      if (interval) {
+      if (SlideShowInterval) {
         clearInterval(SlideShowInterval)
+        SlideShowInterval = null
         showSlide(dot_num)
         return
       }
