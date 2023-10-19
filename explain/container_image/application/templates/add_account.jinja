@@ -13,7 +13,7 @@
   <body>
     {% include 'nav_bar.jinja' %}
     <form id="account_info" onsubmit="return false;">
-      <div id="pageloader">
+      <div id="pageloader" class="pageloader hidden">
         <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
       </div>
       <fieldset id="new_account_details">
@@ -21,7 +21,9 @@
           {{ build_form_inputs(schema, form_defaults) }}
       </fieldset>
     </form>
-    <button id="submit">Create Account </button>
+    <div class="centered_button">
+      <button id="submit">Create Account </button>
+    </div>
    
    {% include 'footer.jinja' %}
   </body>
@@ -34,8 +36,7 @@
       event.target.disabled = true;
       document.getElementById('new_account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
-      pageloader = document.getElementById('pageloader')
-      pageloader.style.display = "block";
+      document.getElementById('pageloader').classList.remove("hidden")
 
       sendFormDataAsJson("{{- create_account_url -}}", "POST", formData);
     });

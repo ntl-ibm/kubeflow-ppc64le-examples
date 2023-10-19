@@ -15,7 +15,7 @@
   <body>
     {% include 'nav_bar.jinja' %}
     <form id="account_info" onsubmit="return false">
-      <div id="pageloader">
+      <div id="pageloader" class="pageloader hidden">
         <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
       </div>
 
@@ -66,8 +66,7 @@
   </body>
 
   <script>
-    document.getElementById("edit_buttons").style.display = 'block'
-    document.getElementById("update_buttons").style.display = 'none'
+    document.getElementById("update_buttons").classList.add('hidden')
     const pr = document.getElementById("PredictedRisk")  
     if (pr.value == 'Risk') {
       pr.classList.add('risk')
@@ -80,12 +79,12 @@
     const editButton = document.getElementById("edit")
     editButton.addEventListener("click", (event) => {
       const account_details = document.getElementById("account_details")
-      account_details.disabled = false;
+      account_details.disabled = false
       const predicted_risk_assessment = document.getElementById("predicted_risk_assessment")
       predicted_risk_assessment.style.display = "none"
-      event.target.disabled = true;
-      document.getElementById("edit_buttons").style.display = "none";
-      document.getElementById("update_buttons").style.display = 'block';
+      event.target.disabled = true
+      document.getElementById("edit_buttons").classList.add('hidden')
+      document.getElementById("update_buttons").classList.remove('hidden')
     })
   </script>
 
@@ -97,8 +96,7 @@
       event.target.disabled = true;
       document.getElementById('account_details').disabled = "disabled"
       form.classList.toggle('fade-out')
-      pageloader = document.getElementById('pageloader')
-      pageloader.style.display = "block";
+      document.getElementById('pageloader').classList.remove("hidden")
 
       sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
     });
