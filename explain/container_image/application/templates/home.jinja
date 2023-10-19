@@ -27,22 +27,6 @@
       <img src="{{- url_for('static', filename='/slideshow/4.jpg') -}}"/>
     </div>
 
-    <div class="mySlides slideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/5.jpg') -}}"/>
-    </div>
-
-    <div class="mySlides sllideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/6.jpg') -}}"/>
-    </div>
-
-    <div class="mySlides slideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/7.jpg') -}}"/>
-    </div>
-
-    <div class="mySlides slideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/8.jpg') -}}"/>
-    </div>
-
   </div>
 
   <br>
@@ -52,10 +36,6 @@
     <span class="slideshow-dot"></span> 
     <span class="slideshow-dot"></span>
     <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span> 
-    <span class="slideshow-dot"></span>  
   </div>
 
   <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
@@ -65,21 +45,20 @@
 
     function showSlide(slide_num, slides, dots) {
       let i
-      console.log("deactivating slides")
+  
       for (i = 0; i < slides.length; i++)  {
-        if (slides[i].classList.includes('mySlides-active')) {
+        if (slides[i].classList.contains('mySlides-active')) {
           slides[i].classList.remove('mySlides-active')
         }
       }
 
-       console.log("deactivating dots")
+
       for (i = 0; i < dots.length; i++) {
-        if (dots[i].classList.includes('slideshow-dot-active')) {
+        if (dots[i].classList.contains('slideshow-dot-active')) {
           dots[i].classList.remove('slideshow-dot-active')
         }
       }
 
-       console.log("activate slide " + slide_num)
       slides[slide_num].classList.add('mySlides-active')
       if (side_num < dots.length) {
         dots[slide_num].classList.add('mySlides-active')
