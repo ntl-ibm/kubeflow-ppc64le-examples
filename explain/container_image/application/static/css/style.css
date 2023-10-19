@@ -100,8 +100,9 @@ label:after {
   float: left;
 }
 
-#predicted_risk_assessment label {
+#predicted_risk_assessment input {
   text-align: left;
+  float: left;
 }
 
 .norisk {
@@ -114,20 +115,20 @@ label:after {
   font-weight: bold;
 }
 
-#update_buttons {
+.centered_button {
   margin: auto;
   text-align: center;
 }
 
-#update_buttons button {
+.centered_button button {
   display: inline-block;
   border: 1px solid #999999;
   background-color: burlywood;
   color: #666666;
 }
 
-#update_buttons button:hover,
-#update_buttons button[hover] {
+.centered_button button:hover,
+.centered_button button[hover] {
   background: gold;
 }
 
