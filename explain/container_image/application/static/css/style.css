@@ -103,6 +103,7 @@ label:after {
   background-color: darkblue;
   color: white;
   padding: 5px;
+  margin: 15px;
 }
 
 .centered_button button:hover,
@@ -224,7 +225,7 @@ footer {
   border: 1px solid #000;
   padding: 5px;
   background-color: lightgrey;
-  margin: 0;
+  margin: 15;
 }
 
 footer p {
@@ -245,12 +246,13 @@ footer p {
   position: relative;
   margin: auto;
   align-items: center;
+  text-align: center;
 }
 
 .slideshow-container img {
   vertical-align: middle;
-  max-width: 562px;
-  max-height: 281px;
+  max-width: 672px;
+  max-height: 400px;
   width: auto;
   height: auto;
 }
