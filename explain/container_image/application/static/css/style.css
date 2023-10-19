@@ -107,7 +107,7 @@ label:after {
 
 .centered_button button:hover,
 .centered_button button[hover] {
-  border: 2px solid gold;
+  border: 1px solid gold;
   color: yellow;
 }
 
@@ -175,7 +175,7 @@ th {
 #prevoius_next_page_menu a:hover {
   background-color: darkblue;
   color: yellow;
-  border: 2px solid gold;
+  border: 1px solid gold;
 }
 
 #main_nav_bar {
@@ -207,7 +207,7 @@ th {
 #main_nav_bar a:hover {
   background-color: darkblue;
   color: yellow;
-  border: 2px solid gold;
+  border: 1px solid gold;
 }
 
 #demo_title {
