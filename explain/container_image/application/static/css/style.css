@@ -116,7 +116,6 @@ label:after {
 }
 
 .centered_button {
-  margin: auto;
   text-align: center;
 }
 
@@ -125,7 +124,6 @@ label:after {
   border: 1px solid #999999;
   background-color: burlywood;
   color: #666666;
-  margin-right: 50px;
   padding: 5px;
 }
 
