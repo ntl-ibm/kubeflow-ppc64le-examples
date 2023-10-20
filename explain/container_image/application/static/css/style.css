@@ -9,6 +9,7 @@ fieldset {
   margin: auto;
   transition: opacity 0.6s ease-out;
   margin-bottom: 16px;
+  margin-top: 16px;
 }
 
 fieldset legend {
