@@ -24,8 +24,7 @@
         <label for="account-id"> Account Id</label>
         <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
         <label for="last-change">Last Changed</label>
-        <!-- Server sends timestamps in UTC as local time -->
-        <input id="last-change" value="{{- client_info_values['LastChangeTimestamp'] -}}Z" type="datetime-local" readonly/>
+        <input id="last-change" value="{{- client_info_values['LastChangeTimestamp'] -}}" type="text" readonly/>
       </fieldset>
 
       <fieldset id="account_details" disabled="disabled">
@@ -110,6 +109,22 @@
 
       sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
     });
+  </script>
+
+  <!-- format the last change date, assumes that the server sends the date in UTC timezone, db2 format -->
+  <!-- javascript doesn't understand nanoseconds, so set that to 0 -->
+  <script>
+    function parseISOString(s) {
+      var b = s.split(/\D+/);
+      return new Date(Date.UTC(b[0], --b[1], b[2], b[3], b[4], b[5], 0));
+    }
+
+    window.addEventListener("load", function() {
+      let lch=document.getElementById("last-change")
+      let parsed_date=parseISOString(lch.value)
+      let formatted_date = parsed_date.toLocaleString()
+      lch.value=formatted_date
+    })
   </script>
 
 </html>
