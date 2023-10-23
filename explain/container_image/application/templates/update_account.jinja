@@ -24,7 +24,8 @@
         <label for="account-id"> Account Id</label>
         <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
         <label for="last-change">Last Changed</label>
-        <input id="last-change" value="{{ client_info_values['LastChangeTimestamp']}} type="string" readonly/>
+        <!-- Server sends timestamps in UTC as local time -->
+        <input id="last-change" value="{{- client_info_values['LastChangeTimestamp'] -}}Z" type="datetime-local" readonly/>
       </fieldset>
 
       <fieldset id="account_details" disabled="disabled">
