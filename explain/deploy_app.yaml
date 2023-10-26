@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-application-sa
+
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: demo-application
+  annotations:
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+        autoscaling.knative.dev/max-scale: "4"
+        autoscaling.knative.dev/metric: concurrency
+        autoscaling.knative.dev/min-scale: "4"
+        autoscaling.knative.dev/target: "1"
+    spec:
+      serviceAccountName: demo-application-sa
+      containers:
+        - name: flask
+          image: quay.io/ntlawrence/demo-application@sha256:4ee217ed049e658a23a96fc1ed5df78452a8dd1866f01899d65512da32c4de74
+          imagePullPolicy: IfNotPresent
+          securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+          resources:
+              limits:
+                cpu: "1"
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 100Mi
+          ports:
+            - containerPort: 5000
+              name: http1
+              protocol: TCP
+          readinessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /alive
+                port: 5000
+                scheme: HTTP
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 1
+          env: 
+          - name: db2_host
+            valueFrom:
+              secretKeyRef:
+                key: host
+                name: db2-credentials
+          - name: db2_user
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: db2-credentials
+          - name: db2_pwd
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: db2-credentials
+          - name: db2_port
+            valueFrom:
+              secretKeyRef:
+                key: port
+                name: db2-credentials
+          - name: COLUMN_INFO
+            valueFrom:
+              configMapKeyRef:
+                key: columns
+                name: credit-risk-columns
+          - name: PREDICT_URL
+            value: "http://credit-risk.user-example-com.svc.cluster.local/v1/models/credit-risk:predict"
+          - name: EXPLAIN_URL
+            value: "http://credit-risk.user-example-com.svc.cluster.local/v1/models/credit-risk:explain"
