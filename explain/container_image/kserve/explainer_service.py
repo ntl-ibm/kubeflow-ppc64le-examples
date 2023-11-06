@@ -29,6 +29,7 @@ import logging
 from typing import Dict, List, Union
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import os
 
 import dill
 import joblib
@@ -134,10 +135,10 @@ class CreditRiskExplainer(kserve.Model):
         """
         explanation = self.explainer.explain(
             X,
-            threshold=0.95,
-            batch_size=200,
-            beam_size=20,
-            min_samples_start=10000,
+            threshold=float(os.environ.get("EXPLAIN_THRESHOLD", "0.95")),
+            batch_size=int(os.environ.get("EXPLAIN_BATCH_SIZE", "200")),
+            beam_size=int(os.environ.get("EXPLAIN_BEAM_SIZE", "20")),
+            min_samples_start=int(os.environ.get("EXPLAIN_MIN_SAMPLES_START", "10000")),
         )
         return {
             "anchor": explanation.data["anchor"],
