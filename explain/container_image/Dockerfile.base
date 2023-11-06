@@ -51,7 +51,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::python==3.9.16 \
     pip \
     mamba \
-    conda \
+    conda==23.7.4 \
     && mamba clean --all --yes \
     && fix-permissions ${CONDA_DIR} \
     && rm /tmp/micromamba 
