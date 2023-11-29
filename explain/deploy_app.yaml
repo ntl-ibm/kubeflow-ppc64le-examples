@@ -58,22 +58,22 @@ spec:
             valueFrom:
               secretKeyRef:
                 key: host
-                name: db2-credentials
+                name: db-credentials
           - name: db2_user
             valueFrom:
               secretKeyRef:
                 key: username
-                name: db2-credentials
+                name: db-credentials
           - name: db2_pwd
             valueFrom:
               secretKeyRef:
                 key: password
-                name: db2-credentials
+                name: db-credentials
           - name: db2_port
             valueFrom:
               secretKeyRef:
                 key: port
-                name: db2-credentials
+                name: db-credentials
           - name: COLUMN_INFO
             valueFrom:
               configMapKeyRef:
