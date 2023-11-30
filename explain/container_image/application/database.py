@@ -54,7 +54,7 @@ class DB2DataBaseConnection:
         iStmtColsSql = ",".join([f'"{col}"' for col in row_cols])
         iValues = ",".join(["?" for _ in range(len(row_cols))])
 
-        iSql = f'SELECT CLIENT_ID FROM FINAL TABLE (INSERT INTO "{self.sql_safe_clint_info_table_name}" ({iStmtColsSql}) VALUES({iValues}))'
+        iSql = f'SELECT ACCOUNT_ID FROM FINAL TABLE (INSERT INTO "{self.sql_safe_clint_info_table_name}" ({iStmtColsSql}) VALUES({iValues}))'
 
         print(f"preparing statement {iSql}")
         stmt = ibm_db.prepare(self.conn, iSql)
@@ -124,7 +124,7 @@ class DB2DataBaseConnection:
     def get_accounts(
         self, offset: int = 0, limit: int = 25
     ) -> Generator[Dict[str, Any], None, None]:
-        query = f'SELECT CLIENT_ID, "Risk", "PredictedRisk" FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?'
+        query = f'SELECT ACCOUNT_ID, "Risk", "PredictedRisk" FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?'
         logging.debug(f"preparing statement {query}")
         stmt = ibm_db.prepare(self.conn, query)
         ibm_db.execute(stmt, (limit, offset))
@@ -137,7 +137,7 @@ class DB2DataBaseConnection:
     def get_account_info(self, account_id: int) -> Dict[str, Union[str, int]]:
         json_obj_kv = lambda col_name: f"'{col_name}' VALUE " + f'"{col_name}"'
         key_values = ",".join([json_obj_kv(col_name) for col_name in self.column_names])
-        sql_stmt_txt = f'SELECT JSON_OBJECT({key_values}) FROM "{self.sql_safe_clint_info_table_name}" WHERE CLIENT_ID = ?'
+        sql_stmt_txt = f'SELECT JSON_OBJECT({key_values}) FROM "{self.sql_safe_clint_info_table_name}" WHERE ACCOUNT_ID = ?'
         logger.debug(f"Preparing statement {sql_stmt_txt}")
         stmt = ibm_db.prepare(self.conn, sql_stmt_txt)
 
@@ -198,26 +198,29 @@ class PostgreSQLConnection:
         row_cols = list(row_dict.keys())
 
         insert = psycopg.sql.SQL(
-            "INSERT INTO {0} ({1}) VALUES({2}) RETURNING ACCOUNT_ID"
+            'INSERT INTO {0} ({1}) VALUES({2}) RETURNING "ACCOUNT_ID"'
         ).format(
-            psycopg.sql.Identifier(self.client_info_table_name),
-            psycopg.sql.SQL(", ").join(row_cols),
-            ", ".join(["%s"] * len(row_cols)),
+            psycopg.sql.Identifier("CLIENT_DATA"),
+            psycopg.sql.SQL(", ").join(
+                [psycopg.sql.Identifier(col) for col in row_cols]
+            ),
+            psycopg.sql.SQL(", ").join([psycopg.sql.SQL("%s")] * len(row_cols)),
         )
 
         with self.conn.cursor() as cur:
+            print(insert.as_string(cur))
             cur.execute(insert, tuple([row_dict[col] for col in row_cols]))
             return cur.fetchone()[0]
 
     def update_account_from_row_change_dict(
         self,
-        client_id: int,
+        account_id: int,
         changes: Dict[str, Union[str, int]],
     ):
         if "Risk" in changes and changes["Risk"] == "Unknown":
             changes["Risk"] = None
 
-        current_data = self.get_account_info(client_id)
+        current_data = self.get_account_info(account_id)
 
         changes = {
             col: value
@@ -225,10 +228,10 @@ class PostgreSQLConnection:
             if col in current_data and current_data[col] != value
         }
 
-        assert "CLIENT_ID" not in changes
+        assert "ACCOUNT_ID" not in changes
 
         cols = list(changes.keys())
-        update = psycopg.sql.SQL("UPDATE {0} SET {1} WHERE ACCOUNT_ID = %s").format(
+        update = psycopg.sql.SQL('UPDATE {0} SET {1} WHERE "ACCOUNT_ID" = %s').format(
             psycopg.sql.Identifier(self.client_info_table_name),
             psycopg.sql.SQL(", ").join(
                 [
@@ -239,7 +242,7 @@ class PostgreSQLConnection:
         )
 
         with self.conn.cursor() as cur:
-            cur.execute(update, tuple([changes[col] for col in cols]))
+            cur.execute(update, tuple([changes[col] for col in cols] + [account_id]))
 
     def _get_column_names(
         self,
@@ -248,9 +251,9 @@ class PostgreSQLConnection:
             cur.execute(
                 psycopg.sql.SQL(
                     "SELECT column_name FROM information_schema.columns WHERE table_name = {} AND table_schema = CURRENT_SCHEMA ORDER BY ORDINAL_POSITION ASC"
-                ).format(psycopg.sql.Identifier())
+                ).format(psycopg.sql.Literal(self.client_info_table_name))
             )
-        return [row[0] for row in cur.fetchall()]
+            return [row[0] for row in cur.fetchall()]
 
     def get_number_of_accounts(self) -> int:
         with self.conn.cursor() as cur:
@@ -265,26 +268,27 @@ class PostgreSQLConnection:
         self, offset: int = 0, limit: int = 25
     ) -> Generator[Dict[str, Any], None, None]:
         query = psycopg.sql.SQL(
-            'SELECT ACCOUNT_ID, "Risk", "PredictedRisk" FROM {} ORDER BY ACCOUNT_ID ASC LIMIT %s OFFSET %s'
+            'SELECT "ACCOUNT_ID", "Risk", "PredictedRisk" FROM {} ORDER BY "ACCOUNT_ID" ASC LIMIT %s OFFSET %s'
         ).format(psycopg.sql.Identifier(self.client_info_table_name))
         with self.conn.cursor() as cur:
             cur.execute(query, (limit, offset))
 
+            columns = [c[0] for c in cur.description]
             row = cur.fetchone()
             while row:
-                yield dict(row)
+                yield {columns[i]: row[i] for i in range(len(columns))}
                 row = cur.fetchone()
 
     def get_account_info(self, account_id: int) -> Dict[str, Union[str, int]]:
         with self.conn.cursor() as cur:
             cur.execute(
                 psycopg.sql.SQL(
-                    "SELECT json_agg(t) FROM {} AS t WHERE ACCOUNT_ID = %s"
+                    'SELECT json_agg(t) FROM {} AS t WHERE "ACCOUNT_ID" = %s'
                 ).format(psycopg.sql.Identifier(self.client_info_table_name)),
                 (account_id,),
             )
             r = cur.fetchone()
-        return json.loads(r[0][0]) if r and r[0] else {}
+        return r[0][0] if r and r[0] else {}
 
 
 if os.environ.get("PG_HOST"):

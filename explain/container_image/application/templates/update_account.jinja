@@ -6,7 +6,7 @@
 
   <head>
   <meta charset="utf-8" />
-    <title>View/Edit account {{ client_info_values['CLIENT_ID'] }} </title>
+    <title>View/Edit account {{ client_info_values['ACCOUNT_ID'] }} </title>
     <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
     <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
     <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
@@ -22,7 +22,7 @@
       <fieldset id="account_header"" class="fieldset_two_col">
         <legend>Account</legend>
         <label for="account-id"> Account Id</label>
-        <input id="account-id" value="{{ client_info_values['CLIENT_ID'] }}" type="number" readonly/> 
+        <input id="account-id" value="{{ client_info_values['ACCOUNT_ID'] }}" type="number" readonly/> 
         <label for="last-change">Last Changed</label>
         <input id="last-change" value="{{- client_info_values['LastChangeTimestamp'] -}}" type="text" readonly/>
       </fieldset>
@@ -107,7 +107,7 @@
       form.classList.toggle('fade-out')
       document.getElementById('pageloader').classList.remove("hidden")
 
-      sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['CLIENT_ID']) -}}", "PUT", formData);
+      sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['ACCOUNT_ID']) -}}", "PUT", formData);
     });
   </script>
 

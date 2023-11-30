@@ -22,6 +22,7 @@ USER root
 WORKDIR /workspace
 RUN pip install ibm_db==3.2.0 \
                 flask==3.0.0 \
+                psycopg[binary,pool] \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} \
     && fix-permissions ${HOME}
