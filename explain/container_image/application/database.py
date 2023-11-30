@@ -270,9 +270,10 @@ class PostgreSQLConnection:
         with self.conn.cursor() as cur:
             cur.execute(query, (limit, offset))
 
+            columns = [c[0] for c in cur.description]
             row = cur.fetchone()
             while row:
-                yield dict(row)
+                yield {columns[i]: row[i] for i in range(len(columns))}
                 row = cur.fetchone()
 
     def get_account_info(self, account_id: int) -> Dict[str, Union[str, int]]:
