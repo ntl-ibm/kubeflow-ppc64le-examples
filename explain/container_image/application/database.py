@@ -248,7 +248,7 @@ class PostgreSQLConnection:
             cur.execute(
                 psycopg.sql.SQL(
                     "SELECT column_name FROM information_schema.columns WHERE table_name = {} AND table_schema = CURRENT_SCHEMA ORDER BY ORDINAL_POSITION ASC"
-                ).format(psycopg.sql.Identifier(self.client_info_table_name))
+                ).format(psycopg.sql.Literal(self.client_info_table_name))
             )
         return [row[0] for row in cur.fetchall()]
 
