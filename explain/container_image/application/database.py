@@ -287,7 +287,7 @@ class PostgreSQLConnection:
                 (account_id,),
             )
             r = cur.fetchone()
-        return json.loads(r[0][0]) if r and r[0] else {}
+        return r[0][0] if r and r[0] else {}
 
 
 if os.environ.get("PG_HOST"):
