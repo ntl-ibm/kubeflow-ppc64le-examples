@@ -1,32 +1,32 @@
 ﻿apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  creationTimestamp: '2023-09-26T21:06:51Z'
+  creationTimestamp: "2023-09-26T21:06:51Z"
   generation: 8
   managedFields:
     - apiVersion: tekton.dev/v1beta1
       fieldsType: FieldsV1
       fieldsV1:
-        'f:spec':
+        "f:spec":
           .: {}
-          'f:finally': {}
-          'f:params': {}
-          'f:resources': {}
-          'f:tasks': {}
-          'f:workspaces': {}
+          "f:finally": {}
+          "f:params": {}
+          "f:resources": {}
+          "f:tasks": {}
+          "f:workspaces": {}
       manager: Mozilla
       operation: Update
-      time: '2023-10-20T21:58:16Z'
+      time: "2023-10-20T21:58:16Z"
   name: build-demo
-  namespace: user-example-com-build
-  resourceVersion: '405263137'
-  uid: b939fa0b-1574-4b6b-9590-9546b488a90e
+  namespace: ntl-us-ibm-com
+  annotations:
+    sidecar.istio.io/inject: "false"
 spec:
   params:
-    - default: 'quay.io/ntlawrence/demo-base:0.1.0'
+    - default: "quay.io/ntlawrence/demo-base:0.1.0"
       name: base-tag
       type: string
-    - default: 'https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git'
+    - default: "https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git"
       name: git-repo
       type: string
     - default: add-explain-examples
@@ -37,22 +37,22 @@ spec:
       description: path to docker
       name: path
       type: string
-    - default: 'quay.io/ntlawrence/demo-kserve:0.1.0'
+    - default: "quay.io/ntlawrence/demo-kserve:0.1.0"
       name: kserve-tag
       type: string
-    - default: 'quay.io/ntlawrence/demo-workflow:0.1.0'
+    - default: "quay.io/ntlawrence/demo-workflow:0.1.0"
       name: workflow-tag
       type: string
-    - default: 'quay.io/ntlawrence/demo-transformer:0.1.0'
+    - default: "quay.io/ntlawrence/demo-transformer:0.1.0"
       name: transformer-tag
       type: string
-    - default: 'quay.io/ntlawrence/demo-predictor:0.1.0'
+    - default: "quay.io/ntlawrence/demo-predictor:0.1.0"
       name: predictor-tag
       type: string
-    - default: 'quay.io/ntlawrence/demo-explainer:0.1.0'
+    - default: "quay.io/ntlawrence/demo-explainer:0.1.0"
       name: explainer-tag
       type: string
-    - default: 'quay.io/ntlawrence/demo-application:0.1.0'
+    - default: "quay.io/ntlawrence/demo-application:0.1.0"
       name: application-tag
       type: string
   tasks:
@@ -63,29 +63,29 @@ spec:
         - name: revision
           value: $(params.git-tag)
         - name: refspec
-          value: ''
+          value: ""
         - name: submodules
-          value: 'true'
+          value: "true"
         - name: depth
-          value: '1'
+          value: "1"
         - name: sslVerify
-          value: 'true'
+          value: "true"
         - name: crtFileName
           value: ca-bundle.crt
         - name: subdirectory
           value: repo
         - name: sparseCheckoutDirectories
-          value: ''
+          value: ""
         - name: deleteExisting
-          value: 'true'
+          value: "true"
         - name: httpProxy
-          value: ''
+          value: ""
         - name: httpsProxy
-          value: ''
+          value: ""
         - name: noProxy
-          value: ''
+          value: ""
         - name: verbose
-          value: 'true'
+          value: "true"
         - name: gitInitImage
           value: >-
             registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:1a50511583fc02a27012d17d942e247813404104ddd282d7e26f99765174392c
@@ -111,15 +111,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - git-clone
       taskRef:
@@ -142,15 +142,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)/kserve
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg BASE_CONTAINER=$(params.base-tag)'
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-base-image
       taskRef:
@@ -173,15 +173,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg BASE_CONTAINER=$(params.base-tag)'
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-base-image
       taskRef:
@@ -204,15 +204,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)/kserve
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg KSERVE_CONTAINER=$(params.kserve-tag)'
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-kserve
       taskRef:
@@ -235,15 +235,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)/kserve
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg KSERVE_CONTAINER=$(params.kserve-tag)'
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-kserve
       taskRef:
@@ -266,15 +266,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)/kserve
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg KSERVE_CONTAINER=$(params.kserve-tag)'
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-kserve
       taskRef:
@@ -297,15 +297,15 @@ spec:
         - name: CONTEXT
           value: repo/$(params.path)/application
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: '--build-arg BASE_CONTAINER=$(params.base-tag)'
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - build-base-image
       taskRef:

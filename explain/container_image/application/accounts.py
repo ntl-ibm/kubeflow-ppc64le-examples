@@ -6,7 +6,9 @@ from flask import (
     url_for,
     Response,
 )
-from database import DB2DataBaseConnection
+from database import DBConnection
+
+
 import os
 import json
 from typing import Dict, Any
@@ -75,7 +77,7 @@ def create_account():
     account_info = inject_ai(account_info)
     current_app.logger.info(json.dumps(account_info, indent=2))
 
-    with DB2DataBaseConnection() as db:
+    with DBConnection() as db:
         account_id = db.insert_account_from_row_dict(account_info)
         current_app.logger.info(f"Account id {account_id} was created")
         return Response(
@@ -104,7 +106,7 @@ def list_or_create_accounts():
     limit = int(request.args.get("limit", 100))
     offset = int(request.args.get("offset", 0))
 
-    with DB2DataBaseConnection() as db:
+    with DBConnection() as db:
         accounts = db.get_accounts(offset=offset, limit=limit)
         num_accounts = db.get_number_of_accounts()
 
@@ -119,7 +121,7 @@ def list_or_create_accounts():
 
 @bp.route("/<account_id>", methods=["GET"])
 def retrieve_account_info(account_id):
-    with DB2DataBaseConnection() as db:
+    with DBConnection() as db:
         client_info = db.get_account_info(int(account_id))
 
     return render_template(
@@ -134,7 +136,7 @@ def update_account_info(account_id):
     updated_account_info = inject_ai(updated_account_info)
     current_app.logger.info(json.dumps(updated_account_info, indent=2))
 
-    with DB2DataBaseConnection() as db:
+    with DBConnection() as db:
         db.update_account_from_row_change_dict(int(account_id), updated_account_info)
 
     return Response(
