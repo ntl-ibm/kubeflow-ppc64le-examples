@@ -228,7 +228,7 @@ class PostgreSQLConnection:
         assert "ACCOUNT_ID" not in changes
 
         cols = list(changes.keys())
-        update = psycopg.sql.SQL("UPDATE {0} SET {1} WHERE "ACCOUNT_ID" = %s").format(
+        update = psycopg.sql.SQL('UPDATE {0} SET {1} WHERE "ACCOUNT_ID" = %s').format(
             psycopg.sql.Identifier(self.client_info_table_name),
             psycopg.sql.SQL(", ").join(
                 [
