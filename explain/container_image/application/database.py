@@ -213,13 +213,13 @@ class PostgreSQLConnection:
 
     def update_account_from_row_change_dict(
         self,
-        client_id: int,
+        account_id: int,
         changes: Dict[str, Union[str, int]],
     ):
         if "Risk" in changes and changes["Risk"] == "Unknown":
             changes["Risk"] = None
 
-        current_data = self.get_account_info(client_id)
+        current_data = self.get_account_info(account_id)
 
         changes = {
             col: value
@@ -241,7 +241,7 @@ class PostgreSQLConnection:
         )
 
         with self.conn.cursor() as cur:
-            cur.execute(update, tuple([changes[col] for col in cols]))
+            cur.execute(update, tuple([changes[col] for col in cols] + [account_id]))
 
     def _get_column_names(
         self,
