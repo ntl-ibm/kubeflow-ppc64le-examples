@@ -201,7 +201,9 @@ class PostgreSQLConnection:
             'INSERT INTO {0} ({1}) VALUES({2}) RETURNING "ACCOUNT_ID"'
         ).format(
             psycopg.sql.Identifier(self.client_info_table_name),
-            psycopg.sql.SQL(", ").join([psycopg.sql.Identifier(col) for col in row_cols]),
+            psycopg.sql.SQL(", ").join(
+                [psycopg.sql.Identifier(col) for col in row_cols]
+            ),
             ", ".join(["%s"] * len(row_cols)),
         )
 
@@ -280,7 +282,7 @@ class PostgreSQLConnection:
         with self.conn.cursor() as cur:
             cur.execute(
                 psycopg.sql.SQL(
-                    "SELECT json_agg(t) FROM {} AS t WHERE "ACCOUNT_ID" = %s"
+                    'SELECT json_agg(t) FROM {} AS t WHERE "ACCOUNT_ID" = %s'
                 ).format(psycopg.sql.Identifier(self.client_info_table_name)),
                 (account_id,),
             )
