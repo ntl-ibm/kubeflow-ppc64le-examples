@@ -200,14 +200,15 @@ class PostgreSQLConnection:
         insert = psycopg.sql.SQL(
             'INSERT INTO {0} ({1}) VALUES({2}) RETURNING "ACCOUNT_ID"'
         ).format(
-            psycopg.sql.Identifier(self.client_info_table_name),
+            psycopg.sql.Identifier("CLIENT_DATA"),
             psycopg.sql.SQL(", ").join(
                 [psycopg.sql.Identifier(col) for col in row_cols]
             ),
-            ", ".join(["%s"] * len(row_cols)),
+            psycopg.sql.SQL(", ").join([psycopg.sql.SQL("%s")] * len(row_cols)),
         )
 
         with self.conn.cursor() as cur:
+            print(insert.as_string(cur))
             cur.execute(insert, tuple([row_dict[col] for col in row_cols]))
             return cur.fetchone()[0]
 
