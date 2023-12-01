@@ -87,7 +87,7 @@
   <script>
     var dotList = document.getElementById("slideshow-dots")
     var numSlides = document.getElementsByClassName("mySlides").length
-    for (let dot_for_slide = 0; i < numSlides; i++) {
+    for (let dot_for_slide = 0; dot_for_slide < numSlides; dot_for_slide++) {
       span = document.createElement('span');
       span.setAttribute("class", "slideshow-dot");
       span.setAttribute("onclick", `click_dot(${dot_for_slide})`)
