@@ -1,2 +1,0 @@
-revision_request_count{namespace='user-example-com', configuration_name='credit-risk-predictor-default'}
-
