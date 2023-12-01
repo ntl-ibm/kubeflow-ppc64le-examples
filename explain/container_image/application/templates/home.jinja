@@ -32,13 +32,23 @@
       <img src="{{- url_for('static', filename='/slideshow/banking_app_2.jpg') -}}"/>
     </div>
 
+    {% if database=="DB2DataBaseConnection" %}
     <div class="mySlides slideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/banking_app_3.jpg') -}}"/>
+      <img src="{{- url_for('static', filename='/slideshow/db2/platforms.jpg') -}}"/>
     </div>
 
     <div class="mySlides slideshow-fade">
-      <img src="{{- url_for('static', filename='/slideshow/banking_app_4.jpg') -}}"/>
+      <img src="{{- url_for('static', filename='/slideshow/db2/frameworks.jpg') -}}"/>
     </div>
+    {% else %}
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/postgresql/platforms.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/postgresql/frameworks.jpg') -}}"/>
+    </div>
+    {% endif %}
 
     <div class="mySlides slideshow-fade">
       <img src="{{- url_for('static', filename='/slideshow/train_pipeline.jpg') -}}"/>
@@ -72,21 +82,18 @@
 
   <br>
 
-  <div style="text-align:center">
-    <span class="slideshow-dot" onclick="click_dot(0)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(1)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(2)"></span>
-    <span class="slideshow-dot" onclick="click_dot(3)"></span>
-    <span class="slideshow-dot" onclick="click_dot(4)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(5)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(6)"></span>
-    <span class="slideshow-dot" onclick="click_dot(7)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(8)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(9)"></span>
-    <span class="slideshow-dot" onclick="click_dot(10)"></span> 
-    <span class="slideshow-dot" onclick="click_dot(11)"></span>
-    <span class="slideshow-dot" onclick="click_dot(12)"></span> 
-  </div>
+  <div id="slideshow-dots" style="text-align:center"> </div>
+
+  <script>
+    var dotList = document.getElementById("slideshow-dots")
+    var numSlides = document.getElementsByClassName("mySlides").length
+    for (let dot_for_slide = 0; dot_for_slide < numSlides; dot_for_slide++) {
+      span = document.createElement('span');
+      span.setAttribute("class", "slideshow-dot");
+      span.setAttribute("onclick", `click_dot(${dot_for_slide})`)
+      dotList.appendChild(span)
+    }
+  </script>
 
   <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
   <script>
