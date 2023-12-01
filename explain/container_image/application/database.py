@@ -93,13 +93,13 @@ class DB2DataBaseConnection:
             ibm_db.bind_param(stmt, idx + 1, row_dict[col])
         ibm_db.execute(stmt)
 
-        client_id = ibm_db.fetch_tuple(stmt)[0]
-        logging.debug(f"Created client with ID {client_id}")
-        return client_id
+        account_id = ibm_db.fetch_tuple(stmt)[0]
+        logging.debug(f"Created account with ID {account_id}")
+        return account_id
 
     def update_account_from_row_change_dict(
         self,
-        client_id: int,
+        account_id: int,
         changes: Dict[str, Union[str, int]],
     ):
         stmt = None
@@ -107,7 +107,7 @@ class DB2DataBaseConnection:
         if "Risk" in changes and changes["Risk"] == "Unknown":
             changes["Risk"] = None
 
-        current_data = self.get_account_info(client_id)
+        current_data = self.get_account_info(account_id)
 
         changes = {
             col: value
@@ -115,18 +115,18 @@ class DB2DataBaseConnection:
             if col in current_data and current_data[col] != value
         }
 
-        assert "CLIENT_ID" not in changes
+        assert "ACCOUNT_ID" not in changes
 
         cols = list(changes.keys())
         col_assign = ", ".join([f'"{col}" = ?' for col in cols])
-        iSql = f'UPDATE "{self.client_info_table_name}" SET {col_assign} WHERE CLIENT_ID = ?'
+        iSql = f'UPDATE "{self.client_info_table_name}" SET {col_assign} WHERE ACCOUNT_ID = ?'
 
         logging.debug(f"preparing statement {iSql}")
         stmt = ibm_db.prepare(self.conn, iSql)
 
         for idx, col in enumerate(cols):
             ibm_db.bind_param(stmt, idx + 1, changes[col])
-        ibm_db.bind_param(stmt, len(cols) + 1, client_id)
+        ibm_db.bind_param(stmt, len(cols) + 1, account_id)
         ibm_db.execute(stmt)
 
     def _get_column_names(self) -> List[str]:
@@ -154,7 +154,7 @@ class DB2DataBaseConnection:
     def get_accounts(
         self, offset: int = 0, limit: int = 25
     ) -> Generator[Dict[str, Any], None, None]:
-        query = f'SELECT ACCOUNT_ID, "Risk", "PredictedRisk" FROM {self.client_info_table_name} ORDER BY CLIENT_ID ASC LIMIT ? OFFSET ?'
+        query = f'SELECT ACCOUNT_ID, "Risk", "PredictedRisk" FROM {self.client_info_table_name} ORDER BY ACCOUNT_ID ASC LIMIT ? OFFSET ?'
         logging.debug(f"preparing statement {query}")
         stmt = ibm_db.prepare(self.conn, query)
         ibm_db.execute(stmt, (limit, offset))
