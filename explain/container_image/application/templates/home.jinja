@@ -1,0 +1,161 @@
+<HTML>
+<head>
+    <meta charset="utf-8" />
+    <title>Demo Application Home Page</title>
+    <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
+    <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
+    <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
+  </head>
+<BODY>
+ {% include 'nav_bar.jinja' %}
+
+<!--
+  Possible header with centering and color class assignment
+  <div class="center-heading"> 
+  </div>
+-->
+
+  <div class="slideshow-container">
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/demo_home.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/banking_app_1.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/banking_app_1a.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/banking_app_2.jpg') -}}"/>
+    </div>
+
+    {% if database=="DB2DataBaseConnection" %}
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/db2/platforms.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/db2/frameworks.jpg') -}}"/>
+    </div>
+    {% else %}
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/postgresql/platforms.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/postgresql/frameworks.jpg') -}}"/>
+    </div>
+    {% endif %}
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/train_pipeline.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/monitor_training_metrics.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/visualize_training.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/training_report.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/monitor_pipeline.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/monitor_production.jpg') -}}"/>
+    </div>
+
+    <div class="mySlides slideshow-fade">
+      <img src="{{- url_for('static', filename='/slideshow/ai_scale.jpg') -}}"/>
+    </div>
+
+  </div>
+
+  <br>
+
+  <div id="slideshow-dots" style="text-align:center"> </div>
+
+  <script>
+    var dotList = document.getElementById("slideshow-dots")
+    var numSlides = document.getElementsByClassName("mySlides").length
+    for (let dot_for_slide = 0; dot_for_slide < numSlides; dot_for_slide++) {
+      span = document.createElement('span');
+      span.setAttribute("class", "slideshow-dot");
+      span.setAttribute("onclick", `click_dot(${dot_for_slide})`)
+      dotList.appendChild(span)
+    }
+  </script>
+
+  <!-- https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_slideshow_auto -->
+  <script>
+    var curSlide = 0;
+    var numSlides = document.getElementsByClassName("mySlides").length
+    var SlideShowInterval = null;
+
+    click_dot(0)
+
+    function showSlide(slide_num) {
+      let i
+
+      var slides = document.getElementsByClassName("mySlides");
+      var dots = document.getElementsByClassName("slideshow-dot");
+
+      slides[slide_num].classList.add('mySlides-active')
+      dots[slide_num].classList.add('slideshow-dot-active')
+      curSlide = slide_num
+
+      for (i = 0; i < slides.length; i++)  {
+        if ((i != curSlide) && slides[i].classList.contains('mySlides-active')) {
+          slides[i].classList.remove('mySlides-active')
+        }
+      }
+
+
+      for (i = 0; i < dots.length; i++) {
+        if ((i != curSlide) && dots[i].classList.contains('slideshow-dot-active')) {
+          dots[i].classList.remove('slideshow-dot-active')
+        }
+      }
+      
+
+    }
+
+
+    function showSlides() {
+      
+      SlideShowInterval = setInterval(function() {
+                                    showSlide((curSlide + 1) % numSlides);
+                                 },
+                                 10000
+                                 );
+    }
+
+    function click_dot(dot_num) {
+      if (SlideShowInterval) {
+        clearInterval(SlideShowInterval)
+        SlideShowInterval = null
+        showSlide(dot_num)
+        return
+      }
+
+      if (curSlide == dot_num) {
+        showSlide(dot_num)
+        showSlides()
+        return
+      } else {
+        showSlide(dot_num)
+      }
+    }
+  </script>
+ {% include 'footer.jinja' %}
+</BODY>
+</HTML>

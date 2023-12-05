@@ -1,0 +1,130 @@
+{% from "column_tools.jinja" import build_form_inputs %} 
+{% from "column_tools.jinja" import render_cat_feature %} 
+{% from "column_tools.jinja" import render_explain_anchors %}
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+  <meta charset="utf-8" />
+    <title>View/Edit account {{ client_info_values['ACCOUNT_ID'] }} </title>
+    <link rel="shortcut icon" href="{{- url_for('static', filename='favicon.ico') -}}" />
+    <link rel="stylesheet" href="{{- url_for('static', filename='css/style.css') -}}" />
+    <script src="{{- url_for('static', filename='js/handleFormSubmit.js') -}}"></script>
+  </head>
+
+  <body>
+    {% include 'nav_bar.jinja' %}
+    <form id="account_info" onsubmit="return false">
+      <div id="pageloader" class="pageloader hidden">
+        <img src="{{- url_for('static', filename='bee.png') -}}" id="spinner"/> 
+      </div>
+
+      <fieldset id="account_header"" class="fieldset_two_col">
+        <legend>Account</legend>
+        <label for="account-id"> Account Id</label>
+        <input id="account-id" value="{{ client_info_values['ACCOUNT_ID'] }}" type="number" readonly/> 
+        <label for="last-change">Last Changed</label>
+        <input id="last-change" value="{{- client_info_values['LastChangeTimestamp'] -}}" type="text" readonly/>
+      </fieldset>
+
+      <fieldset id="account_details" disabled="disabled">
+        <legend>Account Details</legend>
+       
+          {{ build_form_inputs(schema, client_info_values) }}
+      
+          {% set risk_levels = schema.label_columns['Risk'] + ["Unknown"] %}
+          {{ render_cat_feature('Risk', 
+                                risk_levels, 
+                                client_info_values['Risk'] if client_info_values['Risk'] 
+                                                           else "Unknown") 
+          }}
+
+      </fieldset>
+
+      <fieldset id="predicted_risk_assessment" class="fieldset_two_col">
+        <legend>Predicted Risk Assessment</legend>
+        
+        <label for="PredictedRisk">Assessment</label>
+        <input id="PredictedRisk" value="{{client_info_values['PredictedRisk']}}" readonly />
+
+        {% if client_info_values['ExplainRisk'] %}
+           <label for="ExplainRisk">Explaination</label>
+              {%set explaination = render_explain_anchors(client_info_values['ExplainRisk'])%}
+                <textarea id="ExplainRisk" rows="5" cols="50" readonly>
+                  {{- explaination -}}
+                </textarea>
+        {% endif %}
+      </fieldset>
+     <div id="edit_buttons" class="centered_button">
+      <button id="edit">Edit</button>
+     </div>
+     <div id="update_buttons" class="centered_button">
+        <button id="submit">Update</button>
+        <button id="restoreValues" onclick="resetForm()">Reset</button>
+     </div>
+    </form>
+
+    {% include 'footer.jinja' %}
+  </body>
+
+  <script>
+    function resetForm() {
+      form = document.getElementById("account_info")
+      form.reset();
+    }
+  </script>
+
+  <script>
+    document.getElementById("update_buttons").classList.add('hidden')
+    const pr = document.getElementById("PredictedRisk")  
+    if (pr.value == 'Risk') {
+      pr.classList.add('risk')
+    } else if (pr.value == 'No Risk') {
+      pr.classList.add('norisk')
+    }
+  </script>
+
+  <script>
+    const editButton = document.getElementById("edit")
+    editButton.addEventListener("click", (event) => {
+      const account_details = document.getElementById("account_details")
+      account_details.disabled = false
+      const predicted_risk_assessment = document.getElementById("predicted_risk_assessment")
+      predicted_risk_assessment.style.display = "none"
+      event.target.disabled = true
+      document.getElementById("edit_buttons").classList.add('hidden')
+      document.getElementById("update_buttons").classList.remove('hidden')
+    })
+  </script>
+
+   <script>
+    const submitButton = document.getElementById("submit")
+    submitButton.addEventListener("click", (event) => {
+      const form = document.getElementById("account_info");
+      const formData = new FormData(form);
+      event.target.disabled = true;
+      document.getElementById('account_details').disabled = "disabled"
+      form.classList.toggle('fade-out')
+      document.getElementById('pageloader').classList.remove("hidden")
+
+      sendFormDataAsJson("{{- url_for('Accounts.update_account_info', account_id=client_info_values['ACCOUNT_ID']) -}}", "PUT", formData);
+    });
+  </script>
+
+  <!-- format the last change date, assumes that the server sends the date in UTC timezone, db2 format -->
+  <!-- javascript doesn't understand nanoseconds, so set that to 0 -->
+  <script>
+    function parseISOString(s) {
+      var b = s.split(/\D+/);
+      return new Date(Date.UTC(b[0], --b[1], b[2], b[3], b[4], b[5], 0));
+    }
+
+    window.addEventListener("load", function() {
+      let lch=document.getElementById("last-change")
+      let parsed_date=parseISOString(lch.value)
+      let formatted_date = parsed_date.toLocaleString()
+      lch.value=formatted_date
+    })
+  </script>
+
+</html>

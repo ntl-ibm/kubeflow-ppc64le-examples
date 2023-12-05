@@ -1,0 +1,318 @@
+﻿apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  creationTimestamp: "2023-09-26T21:06:51Z"
+  generation: 8
+  managedFields:
+    - apiVersion: tekton.dev/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        "f:spec":
+          .: {}
+          "f:finally": {}
+          "f:params": {}
+          "f:resources": {}
+          "f:tasks": {}
+          "f:workspaces": {}
+      manager: Mozilla
+      operation: Update
+      time: "2023-10-20T21:58:16Z"
+  name: build-demo
+  namespace: ntl-us-ibm-com
+  annotations:
+    sidecar.istio.io/inject: "false"
+spec:
+  params:
+    - default: "quay.io/ntlawrence/demo-base:0.1.0"
+      name: base-tag
+      type: string
+    - default: "https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git"
+      name: git-repo
+      type: string
+    - default: add-explain-examples
+      description: tag or branch
+      name: git-tag
+      type: string
+    - default: explain/container_image
+      description: path to docker
+      name: path
+      type: string
+    - default: "quay.io/ntlawrence/demo-kserve:0.1.0"
+      name: kserve-tag
+      type: string
+    - default: "quay.io/ntlawrence/demo-workflow:0.1.0"
+      name: workflow-tag
+      type: string
+    - default: "quay.io/ntlawrence/demo-transformer:0.1.0"
+      name: transformer-tag
+      type: string
+    - default: "quay.io/ntlawrence/demo-predictor:0.1.0"
+      name: predictor-tag
+      type: string
+    - default: "quay.io/ntlawrence/demo-explainer:0.1.0"
+      name: explainer-tag
+      type: string
+    - default: "quay.io/ntlawrence/demo-application:0.1.0"
+      name: application-tag
+      type: string
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.git-repo)
+        - name: revision
+          value: $(params.git-tag)
+        - name: refspec
+          value: ""
+        - name: submodules
+          value: "true"
+        - name: depth
+          value: "1"
+        - name: sslVerify
+          value: "true"
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: subdirectory
+          value: repo
+        - name: sparseCheckoutDirectories
+          value: ""
+        - name: deleteExisting
+          value: "true"
+        - name: httpProxy
+          value: ""
+        - name: httpsProxy
+          value: ""
+        - name: noProxy
+          value: ""
+        - name: verbose
+          value: "true"
+        - name: gitInitImage
+          value: >-
+            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:1a50511583fc02a27012d17d942e247813404104ddd282d7e26f99765174392c
+        - name: userHome
+          value: /home/git
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: build-workspace
+    - name: build-base-image
+      params:
+        - name: IMAGE
+          value: $(params.base-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.base
+        - name: CONTEXT
+          value: repo/$(params.path)
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: ""
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-kserve
+      params:
+        - name: IMAGE
+          value: $(params.kserve-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.kserve
+        - name: CONTEXT
+          value: repo/$(params.path)/kserve
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-base-image
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-workflow
+      params:
+        - name: IMAGE
+          value: $(params.workflow-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.workflow
+        - name: CONTEXT
+          value: repo/$(params.path)
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-base-image
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-transformer
+      params:
+        - name: IMAGE
+          value: $(params.transformer-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.transformer
+        - name: CONTEXT
+          value: repo/$(params.path)/kserve
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-kserve
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-predictor
+      params:
+        - name: IMAGE
+          value: $(params.predictor-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.onnx-predictor
+        - name: CONTEXT
+          value: repo/$(params.path)/kserve
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-kserve
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-explainer
+      params:
+        - name: IMAGE
+          value: $(params.explainer-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:00795fafdab9bbaa22cd29d1faa1a01e604e4884a2c935c1bf8e3d1f0ad1c084
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.explainer
+        - name: CONTEXT
+          value: repo/$(params.path)/kserve
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg KSERVE_CONTAINER=$(params.kserve-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-kserve
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+    - name: build-application
+      params:
+        - name: IMAGE
+          value: $(params.application-tag)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:bafb452c5346d8517d94639efa90e8d6d72cd11e45d49369c3d9305784d1c3f6
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.application
+        - name: CONTEXT
+          value: repo/$(params.path)/application
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg BASE_CONTAINER=$(params.base-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - build-base-image
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: build-workspace
+  workspaces:
+    - name: build-workspace

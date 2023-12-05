@@ -1,0 +1,52 @@
+{% macro render_explain_anchors(anchors) %}
+  {%- for anchor in anchors.split(",") -%}
+    {%- if loop.index > 1 %} AND{{ '\n' }}{% endif -%}
+    {{- human_readable(anchor) -}}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{% macro render_cat_feature(feature, levels, dft) -%}
+<label for="{{- feature -}}"> {{ human_readable(feature) }} </label>
+<select name="{{- feature -}}" id="{{- feature -}}">
+    {% for level in levels -%}
+        <option value="{{- level -}}"  {% if level == dft %} selected {% endif %}>
+          {{ human_readable(level) }}
+        </option>
+    {%- endfor %}
+</select>
+{%- endmacro %}
+
+{% macro render_int_feature(feature, dft) -%}
+<label for="{{- feature -}}">{{ human_readable(feature) }}</label>
+<input type="number" 
+       step="1" 
+       name="{{- feature -}}" 
+       id="{{- feature -}}"
+       value="{{- dft -}}"
+       />
+{%- endmacro %}
+
+{% macro build_form_inputs(schema, form_defaults) %}
+ {# category columns #} 
+      {% for feature, label_list in schema.label_columns.items() %} 
+        {% if feature != 'Risk' %}
+          {% if feature in form_defaults %}
+            {{ render_cat_feature(feature, label_list, form_defaults[feature]) }} 
+          {% else %}
+              {{ render_cat_feature(feature, label_list, "") }} 
+          {% endif %}
+        {% endif %}
+      {% endfor %} 
+      
+      {# int columns #} 
+      {% for feature in schema.int_columns %}
+       {% if feature != 'Risk' %}
+          {% if feature in form_defaults %}
+            {% set dft = form_defaults[feature] %}
+          {% else %}
+            {% set dft = "0" %}
+          {% endif %}
+          {{ render_int_feature(feature, dft) }}
+        {% endif %}
+      {% endfor %}
+{% endmacro %}
