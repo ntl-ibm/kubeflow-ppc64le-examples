@@ -22,7 +22,7 @@ spec:
       serviceAccountName: demo-application-sa
       containers:
         - name: flask
-          image: quay.io/ntlawrence/demo-application@sha256:4f1834a1f34efac9adfe25806d01fbdae3130a737f38ecd46a4ecefd0b473d28
+          image: quay.io/ntlawrence/demo-application:3.0.0
           imagePullPolicy: IfNotPresent
           securityContext:
               allowPrivilegeEscalation: false

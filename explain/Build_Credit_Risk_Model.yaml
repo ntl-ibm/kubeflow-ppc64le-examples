@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: credit-risk-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-12-04T23:50:31.787291',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-12-05T19:12:34.661526',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       builds and deploys a credit risk model", "name": "Credit Risk"}'}
   labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
@@ -118,7 +118,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       parameters:
       - {name: create-pvc-for-tensorboard-name}
@@ -203,7 +203,7 @@ spec:
           dest=\"tensorboard_name\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--mlpipeline-ui-metadata\",
           dest=\"mlpipeline_ui_metadata_path\", type=_make_parent_dirs_and_return_path,
           required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = configure_tensorboard(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = configure_tensorboard(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "pvc_name", "type": "String"}, {"default": "", "name":
           "pvc_path", "optional": true, "type": "String"}, {"default": "", "name":
           "tensorboard_name", "optional": true, "type": "String"}], "name": "Configure
@@ -235,7 +235,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: train-model, path: /tmp/inputs/tf_model/data}
@@ -260,7 +260,7 @@ spec:
           dest=\"tf_model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--onnx-model\",
           dest=\"onnx_model\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = convert_model_to_onnx(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "tf_model", "type": "String"}], "name": "Convert model
           to onnx", "outputs": [{"name": "onnx_model", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}'}
   - name: create-pvc-for-tensorboard
@@ -463,7 +463,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-data_frame_pkl, path: /tmp/inputs/df/data}
@@ -509,7 +509,7 @@ spec:
           required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-report\",
           dest=\"output_report\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = data_quality_report(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = data_quality_report(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "df", "type": "String"}, {"name": "features", "type":
           "typing.List[str]"}, {"default": "Risk", "name": "target", "optional": true,
           "type": "String"}], "name": "Data quality report", "outputs": [{"name":
@@ -524,12 +524,11 @@ spec:
     container:
       args: [--name, credit-risk, --target-processing-config, /tmp/inputs/target_processing_config/data,
         --model-archive-s3, '{{inputs.parameters.upload-artifacts-s3_address}}', --transformer-image,
-        'quay.io/ntlawrence/demo-transformer@sha256:54b5c5a6e379044c474deab4edcf92ec3e2fc22a588aaa7547184bf03199832b',
-        --predictor-image, 'quay.io/ntlawrence/demo-predictor@sha256:fca5f3a1de13005ea5033bc3dd3ba5319ae1d317f3bc02ee8a4f12f35ed7318f',
-        --explainer-image, 'quay.io/ntlawrence/demo-explainer:0.1.0@sha256:57f4d1e94d3aea40563a801323d627dfecbbcb2f891477a510b81d805232b296',
-        --predictor-max-replicas, '4', --predictor-min-replicas, '1', --predictor-concurrency-target,
-        '1', --transformer-max-replicas, '4', --transformer-min-replicas, '1', --transformer-concurrency-target,
-        '1', --explainer-max-replicas, '1', --explainer-min-replicas, '1']
+        'quay.io/ntlawrence/demo-transformer:3.0.0', --predictor-image, 'quay.io/ntlawrence/demo-predictor:3.0.0',
+        --explainer-image, 'quay.io/ntlawrence/demo-explainer:3.0.0', --predictor-max-replicas,
+        '4', --predictor-min-replicas, '1', --predictor-concurrency-target, '1', --transformer-max-replicas,
+        '4', --transformer-min-replicas, '1', --transformer-concurrency-target, '1',
+        --explainer-max-replicas, '1', --explainer-min-replicas, '1']
       command:
       - sh
       - -ec
@@ -615,17 +614,19 @@ spec:
         \                #    container_port=8080,\n                #    name=\"h2c\"\
         ,\n                #    protocol=\"TCP\"\n                #)],\n         \
         \       env=[\n                 V1EnvVar(\n                     name=\"STORAGE_URI\"\
-        , value=model_archive_s3\n                 )\n                ],\n       \
-        \     )\n        ],\n        service_account_name=SERVICE_ACCOUNT\n    )\n\
-        \n    inference_service=V1beta1InferenceService(\n        api_version=constants.KSERVE_V1BETA1,\n\
-        \        kind=constants.KSERVE_KIND,\n        metadata=V1ObjectMeta(name=name,\
-        \ \n                              namespace=\"{{workflow.namespace}}\",\n\
-        \                              annotations={\"sidecar.istio.io/inject\": \"\
-        false\",\n                                           \"serving.kserve.io/enable-prometheus-scraping\"\
-        \ : \"true\"}),\n        spec=V1beta1InferenceServiceSpec(predictor=predictor_spec,\n\
-        \                                         transformer=transformer_spec,\n\
-        \                                         explainer=explainer_spec)\n    )\n\
-        \    # serving.kserve.io/inferenceservice: credit-risk\n    logging.info(\n\
+        , value=model_archive_s3\n                 ),\n                 V1EnvVar(\n\
+        \                     name=\"EXPLAIN_MIN_SAMPLES_START\", value=\"15000\"\n\
+        \                 )\n                ],\n            )\n        ],\n     \
+        \   service_account_name=SERVICE_ACCOUNT\n    )\n\n    inference_service=V1beta1InferenceService(\n\
+        \        api_version=constants.KSERVE_V1BETA1,\n        kind=constants.KSERVE_KIND,\n\
+        \        metadata=V1ObjectMeta(name=name, \n                             \
+        \ namespace=\"{{workflow.namespace}}\",\n                              annotations={\"\
+        sidecar.istio.io/inject\": \"false\",\n                                  \
+        \         \"serving.kserve.io/enable-prometheus-scraping\" : \"true\"}),\n\
+        \        spec=V1beta1InferenceServiceSpec(predictor=predictor_spec,\n    \
+        \                                     transformer=transformer_spec,\n    \
+        \                                     explainer=explainer_spec)\n    )\n \
+        \   # serving.kserve.io/inferenceservice: credit-risk\n    logging.info(\n\
         \        yaml.dump(\n            client.ApiClient().sanitize_for_serialization(inference_service)\n\
         \        )\n    )\n\n    # KServeClient doesn't throw ApiException for CONFLICT\n\
         \    # Using the k8s API directly for the create\n    api_instance = client.CustomObjectsApi()\n\
@@ -678,7 +679,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-kserve@sha256:6803755ecffe42bfb38a703e1d4e453c088bae64096fc8857baa663b526d8978
+      image: quay.io/ntlawrence/demo-kserve:3.0.0
     inputs:
       parameters:
       - {name: upload-artifacts-s3_address}
@@ -745,7 +746,8 @@ spec:
           value=target_names\n                )\n                ],\n            )\n        ],\n        service_account_name=SERVICE_ACCOUNT\n    )\n\n    explainer_spec=V1beta1ExplainerSpec(\n        max_replicas=explainer_max_replicas,\n        min_replicas=explainer_min_replicas,\n        scale_target=explainer_concurrency_target,\n        scale_metric=\"concurrency\",\n        containers=[\n            V1Container(\n                name=\"kserve-container\",\n                image=explainer_image,\n                args=[\"--protocol=grpc-v2\",
           f\"--model_name={name}\"],\n                resources=V1ResourceRequirements(\n                    limits={\"memory\":
           \"10Gi\"},\n                    requests={\"memory\": \"4Gi\"},\n                ),\n                #ports=[V1ContainerPort(\n                #    container_port=8080,\n                #    name=\"h2c\",\n                #    protocol=\"TCP\"\n                #)],\n                env=[\n                 V1EnvVar(\n                     name=\"STORAGE_URI\",
-          value=model_archive_s3\n                 )\n                ],\n            )\n        ],\n        service_account_name=SERVICE_ACCOUNT\n    )\n\n    inference_service=V1beta1InferenceService(\n        api_version=constants.KSERVE_V1BETA1,\n        kind=constants.KSERVE_KIND,\n        metadata=V1ObjectMeta(name=name,
+          value=model_archive_s3\n                 ),\n                 V1EnvVar(\n                     name=\"EXPLAIN_MIN_SAMPLES_START\",
+          value=\"15000\"\n                 )\n                ],\n            )\n        ],\n        service_account_name=SERVICE_ACCOUNT\n    )\n\n    inference_service=V1beta1InferenceService(\n        api_version=constants.KSERVE_V1BETA1,\n        kind=constants.KSERVE_KIND,\n        metadata=V1ObjectMeta(name=name,
           \n                              namespace=\"{{workflow.namespace}}\",\n                              annotations={\"sidecar.istio.io/inject\":
           \"false\",\n                                           \"serving.kserve.io/enable-prometheus-scraping\"
           : \"true\"}),\n        spec=V1beta1InferenceServiceSpec(predictor=predictor_spec,\n                                         transformer=transformer_spec,\n                                         explainer=explainer_spec)\n    )\n    #
@@ -777,29 +779,28 @@ spec:
           dest=\"explainer_min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--explainer-concurrency-target\",
           dest=\"explainer_concurrency_target\", type=int, required=False, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = deploy_inference_service(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/demo-kserve@sha256:6803755ecffe42bfb38a703e1d4e453c088bae64096fc8857baa663b526d8978"}},
-          "inputs": [{"name": "name", "type": "String"}, {"name": "target_processing_config",
-          "type": "String"}, {"name": "model_archive_s3", "type": "String"}, {"name":
-          "transformer_image", "type": "String"}, {"name": "predictor_image", "type":
-          "String"}, {"name": "explainer_image", "type": "String"}, {"default": "1",
-          "name": "predictor_max_replicas", "optional": true, "type": "Integer"},
-          {"default": "1", "name": "predictor_min_replicas", "optional": true, "type":
-          "Integer"}, {"name": "predictor_concurrency_target", "optional": true, "type":
-          "Integer"}, {"default": "1", "name": "transformer_max_replicas", "optional":
-          true, "type": "Integer"}, {"default": "1", "name": "transformer_min_replicas",
+          "image": "quay.io/ntlawrence/demo-kserve:3.0.0"}}, "inputs": [{"name": "name",
+          "type": "String"}, {"name": "target_processing_config", "type": "String"},
+          {"name": "model_archive_s3", "type": "String"}, {"name": "transformer_image",
+          "type": "String"}, {"name": "predictor_image", "type": "String"}, {"name":
+          "explainer_image", "type": "String"}, {"default": "1", "name": "predictor_max_replicas",
+          "optional": true, "type": "Integer"}, {"default": "1", "name": "predictor_min_replicas",
+          "optional": true, "type": "Integer"}, {"name": "predictor_concurrency_target",
+          "optional": true, "type": "Integer"}, {"default": "1", "name": "transformer_max_replicas",
+          "optional": true, "type": "Integer"}, {"default": "1", "name": "transformer_min_replicas",
           "optional": true, "type": "Integer"}, {"name": "transformer_concurrency_target",
           "optional": true, "type": "Integer"}, {"default": "1", "name": "explainer_max_replicas",
           "optional": true, "type": "Integer"}, {"default": "1", "name": "explainer_min_replicas",
           "optional": true, "type": "Integer"}, {"name": "explainer_concurrency_target",
           "optional": true, "type": "Integer"}], "name": "Deploy inference service"}',
         pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"explainer_image":
-          "quay.io/ntlawrence/demo-explainer:0.1.0@sha256:57f4d1e94d3aea40563a801323d627dfecbbcb2f891477a510b81d805232b296",
-          "explainer_max_replicas": "1", "explainer_min_replicas": "1", "model_archive_s3":
-          "{{inputs.parameters.upload-artifacts-s3_address}}", "name": "credit-risk",
-          "predictor_concurrency_target": "1", "predictor_image": "quay.io/ntlawrence/demo-predictor@sha256:fca5f3a1de13005ea5033bc3dd3ba5319ae1d317f3bc02ee8a4f12f35ed7318f",
-          "predictor_max_replicas": "4", "predictor_min_replicas": "1", "transformer_concurrency_target":
-          "1", "transformer_image": "quay.io/ntlawrence/demo-transformer@sha256:54b5c5a6e379044c474deab4edcf92ec3e2fc22a588aaa7547184bf03199832b",
-          "transformer_max_replicas": "4", "transformer_min_replicas": "1"}'}
+          "quay.io/ntlawrence/demo-explainer:3.0.0", "explainer_max_replicas": "1",
+          "explainer_min_replicas": "1", "model_archive_s3": "{{inputs.parameters.upload-artifacts-s3_address}}",
+          "name": "credit-risk", "predictor_concurrency_target": "1", "predictor_image":
+          "quay.io/ntlawrence/demo-predictor:3.0.0", "predictor_max_replicas": "4",
+          "predictor_min_replicas": "1", "transformer_concurrency_target": "1", "transformer_image":
+          "quay.io/ntlawrence/demo-transformer:3.0.0", "transformer_max_replicas":
+          "4", "transformer_min_replicas": "1"}'}
   - name: evaluate
     container:
       args: [--df, /tmp/inputs/df/data, --preprocessor, /tmp/inputs/preprocessor/data,
@@ -925,7 +926,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/inputs/df/data}
@@ -987,7 +988,7 @@ spec:
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--mlpipeline-ui-metadata\",
           dest=\"mlpipeline_ui_metadata_path\", type=_make_parent_dirs_and_return_path,
           required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = evaluate(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = evaluate(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "df", "type": "String"}, {"name": "preprocessor", "type":
           "String"}, {"name": "onnx_model", "type": "String"}, {"name": "target_processing_config",
           "type": "String"}, {"default": "Risk", "name": "target", "optional": true}],
@@ -1077,7 +1078,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-data_frame_pkl, path: /tmp/inputs/training_df/data}
@@ -1114,7 +1115,7 @@ spec:
           dest=\"features\", type=json.loads, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--preprocessor-pkl\",
           dest=\"preprocessor_pkl\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = fit_preprocessor(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = fit_preprocessor(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "training_df", "type": "String"}, {"name": "features",
           "type": "typing.List[str]"}], "name": "Fit preprocessor", "outputs": [{"name":
           "preprocessor_pkl", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
@@ -1183,7 +1184,7 @@ spec:
                 column_info,
             ):
                 with db.cursor() as cur:
-                    cur.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(table_name)))
+                    cur.execute(sql.SQL('SELECT * FROM {} ORDER BY "ACCOUNT_ID"').format(sql.Identifier(table_name)))
                     df = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
                 assign_categories_to_df(df, column_info)
 
@@ -1216,12 +1217,12 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     outputs:
       artifacts:
       - {name: load-df-from-postgresql-data_frame_pkl, path: /tmp/outputs/data_frame_pkl/data}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Load_Training_Data_From_PostgreSQL,
+      annotations: {pipelines.kubeflow.org/task_display_name: Load_Training_Data,
         pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
           ["--table-name", {"inputValue": "table_name"}, "--data-frame-pkl", {"outputPath":
           "data_frame_pkl"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -1241,7 +1242,8 @@ spec:
           col_name in df.columns:\n                ctype = pd.CategoricalDtype(categories=levels,
           ordered=False)\n                df[col_name] = df[col_name].astype(ctype)\n\n    def
           df_from_sql(\n        name,\n        db,\n        column_info,\n    ):\n        with
-          db.cursor() as cur:\n            cur.execute(sql.SQL(''SELECT * FROM {}'').format(sql.Identifier(table_name)))\n            df
+          db.cursor() as cur:\n            cur.execute(sql.SQL(''SELECT * FROM {}
+          ORDER BY \"ACCOUNT_ID\"'').format(sql.Identifier(table_name)))\n            df
           = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])\n        assign_categories_to_df(df,
           column_info)\n\n        return df\n\n    conn = get_pg_conn()\n    column_info
           = json.loads(os.environ[\"COLUMNS\"])\n    df = df_from_sql(table_name,
@@ -1250,7 +1252,7 @@ spec:
           dest=\"table_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--data-frame-pkl\",
           dest=\"data_frame_pkl\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = load_df_from_postgresql(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = load_df_from_postgresql(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "table_name", "type": "String"}], "name": "Load df from
           postgresql", "outputs": [{"name": "data_frame_pkl", "type": "String"}]}',
         pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"table_name":
@@ -1318,7 +1320,7 @@ spec:
                 column_info,
             ):
                 with db.cursor() as cur:
-                    cur.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(table_name)))
+                    cur.execute(sql.SQL('SELECT * FROM {} ORDER BY "ACCOUNT_ID"').format(sql.Identifier(table_name)))
                     df = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
                 assign_categories_to_df(df, column_info)
 
@@ -1351,15 +1353,14 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     outputs:
       artifacts:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/outputs/data_frame_pkl/data}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Load_Test_Data_From_PostgreSQL,
-        pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
-          ["--table-name", {"inputValue": "table_name"}, "--data-frame-pkl", {"outputPath":
-          "data_frame_pkl"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
+      annotations: {pipelines.kubeflow.org/task_display_name: Load_Test_Data, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--table-name", {"inputValue": "table_name"}, "--data-frame-pkl",
+          {"outputPath": "data_frame_pkl"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
           python3 -m pip install --quiet --no-warn-script-location ''psycopg[binary,pool]''
           || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
           ''psycopg[binary,pool]'' --user) && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp)\nprintf
@@ -1376,7 +1377,8 @@ spec:
           col_name in df.columns:\n                ctype = pd.CategoricalDtype(categories=levels,
           ordered=False)\n                df[col_name] = df[col_name].astype(ctype)\n\n    def
           df_from_sql(\n        name,\n        db,\n        column_info,\n    ):\n        with
-          db.cursor() as cur:\n            cur.execute(sql.SQL(''SELECT * FROM {}'').format(sql.Identifier(table_name)))\n            df
+          db.cursor() as cur:\n            cur.execute(sql.SQL(''SELECT * FROM {}
+          ORDER BY \"ACCOUNT_ID\"'').format(sql.Identifier(table_name)))\n            df
           = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])\n        assign_categories_to_df(df,
           column_info)\n\n        return df\n\n    conn = get_pg_conn()\n    column_info
           = json.loads(os.environ[\"COLUMNS\"])\n    df = df_from_sql(table_name,
@@ -1385,7 +1387,7 @@ spec:
           dest=\"table_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--data-frame-pkl\",
           dest=\"data_frame_pkl\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = load_df_from_postgresql(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = load_df_from_postgresql(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "table_name", "type": "String"}], "name": "Load df from
           postgresql", "outputs": [{"name": "data_frame_pkl", "type": "String"}]}',
         pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"table_name":
@@ -1426,11 +1428,11 @@ spec:
         \    target_processing_config_dict = {\n        \"threshold\" : 0.5,\n   \
         \     \"target_names\" : {0: \"No Risk\", 1: \"Risk\"}\n    }\n\n    def get_tf_model(num_features):\n\
         \n        tf_model = Sequential(\n            [\n                Input(shape=(num_features,)),\n\
-        \                BatchNormalization(),\n                Dense(35, activation=\"\
+        \                BatchNormalization(),\n                Dense(64, activation=\"\
         sigmoid\", name=\"layer1\"),\n                BatchNormalization(),\n    \
-        \            Dropout(0.3, name=\"dropout1\"),\n                Dense(35, activation=\"\
+        \            Dropout(0.3, name=\"dropout1\"),\n                Dense(32, activation=\"\
         sigmoid\", name=\"layer2\"),\n                BatchNormalization(),\n    \
-        \            Dropout(0.3, name=\"dropout2\"),\n                Dense(35, activation=\"\
+        \            Dropout(0.3, name=\"dropout2\"),\n                Dense(16, activation=\"\
         sigmoid\", name=\"layer3\"),\n                Dropout(0.3, name=\"dropout3\"\
         ),\n                Dense(\n                    1,\n                    activation=\"\
         sigmoid\",\n                    name=\"output\",\n                ),\n   \
@@ -1460,8 +1462,8 @@ spec:
         \ = np.argmax(f1s)\n    target_processing_config_dict[\"threshold\"] = float(thresholds[threshold_index])\n\
         \n    # Save model and threshold config\n    tf_model.save(model, save_format=\"\
         h5\")\n    with open(target_processing_config, \"w\") as f:\n        json.dump(target_processing_config_dict,\
-        \ f)\n\n    plt = PrecisionRecallDisplay.from_predictions(\n        y_true=y.numpy(),\
-        \ y_pred=predictions.flatten(),\n    )\n    plt.ax_.plot(recall[threshold_index],\
+        \ f)\n\n    # Plot precision recall curve\n    plt = PrecisionRecallDisplay.from_predictions(\n\
+        \        y_true=y.numpy(), y_pred=predictions.flatten(),\n    )\n    plt.ax_.plot(recall[threshold_index],\
         \ precision[threshold_index], \n                     marker=\"o\", markersize=10,\
         \ markeredgecolor=\"black\", markerfacecolor=\"red\")\n    plt.ax_.text(recall[threshold_index]\
         \ + .03, precision[threshold_index] + .03,\n                  (f\"({recall[threshold_index]:.3f},{precision[threshold_index]:.3f})\\\
@@ -1490,7 +1492,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
       volumeMounts:
       - {mountPath: /tensorboard, name: create-pvc-for-tensorboard}
     inputs:
@@ -1532,10 +1534,10 @@ spec:
           base64\n\n    tf.keras.utils.set_random_seed(42)\n    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)\n    target_processing_config_dict
           = {\n        \"threshold\" : 0.5,\n        \"target_names\" : {0: \"No Risk\",
           1: \"Risk\"}\n    }\n\n    def get_tf_model(num_features):\n\n        tf_model
-          = Sequential(\n            [\n                Input(shape=(num_features,)),\n                BatchNormalization(),\n                Dense(35,
+          = Sequential(\n            [\n                Input(shape=(num_features,)),\n                BatchNormalization(),\n                Dense(64,
           activation=\"sigmoid\", name=\"layer1\"),\n                BatchNormalization(),\n                Dropout(0.3,
-          name=\"dropout1\"),\n                Dense(35, activation=\"sigmoid\", name=\"layer2\"),\n                BatchNormalization(),\n                Dropout(0.3,
-          name=\"dropout2\"),\n                Dense(35, activation=\"sigmoid\", name=\"layer3\"),\n                Dropout(0.3,
+          name=\"dropout1\"),\n                Dense(32, activation=\"sigmoid\", name=\"layer2\"),\n                BatchNormalization(),\n                Dropout(0.3,
+          name=\"dropout2\"),\n                Dense(16, activation=\"sigmoid\", name=\"layer3\"),\n                Dropout(0.3,
           name=\"dropout3\"),\n                Dense(\n                    1,\n                    activation=\"sigmoid\",\n                    name=\"output\",\n                ),\n            ]\n        )\n\n        tf_model.compile(optimizer=\"adam\",
           loss=\"binary_crossentropy\")\n\n        callbacks = [\n            EarlyStopping(\n                monitor=\"val_loss\",\n                patience=20,\n                verbose=0,\n                mode=\"min\",\n                restore_best_weights=True,\n            ),\n            ReduceLROnPlateau(\n                monitor=\"val_loss\",\n                factor=0.1,\n                patience=10,\n                verbose=1,\n                min_delta=0.0001,\n                mode=\"min\",\n            )\n        ]\n        print(f\"constructing
           tensorborad with log dir {tensorboard_dir}...\")\n        if tensorboard_dir:\n            callbacks.append(TensorBoard(\n                log_dir=tensorboard_dir\n            ))\n\n        return
@@ -1551,7 +1553,7 @@ spec:
           / (precision + recall)\n    threshold_index = np.argmax(f1s)\n    target_processing_config_dict[\"threshold\"]
           = float(thresholds[threshold_index])\n\n    # Save model and threshold config\n    tf_model.save(model,
           save_format=\"h5\")\n    with open(target_processing_config, \"w\") as f:\n        json.dump(target_processing_config_dict,
-          f)\n\n    plt = PrecisionRecallDisplay.from_predictions(\n        y_true=y.numpy(),
+          f)\n\n    # Plot precision recall curve\n    plt = PrecisionRecallDisplay.from_predictions(\n        y_true=y.numpy(),
           y_pred=predictions.flatten(),\n    )\n    plt.ax_.plot(recall[threshold_index],
           precision[threshold_index], \n                     marker=\"o\", markersize=10,
           markeredgecolor=\"black\", markerfacecolor=\"red\")\n    plt.ax_.text(recall[threshold_index]
@@ -1574,7 +1576,7 @@ spec:
           required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--mlpipeline-ui-metadata\",
           dest=\"mlpipeline_ui_metadata_path\", type=_make_parent_dirs_and_return_path,
           required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = train(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = train(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "training_df", "type": "String"}, {"name": "preprocessor",
           "type": "String"}, {"default": "Risk", "name": "target", "optional": true,
           "type": "String"}, {"name": "tensorboard_dir", "optional": true, "type":
@@ -1691,7 +1693,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: convert-model-to-onnx-onnx_model, path: /tmp/inputs/onnx_model/data}
@@ -1749,7 +1751,7 @@ spec:
           dest=\"target_processing_config\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--explainer-dll\",
           dest=\"explainer_dll\", type=_make_parent_dirs_and_return_path, required=True,
           default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
-          = train_explainer(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
+          = train_explainer(**_parsed_args)\n"], "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}},
           "inputs": [{"name": "train_df", "type": "String"}, {"name": "preprocessor",
           "type": "String"}, {"name": "onnx_model", "type": "String"}, {"name": "target_processing_config",
           "type": "String"}], "name": "Train explainer", "outputs": [{"name": "explainer_dll",
@@ -1827,7 +1829,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: train-explainer-explainer_dll, path: /tmp/inputs/explainer/data}
@@ -1892,10 +1894,10 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = upload_artifacts(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "onnx_model", "type": "String"}, {"name": "preprocessor",
-          "type": "String"}, {"name": "explainer", "type": "String"}, {"name": "archive_name",
-          "type": "String"}, {"default": "minio-service.kubeflow:9000", "name": "minio_url",
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "onnx_model", "type": "String"}, {"name": "preprocessor", "type": "String"},
+          {"name": "explainer", "type": "String"}, {"name": "archive_name", "type":
+          "String"}, {"default": "minio-service.kubeflow:9000", "name": "minio_url",
           "optional": true, "type": "String"}, {"default": "1", "name": "version",
           "optional": true, "type": "String"}], "name": "Upload artifacts", "outputs":
           [{"name": "s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',

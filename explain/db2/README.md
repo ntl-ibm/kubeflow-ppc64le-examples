@@ -35,7 +35,8 @@ In this directory, edit `db2-secret.yaml` to set the username, password, host, a
 Open the `SETUP-For-DB2.ipynb` notebook in this example and run all cells.
 
 This will create the schema for the application, as well as training and test data to deploy the model.
-This script will also create the secret that provides the credentials to MinIO to the inference service.
+
+This script will also create the secret that provides the credentials to MinIO to the inference service, this is unrelated to DB2, but is required to deploy the inference service.
 
 
 

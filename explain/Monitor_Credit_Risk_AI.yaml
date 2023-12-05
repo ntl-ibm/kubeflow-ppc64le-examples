@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: monitor-credit-risk-ai-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-12-04T22:06:47.005965',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2023-12-05T19:31:27.146760',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "An example pipeline that
       monitors the behavior of the AI model within the application", "inputs": [{"default":
       "10080", "name": "time_window_minutes", "optional": true, "type": "Integer"},
@@ -73,7 +73,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: evidently-classification-report-output_json, path: /tmp/inputs/classification_report/data}
@@ -109,11 +109,11 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = check_metrics(**_parsed_args)\n\n_output_serializers
           = [\n    str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "classification_report", "type": "String"}, {"name":
-          "data_drift_report", "type": "String"}, {"name": "target_drift_report",
-          "type": "String"}], "name": "Check metrics", "outputs": [{"name": "mlpipeline_metrics",
-          "type": "Metrics"}]}', pipelines.kubeflow.org/component_ref: '{}'}
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "classification_report", "type": "String"}, {"name": "data_drift_report",
+          "type": "String"}, {"name": "target_drift_report", "type": "String"}], "name":
+          "Check metrics", "outputs": [{"name": "mlpipeline_metrics", "type": "Metrics"}]}',
+        pipelines.kubeflow.org/component_ref: '{}'}
   - name: condition-1
     inputs:
       artifacts:
@@ -255,7 +255,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/inputs/production_df/data}
@@ -312,16 +312,15 @@ spec:
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-json\", dest=\"output_json\",
           type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = evidently_classification_report(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "production_df", "type": "String"}, {"default": "Risk",
-          "name": "target", "optional": true, "type": "String"}, {"default": "PredictedRisk",
-          "name": "predictions", "optional": true, "type": "String"}, {"default":
-          "Risk", "name": "pos_class", "optional": true, "type": "String"}], "name":
-          "Evidently classification report", "outputs": [{"name": "mlpipeline_ui_metadata",
-          "type": "String"}, {"name": "output_report", "type": "String"}, {"name":
-          "output_json", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
-        pipelines.kubeflow.org/arguments.parameters: '{"pos_class": "Risk", "predictions":
-          "PredictedRisk", "target": "Risk"}'}
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "production_df", "type": "String"}, {"default": "Risk", "name": "target",
+          "optional": true, "type": "String"}, {"default": "PredictedRisk", "name":
+          "predictions", "optional": true, "type": "String"}, {"default": "Risk",
+          "name": "pos_class", "optional": true, "type": "String"}], "name": "Evidently
+          classification report", "outputs": [{"name": "mlpipeline_ui_metadata", "type":
+          "String"}, {"name": "output_report", "type": "String"}, {"name": "output_json",
+          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"pos_class":
+          "Risk", "predictions": "PredictedRisk", "target": "Risk"}'}
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
@@ -439,7 +438,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/inputs/production_df/data}
@@ -492,13 +491,13 @@ spec:
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-json\", dest=\"output_json\",
           type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = evidently_report(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "reference_df", "type": "String"}, {"name": "production_df",
-          "type": "String"}, {"default": "Risk", "name": "target", "optional": true,
-          "type": "String"}, {"default": "drift", "name": "report_type", "optional":
-          true, "type": "String"}], "name": "Evidently report", "outputs": [{"name":
-          "mlpipeline_ui_metadata", "type": "String"}, {"name": "output_report", "type":
-          "String"}, {"name": "output_json", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "reference_df", "type": "String"}, {"name": "production_df", "type": "String"},
+          {"default": "Risk", "name": "target", "optional": true, "type": "String"},
+          {"default": "drift", "name": "report_type", "optional": true, "type": "String"}],
+          "name": "Evidently report", "outputs": [{"name": "mlpipeline_ui_metadata",
+          "type": "String"}, {"name": "output_report", "type": "String"}, {"name":
+          "output_json", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"report_type": "drift", "target":
           "Risk"}'}
       labels:
@@ -618,7 +617,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/inputs/production_df/data}
@@ -671,13 +670,13 @@ spec:
           default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-json\", dest=\"output_json\",
           type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args
           = vars(_parser.parse_args())\n\n_outputs = evidently_report(**_parsed_args)\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "reference_df", "type": "String"}, {"name": "production_df",
-          "type": "String"}, {"default": "Risk", "name": "target", "optional": true,
-          "type": "String"}, {"default": "drift", "name": "report_type", "optional":
-          true, "type": "String"}], "name": "Evidently report", "outputs": [{"name":
-          "mlpipeline_ui_metadata", "type": "String"}, {"name": "output_report", "type":
-          "String"}, {"name": "output_json", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "reference_df", "type": "String"}, {"name": "production_df", "type": "String"},
+          {"default": "Risk", "name": "target", "optional": true, "type": "String"},
+          {"default": "drift", "name": "report_type", "optional": true, "type": "String"}],
+          "name": "Evidently report", "outputs": [{"name": "mlpipeline_ui_metadata",
+          "type": "String"}, {"name": "output_report", "type": "String"}, {"name":
+          "output_json", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
         pipelines.kubeflow.org/arguments.parameters: '{"report_type": "target_drift",
           "target": "Risk"}'}
       labels:
@@ -774,7 +773,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       artifacts:
       - name: time_window_minutes
@@ -785,7 +784,7 @@ spec:
       - {name: load-df-from-postgresql-data_frame_pkl, path: /tmp/outputs/data_frame_pkl/data}
       - {name: load-df-from-postgresql-num_rows, path: /tmp/outputs/num_rows/data}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Load_Reference_Data_From_DB2,
+      annotations: {pipelines.kubeflow.org/task_display_name: Load_Reference_Data,
         pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
           ["--table-name", {"inputValue": "table_name"}, {"if": {"cond": {"isPresent":
           "target_column"}, "then": ["--target-column", {"inputValue": "target_column"}]}},
@@ -843,15 +842,14 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = load_df_from_postgresql(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_int,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "table_name", "type": "String"}, {"default": "Risk",
-          "name": "target_column", "optional": true, "type": "String"}, {"default":
-          "", "name": "predictions_column", "optional": true, "type": "String"}, {"name":
-          "time_window_minutes", "optional": true, "type": "Integer"}], "name": "Load
-          df from postgresql", "outputs": [{"name": "data_frame_pkl", "type": "String"},
-          {"name": "num_rows", "type": "int"}]}', pipelines.kubeflow.org/component_ref: '{}',
-        pipelines.kubeflow.org/arguments.parameters: '{"predictions_column": "", "table_name":
-          "TRAIN", "target_column": "Risk"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "table_name", "type": "String"}, {"default": "Risk", "name": "target_column",
+          "optional": true, "type": "String"}, {"default": "", "name": "predictions_column",
+          "optional": true, "type": "String"}, {"name": "time_window_minutes", "optional":
+          true, "type": "Integer"}], "name": "Load df from postgresql", "outputs":
+          [{"name": "data_frame_pkl", "type": "String"}, {"name": "num_rows", "type":
+          "int"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"predictions_column":
+          "", "table_name": "TRAIN", "target_column": "Risk"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
         pipelines.kubeflow.org/pipeline-sdk-type: kfp
@@ -947,7 +945,7 @@ spec:
       - name: COLUMNS
         valueFrom:
           configMapKeyRef: {key: columns, name: credit-risk-columns}
-      image: quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5
+      image: quay.io/ntlawrence/demo-workflow:3.0.0
     inputs:
       parameters:
       - {name: time_window_minutes}
@@ -959,7 +957,7 @@ spec:
       - {name: load-df-from-postgresql-2-data_frame_pkl, path: /tmp/outputs/data_frame_pkl/data}
       - {name: load-df-from-postgresql-2-num_rows, path: /tmp/outputs/num_rows/data}
     metadata:
-      annotations: {pipelines.kubeflow.org/task_display_name: Load_Production_Data_From_DB2,
+      annotations: {pipelines.kubeflow.org/task_display_name: Load_Production_Data,
         pipelines.kubeflow.org/component_spec: '{"implementation": {"container": {"args":
           ["--table-name", {"inputValue": "table_name"}, {"if": {"cond": {"isPresent":
           "target_column"}, "then": ["--target-column", {"inputValue": "target_column"}]}},
@@ -1017,15 +1015,14 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = load_df_from_postgresql(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_int,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "quay.io/ntlawrence/demo-workflow@sha256:e0b071e361a147d1cc957b96a19ae6144d792ff994ac8daf0ba887a5bd3652f5"}},
-          "inputs": [{"name": "table_name", "type": "String"}, {"default": "Risk",
-          "name": "target_column", "optional": true, "type": "String"}, {"default":
-          "", "name": "predictions_column", "optional": true, "type": "String"}, {"name":
-          "time_window_minutes", "optional": true, "type": "Integer"}], "name": "Load
-          df from postgresql", "outputs": [{"name": "data_frame_pkl", "type": "String"},
-          {"name": "num_rows", "type": "int"}]}', pipelines.kubeflow.org/component_ref: '{}',
-        pipelines.kubeflow.org/arguments.parameters: '{"predictions_column": "PredictedRisk",
-          "table_name": "CLIENT_DATA", "target_column": "Risk", "time_window_minutes":
+          "image": "quay.io/ntlawrence/demo-workflow:3.0.0"}}, "inputs": [{"name":
+          "table_name", "type": "String"}, {"default": "Risk", "name": "target_column",
+          "optional": true, "type": "String"}, {"default": "", "name": "predictions_column",
+          "optional": true, "type": "String"}, {"name": "time_window_minutes", "optional":
+          true, "type": "Integer"}], "name": "Load df from postgresql", "outputs":
+          [{"name": "data_frame_pkl", "type": "String"}, {"name": "num_rows", "type":
+          "int"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"predictions_column":
+          "PredictedRisk", "table_name": "CLIENT_DATA", "target_column": "Risk", "time_window_minutes":
           "{{inputs.parameters.time_window_minutes}}"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
       labels:
         pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
