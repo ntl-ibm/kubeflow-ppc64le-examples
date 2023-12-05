@@ -313,6 +313,7 @@ if __name__ == "__main__":
         else -1
     )
 
+    model.eval()
     trainer.test(model, mnist)
     metrics["test_f1"] = float(trainer.callback_metrics["test_F1"])
     metrics["test_acc"] = float(trainer.callback_metrics["test_acc"])
