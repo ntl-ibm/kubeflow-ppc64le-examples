@@ -98,7 +98,9 @@ class MNISTModel(L.LightningModule):
         logits = self(x)
 
         self.val_loss.update(F.cross_entropy(logits, y))
-        self.log("val_loss", self.val_loss, on_epoch=True, prog_bar=True)
+        self.log(
+            "val_loss", self.val_loss, sync_dist=True, on_epoch=True, prog_bar=True
+        )
 
         preds = torch.argmax(logits, dim=1)
         self.val_f1.update(preds, y)
