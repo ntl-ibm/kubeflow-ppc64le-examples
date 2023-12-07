@@ -138,11 +138,6 @@ class MNISTModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     @rank_zero_only
-    def save(self, model_dest: str):
-        """Saves the model to the destination file"""
-        torch.save(self, model_dest)
-
-    @rank_zero_only
     def log_metric_for_katib(self, metrics: str):
         """Logs to the metrics"""
         self.katib_logger.info(metrics)

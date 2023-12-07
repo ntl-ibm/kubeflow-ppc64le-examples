@@ -17,13 +17,19 @@ Main entry point for training
 import argparse
 import pytorch_lightning as L
 import torch
-from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
+from pytorch_lightning.utilities.rank_zero import rank_zero_info
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+from pytorch_lightning.plugins.environments import (
+    KubeflowEnvironment,
+    LightningEnvironment,
+)
 from typing import Dict
 import os
 import json
+import shutil
+from pathlib import Path
 
 from model import MNISTModel
 from data import MNISTDataModule
@@ -36,12 +42,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, help="Data Directory")
     parser.add_argument("--root_dir", type=str, help="Root Directory")
-    parser.add_argument("--model", type=str, help="Output trained model file")
     parser.add_argument(
-        "--evaluation_metrics",
+        "--model_ckpt",
         type=str,
-        default=None,
-        help="Metrics file from evaluation of validation and test data",
+        help="Output location for the checkpoint of the trained model",
     )
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument(
@@ -49,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--lr", type=float, help="learning rate", default=0.02)
     parser.add_argument(
-        "--metric_log_file",
+        "--katib_log_file",
         type=str,
         help="Output file for TEXT logs, used by Katib Metrics Collectors",
         default=None,
@@ -72,62 +76,73 @@ def parse_args() -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         help="Enable checkpointing?",
     )
+    parser.add_argument(
+        "--pytorchjob",
+        dest="pytorchjob",
+        action=argparse.BooleanOptionalAction,
+        help="Is this part of a Kubeflow PyTorchJob?",
+    )
+
     return parser.parse_args()
-
-
-@rank_zero_only
-def write_test_evaluation_metrics(path: str, metrics: Dict[str, float]):
-    """Writes training and test data metrics to the specified path"""
-    with open(path, "w") as f:
-        json.dump(metrics, f)
 
 
 if __name__ == "__main__":
     torch.manual_seed(42)
     args = parse_args()
+    environment = KubeflowEnvironment() if args.pytorchjob else LightningEnvironment()
 
-    num_workers = int(os.environ.get("WORLD_SIZE", 1))
-    if not ((args.batch_size % num_workers) == 0):
+    if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
-            f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({num_workers})"
+            f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({environment.world_size()})"
         )
 
-    chkpt_path = os.path.join(args.root_dir, "last.ckpt")
-    if args.checkpoint and os.path.exists(chkpt_path):
+    # Create Data Module
+    mnist = MNISTDataModule(
+        data_dir=args.data_dir, batch_size=(args.batch_size // environment.world_size())
+    )
+
+    # Create model, resuming from checkpoint if last.ckpt exists and checkpointing asked for
+    possible_prior_chkpt_path = os.path.join(args.root_dir, "last.ckpt")
+    if args.checkpoint and os.path.exists(possible_prior_chkpt_path):
+        prior_chkpt_path = possible_prior_chkpt_path
         rank_zero_info(
-            f"Initializing training weights/hypterparameters from checkpoint {chkpt_path}"
+            f"Initializing training weights/hypterparameters from checkpoint {prior_chkpt_path}"
         )
-        model = MNISTModel.load_from_checkpoint(chkpt_path)
-
+        model = MNISTModel.load_from_checkpoint(prior_chkpt_path)
     else:
-        model = MNISTModel(lr=args.lr, metric_log_file=args.metric_log_file)
-        chkpt_path = None
+        model = MNISTModel(lr=args.lr, katib_log_file=args.katib_log_file)
+        prior_chkpt_path = None
 
+    # Setup callbacks
     callbacks = []
 
     if args.early_stopping:
         callbacks.append(EarlyStopping(monitor="val_loss", mode="min"))
 
+    checkpoint_cb = None
     if args.checkpoint:
-        callbacks.append(
-            ModelCheckpoint(
-                dirpath=args.root_dir, every_n_epochs=1, save_last=True, verbose=True
-            )
+        checkpoint_cb = ModelCheckpoint(
+            dirpath=args.root_dir,
+            monitor="val_loss",
+            mode="min",
+            every_n_epochs=1,
+            save_last=True,
+            save_top_k=1,
+            verbose=True,
         )
+        callbacks.append(checkpoint_cb)
 
+    # Logger for TensorBoard
     logger = TensorBoardLogger(save_dir=args.tensorboard) if args.tensorboard else True
 
-    mnist = MNISTDataModule(
-        data_dir=args.data_dir, batch_size=(args.batch_size // num_workers)
-    )
-
+    # Trainer
     trainer = L.Trainer(
         logger=logger,
         accelerator="auto",
         # strategy needs to be ddp, find_unused_parameters is due to
         # https://github.com/Lightning-AI/lightning/discussions/6761
         strategy="ddp_find_unused_parameters_false",
-        num_nodes=num_workers,
+        num_nodes=environment.world_size(),
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
         else -1,
@@ -138,36 +153,19 @@ if __name__ == "__main__":
         # Note: resume_from_checkpoint is depreciated and will be
         # removed in 2.0, instead use chkpt_path on trainer.fit()
         # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        resume_from_checkpoint=chkpt_path if args.checkpoint else None,
+        resume_from_checkpoint=prior_chkpt_path,
+        plugins=[environment],
     )
 
-    metrics = {}
+    # Fit model
     trainer.fit(model, mnist)
-    # If we load from checkpoint, and the model was previusly trained
-    # for max epochs, it won't train further and there will be no
-    # metrics recorded. Just use -1 in that case
-    metrics["train_f1"] = (
-        float(trainer.callback_metrics["val_F1"])
-        if "val_F1" in trainer.callback_metrics
-        else -1
-    )
-    metrics["train_acc"] = (
-        float(trainer.callback_metrics["val_acc"])
-        if "val_acc" in trainer.callback_metrics
-        else -1
-    )
 
-    model.freeze()
-    trainer.test(model, mnist)
-    metrics["test_f1"] = float(trainer.callback_metrics["test_F1"])
-    metrics["test_acc"] = float(trainer.callback_metrics["test_acc"])
+    # If requested, Save Checkpoint for the model at the specified location
+    if args.model_ckpt and (environment.global_rank() == 0):
+        p_dirs = Path(os.path.dirname(args.model_ckpt))
+        p_dirs.mkdir(parents=True, exist_ok=True)
 
-    rank_zero_info(f"Training Valiation F1 = {metrics['train_f1']}")
-    rank_zero_info(f"Training Valiation accuracy = {metrics['train_acc']}")
-    rank_zero_info(f"Test F1 = {metrics['test_f1']}")
-    rank_zero_info(f"Test accuracy = {metrics['test_acc']}")
-
-    # Save outputs
-    model.save(args.model)
-    if args.evaluation_metrics:
-        write_test_evaluation_metrics(args.evaluation_metrics, metrics)
+        if checkpoint_cb:
+            shutil.copyfile(checkpoint_cb.best_model_path, args.model_ckpt)
+        else:
+            trainer.save_checkpoint(args.model_ckpt)
