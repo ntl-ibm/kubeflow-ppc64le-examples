@@ -97,10 +97,10 @@ class MNISTModel(L.LightningModule):
         x, y = batch
         logits = self(x)
 
+        # https://lightning.ai/docs/pytorch/stable/integrations/ipu/prepare.html#synchronize-validation-and-test-logging
+        # These are all TorchMetrics so there is no concern about syncing
         self.val_loss.update(F.cross_entropy(logits, y))
-        self.log(
-            "val_loss", self.val_loss, sync_dist=True, on_epoch=True, prog_bar=True
-        )
+        self.log("val_loss", self.val_loss, on_epoch=True, prog_bar=True)
 
         preds = torch.argmax(logits, dim=1)
         self.val_f1.update(preds, y)

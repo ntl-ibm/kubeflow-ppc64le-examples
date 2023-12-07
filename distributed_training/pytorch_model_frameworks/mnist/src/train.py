@@ -159,6 +159,7 @@ if __name__ == "__main__":
 
     # Fit model
     trainer.fit(model, mnist)
+    trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
     if args.model_ckpt and (environment.global_rank() == 0):
