@@ -89,11 +89,14 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     print(sys.argv)
-    print(os.environ)
+    for k, v in os.environ:
+        print(f"{k} = {v}")
+
     torch.manual_seed(42)
     args = parse_args()
     environment = KubeflowEnvironment() if args.pytorchjob else LightningEnvironment()
 
+    print(f"WORLD_SIZE = {environment.world_size()}")
     if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({environment.world_size()})"
