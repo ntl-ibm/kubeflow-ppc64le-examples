@@ -153,12 +153,12 @@ if __name__ == "__main__":
         # Note: resume_from_checkpoint is depreciated and will be
         # removed in 2.0, instead use chkpt_path on trainer.fit()
         # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        resume_from_checkpoint=prior_chkpt_path,
+        # resume_from_checkpoint=prior_chkpt_path,
         plugins=[environment],
     )
 
     # Fit model
-    trainer.fit(model, mnist)
+    trainer.fit(model, mnist, chkpt_path=prior_chkpt_path)
     trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
