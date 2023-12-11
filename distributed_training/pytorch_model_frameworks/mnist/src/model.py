@@ -100,6 +100,7 @@ class MNISTModel(L.LightningModule):
         # https://lightning.ai/docs/pytorch/stable/integrations/ipu/prepare.html#synchronize-validation-and-test-logging
         # These are all TorchMetrics so there is no concern about syncing
         loss = F.cross_entropy(logits, y)
+        print("loss = " + str(loss))
         self.val_loss.update(loss)
         self.log("val_loss", self.val_loss, on_epoch=True)
 
