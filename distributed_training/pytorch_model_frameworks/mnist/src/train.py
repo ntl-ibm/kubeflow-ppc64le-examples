@@ -158,7 +158,7 @@ if __name__ == "__main__":
     )
 
     # Fit model
-    trainer.fit(model, mnist, chkpt_path=prior_chkpt_path)
+    trainer.fit(model, mnist, ckpt_path=prior_chkpt_path)
     trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
