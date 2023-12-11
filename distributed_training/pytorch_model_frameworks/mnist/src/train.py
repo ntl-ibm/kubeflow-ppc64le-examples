@@ -89,7 +89,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     print(sys.argv)
-    for k, v in os.environ:
+    for k, v in os.environ.items():
         print(f"{k} = {v}")
 
     torch.manual_seed(42)
