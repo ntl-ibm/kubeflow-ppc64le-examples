@@ -30,6 +30,7 @@ import os
 import json
 import shutil
 from pathlib import Path
+import sys
 
 from model import MNISTModel
 from data import MNISTDataModule
@@ -87,6 +88,8 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    print(sys.argv)
+    print(os.environ)
     torch.manual_seed(42)
     args = parse_args()
     environment = KubeflowEnvironment() if args.pytorchjob else LightningEnvironment()
