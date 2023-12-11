@@ -99,14 +99,15 @@ class MNISTModel(L.LightningModule):
 
         # https://lightning.ai/docs/pytorch/stable/integrations/ipu/prepare.html#synchronize-validation-and-test-logging
         # These are all TorchMetrics so there is no concern about syncing
-        self.val_loss.update(F.cross_entropy(logits, y))
-        self.log("val_loss", self.val_loss, on_epoch=True, prog_bar=True)
+        loss = F.cross_entropy(logits, y)
+        self.val_loss.update(loss)
+        self.log("val_loss", self.val_loss, on_epoch=True)
 
         preds = torch.argmax(logits, dim=1)
         self.val_f1.update(preds, y)
-        self.log("val_F1", self.val_f1, on_epoch=True, prog_bar=True)
+        self.log("val_F1", self.val_f1, on_epoch=True)
         self.val_acc.update(preds, y)
-        self.log("val_acc", self.val_acc, on_epoch=True, prog_bar=True)
+        self.log("val_acc", self.val_acc, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
         del batch_idx
@@ -115,9 +116,9 @@ class MNISTModel(L.LightningModule):
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         self.test_f1.update(preds, y)
-        self.log("test_F1", self.test_f1, on_epoch=True, prog_bar=True)
+        self.log("test_F1", self.test_f1, on_epoch=True)
         self.test_acc.update(preds, y)
-        self.log("test_acc", self.test_acc, on_epoch=True, prog_bar=True)
+        self.log("test_acc", self.test_acc, on_epoch=True)
 
     def on_train_epoch_end(self):
         """

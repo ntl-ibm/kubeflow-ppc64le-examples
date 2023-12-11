@@ -117,7 +117,7 @@ if __name__ == "__main__":
     callbacks = []
 
     if args.early_stopping:
-        callbacks.append(EarlyStopping(monitor="val_loss", mode="min"))
+        callbacks.append(EarlyStopping(monitor="val_loss", mode="min", verbose=True))
 
     checkpoint_cb = None
     if args.checkpoint:
