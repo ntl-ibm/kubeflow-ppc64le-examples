@@ -88,15 +88,15 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    print(sys.argv)
-    for k, v in os.environ.items():
-        print(f"{k} = {v}")
-
     torch.manual_seed(42)
     args = parse_args()
     environment = KubeflowEnvironment() if args.pytorchjob else LightningEnvironment()
 
-    print(f"WORLD_SIZE = {environment.world_size()}")
+    if isinstance(environment, KubeflowEnvironment):
+        rank_zero_info("Running distributed training with a DDP environment")
+    else:
+        rank_zero_info("")
+
     if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({environment.world_size()})"
@@ -169,6 +169,7 @@ if __name__ == "__main__":
 
     # If requested, Save Checkpoint for the model at the specified location
     if args.model_ckpt and (environment.global_rank() == 0):
+        rank_zero_info(f"Copy best checkpoint to {args.model_ckpt}")
         p_dirs = Path(os.path.dirname(args.model_ckpt))
         p_dirs.mkdir(parents=True, exist_ok=True)
 

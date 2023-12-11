@@ -89,7 +89,6 @@ class MNISTModel(L.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         loss = F.cross_entropy(self(x), y)
-        print(f"train: loss = {loss} batch_idx = {batch_idx}")
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -101,7 +100,6 @@ class MNISTModel(L.LightningModule):
         # https://lightning.ai/docs/pytorch/stable/integrations/ipu/prepare.html#synchronize-validation-and-test-logging
         # These are all TorchMetrics so there is no concern about syncing
         loss = F.cross_entropy(logits, y)
-        print(f"val: loss = {loss} batch_idx = {batch_idx}")
         self.val_loss.update(loss)
         self.log("val_loss", self.val_loss, on_epoch=True)
 
