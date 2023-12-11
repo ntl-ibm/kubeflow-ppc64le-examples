@@ -30,6 +30,7 @@ import os
 import json
 import shutil
 from pathlib import Path
+import sys
 
 from model import MNISTModel
 from data import MNISTDataModule
@@ -91,6 +92,11 @@ if __name__ == "__main__":
     args = parse_args()
     environment = KubeflowEnvironment() if args.pytorchjob else LightningEnvironment()
 
+    if isinstance(environment, KubeflowEnvironment):
+        rank_zero_info("Running distributed training with a DDP environment")
+    else:
+        rank_zero_info("")
+
     if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
             f"The (effective) batch size {args.batch_size} must be a multiple of the number of workers ({environment.world_size()})"
@@ -117,7 +123,7 @@ if __name__ == "__main__":
     callbacks = []
 
     if args.early_stopping:
-        callbacks.append(EarlyStopping(monitor="val_loss", mode="min"))
+        callbacks.append(EarlyStopping(monitor="val_loss", mode="min", verbose=True))
 
     checkpoint_cb = None
     if args.checkpoint:
@@ -153,16 +159,17 @@ if __name__ == "__main__":
         # Note: resume_from_checkpoint is depreciated and will be
         # removed in 2.0, instead use chkpt_path on trainer.fit()
         # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        resume_from_checkpoint=prior_chkpt_path,
+        # resume_from_checkpoint=prior_chkpt_path,
         plugins=[environment],
     )
 
     # Fit model
-    trainer.fit(model, mnist)
+    trainer.fit(model, mnist, ckpt_path=prior_chkpt_path)
     trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
     if args.model_ckpt and (environment.global_rank() == 0):
+        rank_zero_info(f"Copy best checkpoint to {args.model_ckpt}")
         p_dirs = Path(os.path.dirname(args.model_ckpt))
         p_dirs.mkdir(parents=True, exist_ok=True)
 
