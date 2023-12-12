@@ -92,8 +92,6 @@ if __name__ == "__main__":
 
     if isinstance(environment, KubeflowEnvironment):
         rank_zero_info("Running distributed training with a DDP environment")
-    else:
-        rank_zero_info("")
 
     if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
@@ -143,8 +141,6 @@ if __name__ == "__main__":
         else True
     )
 
-    print(logger.log_dir)
-
     # Trainer
     trainer = L.Trainer(
         logger=logger,
@@ -160,16 +156,11 @@ if __name__ == "__main__":
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
         callbacks=callbacks,
-        # Note: resume_from_checkpoint is depreciated and will be
-        # removed in 2.0, instead use chkpt_path on trainer.fit()
-        # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        # resume_from_checkpoint=prior_chkpt_path,
         plugins=[environment],
     )
 
     # Fit model
     trainer.fit(model, mnist, ckpt_path=prior_chkpt_path)
-    trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
     if args.model_ckpt and (environment.global_rank() == 0):

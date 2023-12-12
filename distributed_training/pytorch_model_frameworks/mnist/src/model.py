@@ -95,7 +95,7 @@ class MNISTModel(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # del batch_idx
+        del batch_idx
 
         x, y = batch
         logits = self(x)
@@ -111,6 +111,7 @@ class MNISTModel(L.LightningModule):
         self.log("val/F1", self.val_f1, on_epoch=True, logger=True)
         self.val_acc.update(preds, y)
         self.log("val/acc", self.val_acc, on_epoch=True, logger=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         del batch_idx
@@ -122,6 +123,9 @@ class MNISTModel(L.LightningModule):
         self.log("test/F1", self.test_f1, on_epoch=True)
         self.test_acc.update(preds, y)
         self.log("test/acc", self.test_acc, on_epoch=True)
+
+        loss = F.cross_entropy(logits, y)
+        return loss
 
     def on_train_epoch_end(self):
         """
