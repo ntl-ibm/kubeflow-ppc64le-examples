@@ -69,9 +69,9 @@ class MNISTModel(L.LightningModule):
         self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
+        self.val_loss = SumMetric()
         self.val_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
         self.val_acc = Accuracy(task="multiclass", num_classes=10)
-        self.val_loss = SumMetric()
         self.train_loss = SumMetric()
         self.test_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
         self.test_acc = Accuracy(task="multiclass", num_classes=10)

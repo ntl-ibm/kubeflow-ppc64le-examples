@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
     # Logger for TensorBoard
     logger = (
-        TensorBoardLogger(save_dir=args.tensorboard, name="")
+        TensorBoardLogger(save_dir=args.tensorboard, name="", default_hp_metric=False)
         if args.tensorboard
         else True
     )
