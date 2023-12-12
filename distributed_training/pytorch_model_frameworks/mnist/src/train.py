@@ -127,7 +127,7 @@ if __name__ == "__main__":
     if args.checkpoint:
         checkpoint_cb = ModelCheckpoint(
             dirpath=args.root_dir,
-            monitor="val_loss",
+            monitor="val/loss",
             mode="min",
             every_n_epochs=1,
             save_last=True,
