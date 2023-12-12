@@ -104,6 +104,6 @@ if __name__ == "__main__":
     trainer.test(model, mnist)
 
     # save metrics
-    metrics = {k: float(v) for k, v in trainer.callback_metrics}
+    metrics = {k: float(v) for k, v in trainer.callback_metrics.items()}
     with open(args.metrics_json, "w") as f:
         json.dump(metrics, f)
