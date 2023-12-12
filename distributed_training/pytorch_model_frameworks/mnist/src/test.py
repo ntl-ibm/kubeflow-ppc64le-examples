@@ -94,7 +94,7 @@ if __name__ == "__main__":
         num_nodes=environment.world_size(),
         devices=[d for d in range(torch.cuda.device_count())]
         if torch.cuda.is_available()
-        else -1,
+        else "auto",
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
         plugins=[environment],
