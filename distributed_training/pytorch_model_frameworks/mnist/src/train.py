@@ -27,10 +27,8 @@ from pytorch_lightning.plugins.environments import (
 )
 from typing import Dict
 import os
-import json
 import shutil
 from pathlib import Path
-import sys
 
 from model import MNISTModel
 from data import MNISTDataModule
@@ -144,6 +142,8 @@ if __name__ == "__main__":
         if args.tensorboard
         else True
     )
+
+    print(logger.log_dir)
 
     # Trainer
     trainer = L.Trainer(
