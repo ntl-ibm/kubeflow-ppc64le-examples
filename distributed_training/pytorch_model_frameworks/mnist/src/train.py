@@ -139,7 +139,11 @@ if __name__ == "__main__":
         callbacks.append(checkpoint_cb)
 
     # Logger for TensorBoard
-    logger = TensorBoardLogger(save_dir=args.tensorboard) if args.tensorboard else True
+    logger = (
+        TensorBoardLogger(save_dir=args.tensorboard, name="")
+        if args.tensorboard
+        else True
+    )
 
     # Trainer
     trainer = L.Trainer(
