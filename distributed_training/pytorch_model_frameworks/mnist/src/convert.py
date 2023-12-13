@@ -26,9 +26,12 @@ from pytorch_lightning.plugins.environments import (
     KubeflowEnvironment,
     LightningEnvironment,
 )
+from torchvision.datasets import MNIST
 
 from model import MNISTModel
-from data import MNISTDataModule
+from data import transform_image
+
+# MNISTDataModule
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,7 +58,12 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
 
-    mnist = MNISTDataModule(data_dir=args.data_dir, batch_size=50).train_dataloader()
+    mnist_full = MNIST(
+        args.data_dir, download=False, train=True, transform=transform_image
+    )
+    reference = torch.utils.data.Subset(mnist_full, range(50))
+
+    # MNISTDataModule(data_dir=args.data_dir, batch_size=50).train_dataloader()
     model = MNISTModel.load_from_checkpoint(args.model_ckpt)
 
-    model.to_onnx(args.onnx, next(mnist))
+    model.to_onnx(args.onnx, reference)
