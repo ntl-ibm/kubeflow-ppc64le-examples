@@ -65,6 +65,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::torchvision==0.15.2 \
     rocketce::torchmetrics==0.11.4 \
     rocketce::nccl==2.17.1 \
+    rocketce::onnx==1.13.1 \
     cudatoolkit==11.8.0 \
     && rm /tmp/micromamba
 
