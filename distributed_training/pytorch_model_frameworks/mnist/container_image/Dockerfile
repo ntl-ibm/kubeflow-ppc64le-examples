@@ -70,7 +70,7 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     rocketce::cudatoolkit==11.8.0 \
     && rm /tmp/micromamba
 
-RUN pip install "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
+RUN pip install --verbose "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR}
