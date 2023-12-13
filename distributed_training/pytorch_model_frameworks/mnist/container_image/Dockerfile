@@ -58,15 +58,15 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     -c conda-forge \
     --yes \
     rocketce::python==3.10.9  \
-    pip==23.3=py310h6ffa863_0 \
+    pip==23.3 \
     mamba \
     rocketce::pytorch==2.0.1 \
     rocketce::pytorch-lightning==2.0.1 \
     rocketce::torchvision==0.15.2 \
     rocketce::torchmetrics==0.11.4 \
     rocketce::nccl==2.17.1 \
-    #rocketce::onnx==1.13.1 \
-    #rocketce::onnxruntime==1.15.1 \
+    rocketce::onnx==1.13.1 \
+    rocketce::onnxruntime==1.15.1 \
     rocketce::cudatoolkit==11.8.0 \
     && rm /tmp/micromamba
 
