@@ -61,9 +61,8 @@ if __name__ == "__main__":
     mnist_full = MNIST(
         args.data_dir, download=False, train=True, transform=transform_image
     )
-    reference = torch.utils.data.Subset(mnist_full, range(50))
 
     # MNISTDataModule(data_dir=args.data_dir, batch_size=50).train_dataloader()
     model = MNISTModel.load_from_checkpoint(args.model_ckpt)
 
-    model.to_onnx(args.onnx, [x for x in reference])
+    model.to_onnx(args.onnx, [mnist_full[i] for i in range(50)])
