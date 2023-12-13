@@ -65,4 +65,4 @@ if __name__ == "__main__":
     # MNISTDataModule(data_dir=args.data_dir, batch_size=50).train_dataloader()
     model = MNISTModel.load_from_checkpoint(args.model_ckpt)
 
-    model.to_onnx(args.onnx, [mnist_full[i] for i in range(50)])
+    model.to_onnx(args.onnx, next(mnist_full))
