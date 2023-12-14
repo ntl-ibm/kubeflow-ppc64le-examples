@@ -66,4 +66,4 @@ if __name__ == "__main__":
     model = MNISTModel.load_from_checkpoint(args.model_ckpt)
 
     x, y = mnist_full[0]
-    model.to_onnx(args.onnx, x.squeeze(0))
+    model.to_onnx(args.onnx, x.unsqueeze)
