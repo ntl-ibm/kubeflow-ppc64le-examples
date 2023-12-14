@@ -27,10 +27,8 @@ from pytorch_lightning.plugins.environments import (
 )
 from typing import Dict
 import os
-import json
 import shutil
 from pathlib import Path
-import sys
 
 from model import MNISTModel
 from data import MNISTDataModule
@@ -94,8 +92,6 @@ if __name__ == "__main__":
 
     if isinstance(environment, KubeflowEnvironment):
         rank_zero_info("Running distributed training with a DDP environment")
-    else:
-        rank_zero_info("")
 
     if not ((args.batch_size % environment.world_size()) == 0):
         raise ValueError(
@@ -123,13 +119,13 @@ if __name__ == "__main__":
     callbacks = []
 
     if args.early_stopping:
-        callbacks.append(EarlyStopping(monitor="val_loss", mode="min", verbose=True))
+        callbacks.append(EarlyStopping(monitor="val/loss", mode="min", verbose=True))
 
     checkpoint_cb = None
     if args.checkpoint:
         checkpoint_cb = ModelCheckpoint(
             dirpath=args.root_dir,
-            monitor="val_loss",
+            monitor="val/loss",
             mode="min",
             every_n_epochs=1,
             save_last=True,
@@ -139,7 +135,11 @@ if __name__ == "__main__":
         callbacks.append(checkpoint_cb)
 
     # Logger for TensorBoard
-    logger = TensorBoardLogger(save_dir=args.tensorboard) if args.tensorboard else True
+    logger = (
+        TensorBoardLogger(save_dir=args.tensorboard, name="", default_hp_metric=False)
+        if args.tensorboard
+        else True
+    )
 
     # Trainer
     trainer = L.Trainer(
@@ -156,16 +156,11 @@ if __name__ == "__main__":
         default_root_dir=args.root_dir,
         enable_progress_bar=False,
         callbacks=callbacks,
-        # Note: resume_from_checkpoint is depreciated and will be
-        # removed in 2.0, instead use chkpt_path on trainer.fit()
-        # https://pytorch-lightning.readthedocs.io/en/1.9.0/common/trainer.html#resume-from-checkpoint
-        # resume_from_checkpoint=prior_chkpt_path,
         plugins=[environment],
     )
 
     # Fit model
     trainer.fit(model, mnist, ckpt_path=prior_chkpt_path)
-    trainer.strategy.barrier("Trainer.fit() is complete")
 
     # If requested, Save Checkpoint for the model at the specified location
     if args.model_ckpt and (environment.global_rank() == 0):

@@ -39,7 +39,7 @@ class MNISTModel(L.LightningModule):
         katib_log_file: Optional[str] = None,
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["katib_log_file"])
 
         # Logging
         self.katib_logger = logging.getLogger("MNISTModel_katib")
@@ -69,9 +69,10 @@ class MNISTModel(L.LightningModule):
         self.fc2 = torch.nn.Linear(in_features=128, out_features=10)
 
         # Metrics
+        self.val_loss = SumMetric()
         self.val_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
         self.val_acc = Accuracy(task="multiclass", num_classes=10)
-        self.val_loss = SumMetric()
+        self.train_loss = SumMetric()
         self.test_f1 = F1Score(task="multiclass", average="macro", num_classes=10)
         self.test_acc = Accuracy(task="multiclass", num_classes=10)
 
@@ -89,10 +90,12 @@ class MNISTModel(L.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         loss = F.cross_entropy(self(x), y)
+        self.train_loss.update(loss)
+        self.log("train/loss", self.train_loss, on_epoch=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # del batch_idx
+        del batch_idx
 
         x, y = batch
         logits = self(x)
@@ -101,13 +104,14 @@ class MNISTModel(L.LightningModule):
         # These are all TorchMetrics so there is no concern about syncing
         loss = F.cross_entropy(logits, y)
         self.val_loss.update(loss)
-        self.log("val_loss", self.val_loss, on_epoch=True)
+        self.log("val/loss", self.val_loss, on_epoch=True, logger=True)
 
         preds = torch.argmax(logits, dim=1)
         self.val_f1.update(preds, y)
-        self.log("val_F1", self.val_f1, on_epoch=True)
+        self.log("val/F1", self.val_f1, on_epoch=True, logger=True)
         self.val_acc.update(preds, y)
-        self.log("val_acc", self.val_acc, on_epoch=True)
+        self.log("val/acc", self.val_acc, on_epoch=True, logger=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         del batch_idx
@@ -116,9 +120,12 @@ class MNISTModel(L.LightningModule):
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         self.test_f1.update(preds, y)
-        self.log("test_F1", self.test_f1, on_epoch=True)
+        self.log("test/F1", self.test_f1, on_epoch=True)
         self.test_acc.update(preds, y)
-        self.log("test_acc", self.test_acc, on_epoch=True)
+        self.log("test/acc", self.test_acc, on_epoch=True)
+
+        loss = F.cross_entropy(logits, y)
+        return loss
 
     def on_train_epoch_end(self):
         """
@@ -133,9 +140,9 @@ class MNISTModel(L.LightningModule):
         JSON is a bit easier to read in the log.
         """
         self.log_metric_for_katib(f"epoch {self.trainer.current_epoch}:")
-        self.log_metric_for_katib(f'acc={self.trainer.callback_metrics["val_acc"]}')
-        self.log_metric_for_katib(f'f1={self.trainer.callback_metrics["val_F1"]}')
-        self.log_metric_for_katib(f'loss={self.trainer.callback_metrics["val_loss"]}')
+        self.log_metric_for_katib(f'acc={self.trainer.callback_metrics["val/acc"]}')
+        self.log_metric_for_katib(f'f1={self.trainer.callback_metrics["val/F1"]}')
+        self.log_metric_for_katib(f'loss={self.trainer.callback_metrics["val/loss"]}')
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

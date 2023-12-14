@@ -58,17 +58,19 @@ RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm
     -c conda-forge \
     --yes \
     rocketce::python==3.10.9  \
-    pip  \
+    pip==23.3 \
     mamba \
     rocketce::pytorch==2.0.1 \
     rocketce::pytorch-lightning==2.0.1 \
     rocketce::torchvision==0.15.2 \
     rocketce::torchmetrics==0.11.4 \
     rocketce::nccl==2.17.1 \
-    cudatoolkit==11.8.0 \
+    rocketce::onnx==1.13.1 \
+    rocketce::onnxruntime==1.15.1 \
+    rocketce::cudatoolkit==11.8.0 \
     && rm /tmp/micromamba
 
-RUN pip install "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
+RUN pip install --verbose "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
     && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR}
