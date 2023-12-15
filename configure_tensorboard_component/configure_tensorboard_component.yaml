@@ -1,0 +1,243 @@
+name: Configure tensorboard
+description: Monitors a training job based on Tensorboard logs.
+inputs:
+- {name: pvc_name, type: String}
+- {name: pvc_path, type: String, default: '', optional: true}
+- {name: tensorboard_name, type: String, default: '', optional: true}
+outputs:
+- {name: mlpipeline_ui_metadata, type: String}
+implementation:
+  container:
+    image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'kubernetes' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet
+      --no-warn-script-location 'kubernetes' --user) && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp)
+      printf "%s" "$0" > "$program_path"
+      python3 -u "$program_path" "$@"
+    - |
+      def _make_parent_dirs_and_return_path(file_path: str):
+          import os
+          os.makedirs(os.path.dirname(file_path), exist_ok=True)
+          return file_path
+
+      def configure_tensorboard(
+          mlpipeline_ui_metadata_path,
+          pvc_name,
+          pvc_path = "",
+          tensorboard_name = "",
+      ):
+          """
+          Monitors a training job based on Tensorboard logs.
+          Logs are expected to be written to the specified subpath of the pvc
+
+          Params:
+          mlpipeline_ui_metadata_path - Kubeflow provided path for visualizations
+                                        The visualization contains a link to the deployed tensorboard service
+          pvc_name: str - the name of the pvc where the logs are stored
+          pvc_path: str - the path to the logs on the pvc. This path should NOT include any mount point.
+                          So for example if the traning component mounts the pvc as "/workspace" and the logs are written to
+                          "/workspace/tensorboard_logs", you should only provide "tensorborad_logs" for this param.
+          tensorboard_name: str - the name of the tensorboard, if empty, the name of the workflow is used.
+          """
+          from collections import namedtuple
+          import json
+          from kubernetes import client, config, watch
+          import logging
+          import sys
+          import os
+          import yaml
+          import textwrap
+          import json
+          import http
+
+          logging.basicConfig(
+              stream=sys.stdout,
+              level=logging.INFO,
+              format="%(levelname)s %(asctime)s: %(message)s",
+          )
+          logger = logging.getLogger()
+
+          if not tensorboard_name:
+              tensorboard_name = "{{workflow.name}}"
+
+          namespace = "{{workflow.namespace}}"
+
+          config.load_incluster_config()
+          api_client = client.ApiClient()
+          apps_api = client.AppsV1Api(api_client)
+          custom_object_api = client.CustomObjectsApi(api_client)
+
+          # Delete possible existing tensorboard
+          try:
+              custom_object_api.delete_namespaced_custom_object(
+                  group="tensorboard.kubeflow.org",
+                  version="v1alpha1",
+                  plural="tensorboards",
+                  namespace=namespace,
+                  name=tensorboard_name,
+                  body=client.V1DeleteOptions(),
+              )
+          except client.exceptions.ApiException as e:
+              if e.status != http.HTTPStatus.NOT_FOUND:
+                  raise
+
+          tensorboard_spec = textwrap.dedent(
+              f"""\
+                  apiVersion: tensorboard.kubeflow.org/v1alpha1
+                  kind: Tensorboard
+                  metadata:
+                    name: "{tensorboard_name}"
+                    namespace: "{namespace}"
+                    ownerReferences:
+                      - apiVersion: v1
+                        kind: Workflow
+                        name: "{{workflow.name}}"
+                        uid: "{{workflow.uid}}"
+                  spec:
+                    logspath: "pvc://{pvc_name}/{pvc_path}"
+                  """
+          )
+
+          logger.info(tensorboard_spec)
+
+          custom_object_api.create_namespaced_custom_object(
+              group="tensorboard.kubeflow.org",
+              version="v1alpha1",
+              plural="tensorboards",
+              namespace=namespace,
+              body=yaml.safe_load(tensorboard_spec),
+              pretty=True,
+          )
+
+          tensorboard_watch = watch.Watch()
+          try:
+              for tensorboard_event in tensorboard_watch.stream(
+                  custom_object_api.list_namespaced_custom_object,
+                  group="tensorboard.kubeflow.org",
+                  version="v1alpha1",
+                  plural="tensorboards",
+                  namespace=namespace,
+                  field_selector=f"metadata.name={tensorboard_name}",
+                  timeout_seconds=0,
+              ):
+
+                  logger.info(f"tensorboard_event: {json.dumps(tensorboard_event, indent=2)}")
+
+                  if tensorboard_event["type"] == "DELETED":
+                      raise RuntimeError("The tensorboard was deleted!")
+
+                  tensorboard = tensorboard_event["object"]
+
+                  if "status" not in tensorboard:
+                      continue
+
+                  deployment_state = "Progressing"
+                  if "conditions" in tensorboard["status"]:
+                      deployment_state = tensorboard["status"]["conditions"][-1][
+                          "deploymentState"
+                      ]
+
+                  if deployment_state == "Progressing":
+                      logger.info("Tensorboard deployment is progressing...")
+                  elif deployment_state == "Available":
+                      logger.info("Tensorboard deployment is Available.")
+                      break
+                  elif deployment_state == "ReplicaFailure":
+                      raise RuntimeError(
+                          "Tensorboard deployment failed with a ReplicaFailure!"
+                      )
+                  else:
+                      raise RuntimeError(f"Unknown deployment state: {deployment_state}")
+          finally:
+              tensorboard_watch.stop()
+
+          button_style = (
+              "align-items: center; "
+              "appearance: none; "
+              "background-color: rgb(26, 115, 232); "
+              "border: 0px none rgb(255, 255, 255); "
+              "border-radius: 3px; "
+              "box-sizing: border-box; "
+              "color: rgb(255, 255, 255); "
+              "cursor: pointer; "
+              "display: inline-flex; "
+              "font-family: 'Google Sans', 'Helvetica Neue', sans-serif; "
+              "font-size: 14px; "
+              "font-stretch: 100%; "
+              "font-style: normal; font-weight: 700; "
+              "justify-content: center; "
+              "letter-spacing: normal; "
+              "line-height: 24.5px; "
+              "margin: 0px 10px 2px 0px; "
+              "min-height: 25px; "
+              "min-width: 64px; "
+              "padding: 2px 6px 2px 6px; "
+              "position: relative; "
+              "tab-size: 4; "
+              "text-align: center; "
+              "text-indent: 0px; "
+              "text-rendering: auto; "
+              "text-shadow: none; "
+              "text-size-adjust: 100%; "
+              "text-transform: none; "
+              "user-select: none; "
+              "vertical-align: middle; "
+              "word-spacing: 0px; "
+              "writing-mode: horizontal-tb;"
+          )
+
+          # See: https://github.com/kubeflow/kubeflow/blob/master/components/crud-web-apps/tensorboards/frontend/src/app/pages/index/index.component.ts
+          # window.open(`/tensorboard/${tensorboard.namespace}/${tensorboard.name}/`);
+          ui_address = f"/tensorboard/{namespace}/{tensorboard_name}/#scalars"
+
+          markdown = textwrap.dedent(
+              f"""\
+              # Tensorboard
+              - <a href="{ui_address}" style="{button_style}" target="_blank">Connect</a>
+              - <a href="/_/tensorboards/" style="{button_style}" target="_blank">Manage all</a>
+              """
+          )
+
+          markdown_output = {
+              "type": "markdown",
+              "storage": "inline",
+              "source": markdown,
+          }
+
+          ui_metadata = {"outputs": [markdown_output]}
+          with open(mlpipeline_ui_metadata_path, "w") as metadata_file:
+              json.dump(ui_metadata, metadata_file)
+
+          logging.info("Finished.")
+
+      import argparse
+      _parser = argparse.ArgumentParser(prog='Configure tensorboard', description='Monitors a training job based on Tensorboard logs.')
+      _parser.add_argument("--pvc-name", dest="pvc_name", type=str, required=True, default=argparse.SUPPRESS)
+      _parser.add_argument("--pvc-path", dest="pvc_path", type=str, required=False, default=argparse.SUPPRESS)
+      _parser.add_argument("--tensorboard-name", dest="tensorboard_name", type=str, required=False, default=argparse.SUPPRESS)
+      _parser.add_argument("--mlpipeline-ui-metadata", dest="mlpipeline_ui_metadata_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+      _parsed_args = vars(_parser.parse_args())
+
+      _outputs = configure_tensorboard(**_parsed_args)
+    args:
+    - --pvc-name
+    - {inputValue: pvc_name}
+    - if:
+        cond: {isPresent: pvc_path}
+        then:
+        - --pvc-path
+        - {inputValue: pvc_path}
+    - if:
+        cond: {isPresent: tensorboard_name}
+        then:
+        - --tensorboard-name
+        - {inputValue: tensorboard_name}
+    - --mlpipeline-ui-metadata
+    - {outputPath: mlpipeline_ui_metadata}
