@@ -1,0 +1,124 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  annotations:
+    sidecar.istio.io/inject: 'false'
+  creationTimestamp: '2023-12-11T15:54:52Z'
+  generation: 4
+  managedFields:
+    - apiVersion: tekton.dev/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:annotations':
+            .: {}
+            'f:sidecar.istio.io/inject': {}
+        'f:spec':
+          .: {}
+          'f:finally': {}
+          'f:params': {}
+          'f:resources': {}
+          'f:tasks': {}
+          'f:workspaces': {}
+      manager: Mozilla
+      operation: Update
+      time: '2023-12-15T23:07:07Z'
+  name: build-pytorch-image
+  namespace: ntl-us-ibm-com
+  resourceVersion: '129035704'
+  uid: eaa18ebe-e0f2-438c-bbd6-300611609227
+spec:
+  params:
+    - default: 'https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git'
+      description: github-repo
+      name: repo
+      type: string
+    - default: pytorch_example_improvements
+      description: branch or tag
+      name: branch
+      type: string
+    - default: repo/distributed_training/pytorch/mnist/container_image
+      description: path to container file
+      name: path
+      type: string
+    - default: Dockerfile
+      name: filename
+      type: string
+    - default: 'quay.io/ntlawrence/pytorch:0.0.1'
+      name: image
+      type: string
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.repo)
+        - name: revision
+          value: $(params.branch)
+        - name: refspec
+          value: ''
+        - name: submodules
+          value: 'true'
+        - name: depth
+          value: '1'
+        - name: sslVerify
+          value: 'true'
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: subdirectory
+          value: repo
+        - name: sparseCheckoutDirectories
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+        - name: httpProxy
+          value: ''
+        - name: httpsProxy
+          value: ''
+        - name: noProxy
+          value: ''
+        - name: verbose
+          value: 'true'
+        - name: gitInitImage
+          value: >-
+            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:697b1d12faa0c3ddde73706b304b3c267539bca689ae614815f2186d6befce0b
+        - name: userHome
+          value: /home/git
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.image)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:3c2ea396a114221575a4031d90d28c43563f7b96288374e0ba8b22de3ed97b5a
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: $(params.filename)
+        - name: CONTEXT
+          value: $(params.path)
+        - name: TLSVERIFY
+          value: 'true'
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: ''
+        - name: PUSH_EXTRA_ARGS
+          value: ''
+        - name: SKIP_PUSH
+          value: 'false'
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: workspace
+  workspaces:
+    - name: workspace
