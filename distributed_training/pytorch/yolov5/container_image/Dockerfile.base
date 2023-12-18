@@ -62,7 +62,7 @@ WORKDIR /root
 RUN fix-permissions /root
 
 
-FROM base AS build
+FROM BASE AS BUILD
 USER root
 
 RUN dnf -y groupinstall "Development Tools" \
@@ -82,7 +82,7 @@ RUN pip wheel -v opencv-python --w /wheels
 
 
 
-FROM base AS yolov5
+FROM BASE AS yolov5
 USER ROOT
 WORKDIR /root
 
