@@ -18,8 +18,6 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 # This container includes packages and tooling to Run PyTorch distributed on
 # IBM Power 9 or Power 10 hardware.
 # It does NOT include a notebook server.
-
-USER root
 WORKDIR /root
 
 # The trick here is to install into a root prefix that is first in the path
@@ -84,7 +82,6 @@ RUN pip wheel -v opencv-python --w /wheels
 
 
 FROM BASE AS yolov5
-USER ROOT
 WORKDIR /root
 
 RUN mamba -y install \
