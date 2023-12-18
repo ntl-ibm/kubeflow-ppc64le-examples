@@ -81,7 +81,7 @@ RUN pip wheel -v opencv-python --w /wheels
 
 
 
-FROM BASE AS yolov5
+FROM BASE 
 WORKDIR /root
 
 RUN mamba install -y \
