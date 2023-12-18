@@ -48,7 +48,7 @@ RUN chmod a+rx /usr/local/bin/fix-permissions
 ## Install mamba and required packages
 # https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
 WORKDIR /tmp
-RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.5.2 && \
+RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
     tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
     rm /tmp/micromamba.tar && \
     mkdir -p ${CONDA_DIR} && \
@@ -59,7 +59,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     --yes \
     rocketce::python==3.10.9  \
     pip==23.3 \
-    mamba==1.5.2 \
+    mamba==1.4.2 \
     rocketce::pytorch==2.0.1 \
     rocketce::pytorch-lightning==2.0.1 \
     rocketce::torchvision==0.15.2 \
