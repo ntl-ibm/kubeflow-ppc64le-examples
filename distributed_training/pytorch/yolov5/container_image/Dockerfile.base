@@ -62,6 +62,7 @@ RUN fix-permissions /root
 
 FROM BASE AS build
 USER root
+ENV CONDA_DIR="/opt/conda"
 ENV TMPDIR=/root/tmp
 WORKDIR $TMPDIR
 
