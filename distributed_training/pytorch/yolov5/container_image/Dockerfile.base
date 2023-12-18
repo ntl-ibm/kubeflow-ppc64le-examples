@@ -73,8 +73,7 @@ RUN mamba install -y \
     -c conda-forge \
     gfortran \
     cmake \
-    scikit-build \
-    && fix-premissions ${CONDA_DIR}
+    scikit-build 
 
 WORKDIR /wheels
 RUN pip wheel -v opencv-python --w /wheels
