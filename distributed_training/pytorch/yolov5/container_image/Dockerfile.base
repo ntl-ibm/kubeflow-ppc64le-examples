@@ -62,7 +62,12 @@ RUN fix-permissions /root
 
 FROM BASE AS build
 USER root
+ENV TMPDIR=/root/tmp
+WORKDIR $TMPDIR
+
 WORKDIR /root
+
+
 
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
