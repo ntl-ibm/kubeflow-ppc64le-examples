@@ -64,6 +64,7 @@ RUN fix-permissions /root
 
 FROM BASE AS BUILD
 USER root
+WORKDIR /root
 
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
