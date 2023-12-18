@@ -60,14 +60,14 @@ WORKDIR /root
 RUN fix-permissions /root
 
 
-FROM BASE AS BUILD
+FROM BASE AS build
 USER root
 WORKDIR /root
 
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
 
-RUN mamba -y install \
+RUN mamba install -y \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     -c conda-forge \
@@ -84,7 +84,7 @@ RUN pip wheel -v opencv-python --w /wheels
 FROM BASE AS yolov5
 WORKDIR /root
 
-RUN mamba -y install \
+RUN mamba install -y \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     -c conda-forge \
