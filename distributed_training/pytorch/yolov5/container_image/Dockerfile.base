@@ -78,8 +78,8 @@ RUN mamba install -y \
     -c conda-forge \
     gfortran \
     cmake \
-    scikit-build \
-    rocketce::numpy
+    rocketce::opencv==4.5.5 \
+    scikit-build 
 
 WORKDIR /wheels
 RUN pip wheel -v opencv-python --w /wheels
