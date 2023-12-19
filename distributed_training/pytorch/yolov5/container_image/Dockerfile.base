@@ -106,7 +106,6 @@ RUN mamba install -y \
     rocketce::onnx==1.13.1 \
     rocketce::onnxruntime==1.15.1 \
     rocketce::cudatoolkit==11.8.0 \
-    && rm /tmp/micromamba \
     && fix-premissions ${CONDA_DIR}
 
 RUN pip install --verbose "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
