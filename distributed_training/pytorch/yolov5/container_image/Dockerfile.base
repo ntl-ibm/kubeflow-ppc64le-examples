@@ -45,12 +45,13 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::python=3.10.11=h8b3979d_3  \
     python-clang=14.0.6=default_py310hebdd076_1 \
     python-flatbuffers=2.0=pyhd3eb1b0_0 \
+    pyopenssl=23.0.0=py310h6ffa863_0 \
+    openssl=1.1.1u=h140841e_0 \
     wheel=0.38.4=py310h6ffa863_0 \
     pyopenssl=23.0.0=py310h6ffa863_0 \
     setuptools=65.6.3=py310h6ffa863_0 \
     pip \
-    mamba==1.4.2 \
-    conda==23.7.4 \
+    mamba==1.4.9=opence_py310hfe9f712_2 \
     rocketce::pytorch=2.0.1=cuda11.8_py310_1 \
     rocketce::pytorch-base=2.0.1=cuda11.8_py310_pb4.21.12_1 \
     torchvision-base=0.15.2=cuda11.8_py310_1 \
