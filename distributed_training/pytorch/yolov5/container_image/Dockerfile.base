@@ -52,8 +52,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
-RUN git clone https://github.com/ntl-ibm/opencv-python.git
-WORKDIR /wheels
+RUN git clone https://github.com/ntl-ibm/opencv-python.git /root/opencv-python
+
+WORKDIR /root/opencv-python
 RUN pip wheel -v . --w /wheels 
 
 
