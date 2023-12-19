@@ -44,7 +44,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     --yes \
     rocketce::python==3.10.11=h8b3979d_3  \
     pip \
-    mamba==1.4.2 \
+    mamba==1.4.9 \
     rocketce::pytorch==2.0.1=cuda12.2_py310_1 \
     rocketce::nccl \
     rocketce::cudatoolkit==12.2.0 \
