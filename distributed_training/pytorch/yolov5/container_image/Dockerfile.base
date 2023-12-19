@@ -48,6 +48,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::cudnn==8.9.2_12.2  \
     rocketce::opencv==4.8.0=cuda12.2_py311_pb4.21.12_1 \
     rocketce::numpy==1.24.3 \
+    scikit-build \
     && rm /tmp/micromamba
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
