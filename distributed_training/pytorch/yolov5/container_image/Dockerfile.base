@@ -36,7 +36,7 @@ RUN mamba install -y \
     gfortran \
     cmake \
     cython \
-    rocketce::opencv==4.8.0 \
+    rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
     scikit-build 
 
 RUN git clone https://github.com/ntl-ibm/opencv-python.git
