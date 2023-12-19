@@ -52,7 +52,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::cudatoolkit=11.8.0=h70ec917_2 \
     rocketce::cudnn=8.9.2_11.8=h9ceb136_1 \
     rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
-    rocketce::numpy==1.23.5=py310hba26dad_0  \
+    rocketce::numpy==1.24.3=py310hd869246_0  \
     && rm /tmp/micromamba
 
 
