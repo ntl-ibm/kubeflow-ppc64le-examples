@@ -42,7 +42,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
-    rocketce::python=3.10.11  \
+    rocketce::python=3.10.13  \
     pip \
     mamba==1.4.2 \
     rocketce::pytorch==2.0.1=cuda11.8_py310_1 \
