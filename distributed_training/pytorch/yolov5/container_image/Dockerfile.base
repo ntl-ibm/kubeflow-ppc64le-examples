@@ -46,11 +46,10 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     pip \
     mamba==1.4.9=opence_py310hfe9f712_2 \
     rocketce::pytorch=2.0.1=cuda11.8_py310_1 \
-    rocketce::pytorch-base=2.0.1=cuda11.8_py310_pb4.21.12_1 \
-    torchvision-base=0.15.2=cuda11.8_py310_1 \
-    rocketce::nccl=2.17.1=cuda11.8_2 \
-    rocketce::cudatoolkit=11.8.0=h70ec917_2 \
-    rocketce::cudnn=8.9.2_11.8=h9ceb136_1 \
+    torchvision-base=0.15.2 \
+    rocketce::nccl \
+    rocketce::cudatoolkit=11.8.0 \
+    rocketce::cudnn=8.9.2_11.8 \
     rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
     rocketce::numpy==1.24.3=py310hd869246_0  \
     && rm /tmp/micromamba
