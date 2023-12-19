@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG ROOT_CONTAINER=quay.io/ntlawrence/pytorch@sha256:2785144522de455249fc4c015ed739463c7a9212d3b9d189dfc47388b369aac8
+ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
+FROM ${ROOT_CONTAINER} AS build
+LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
-FROM $ROOT_CONTAINER AS build
-USER root
 ENV CONDA_DIR="/opt/conda"
 ENV TMPDIR=/root/tmp
 WORKDIR $TMPDIR
@@ -29,33 +29,58 @@ RUN dnf install -y bzip2 \
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
 
-RUN mamba install -y \
+COPY fix-permissions /usr/local/bin/fix-permissions
+RUN chmod a+rx /usr/local/bin/fix-permissions
+
+WORKDIR /tmp
+
+RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
+    tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
+    rm /tmp/micromamba.tar && \
+    mkdir -p ${CONDA_DIR} && \
+    ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
+    --yes \
+    rocketce::python=3.10.11=h8b3979d_3  \
+    python-clang=14.0.6=default_py310hebdd076_1 \
+    python-flatbuffers=2.0=pyhd3eb1b0_0 \
+    wheel=0.38.4=py310h6ffa863_0 \
+    pyopenssl=23.0.0=py310h6ffa863_0 \
+    setuptools=65.6.3=py310h6ffa863_0 \
+    pip \
+    mamba==1.4.2 \
+    conda==23.7.4 \
+    rocketce::pytorch=2.0.1=cuda11.8_py310_1 \
+    rocketce::pytorch-base=2.0.1=cuda11.8_py310_pb4.21.12_1 \
+    torchvision-base=0.15.2=cuda11.8_py310_1 \
+    rocketce::torchmetrics==0.11.4 \
+    rocketce::nccl=2.17.1=cuda11.8_2 \
+    rocketce::onnxruntime=1.15.1=h9c0db89_cuda11.8_py310_pb4.21.12_1 \
+    rocketce::cudatoolkit=11.8.0=h70ec917_2 \
+    rocketce::cudnn=8.8.1_11.8=h9ceb136_2 \
+    rocketce::onnx==1.14.0 \
     rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
     rocketce::py-opencv==4.8.0=h6d0e968_cuda11.8_py310_pb4.21.12_1 \
-    rocketce::numpy==1.24.3 
+    rocketce::numpy==1.23.5=py310hba26dad_0  \
+    && rm /tmp/micromamba
+
 
 RUN git clone https://github.com/ntl-ibm/opencv-python.git
 WORKDIR /wheels
 RUN pip wheel -v . --w /wheels 
 
-FROM $ROOT_CONTAINER
-LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
-WORKDIR /root
-COPY --from=build  /wheels .
 
-RUN mamba install -y -c rocketce rocketce::opencv==4.8.0
 
 # Checks out a specific version of the yolov5 tools.
 # This is a little newer that the latest release, but has some
 # fixes in it for distriubed.
-WORKDIR /yolov5
-RUN git clone https://github.com/ultralytics/yolov5 . && \
-    git checkout a199480ba6bb527598df11abbc1d679ccda82670 && \
-    git config --system --add safe.directory '/yolov5' && \
-    pip install -r requirements.txt --find-links /wheels/opencv-python && \
-    fix-permissions /yolov5
+#WORKDIR /yolov5
+#RUN git clone https://github.com/ultralytics/yolov5 . && \
+#    git checkout a199480ba6bb527598df11abbc1d679ccda82670 && \
+#    git config --system --add safe.directory '/yolov5' && \
+#    pip install -r requirements.txt --find-links /wheels/opencv-python && \
+#    fix-permissions /yolov5
 
 CMD ["bash"]
 USER 1000:0
