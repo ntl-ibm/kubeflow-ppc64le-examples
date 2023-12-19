@@ -56,7 +56,7 @@ RUN git clone https://github.com/ntl-ibm/opencv-python.git /root/opencv-python
 
 WORKDIR /root/opencv-python
 RUN pip list installed
-RUN pip install -vvv .
+RUN pip install -vvv . --no-build-isolation.
 
 
 
