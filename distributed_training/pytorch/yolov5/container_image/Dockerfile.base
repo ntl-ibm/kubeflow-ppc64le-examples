@@ -34,8 +34,7 @@ RUN mamba install -y \
     -c https://repo.anaconda.com/pkgs/main \
     rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
     rocketce::py-opencv==4.8.0=h6d0e968_cuda11.8_py310_pb4.21.12_1 \
-    rocketce::numpy==1.24.3 \
-    main::scikit-build==0.15.0=py310h4a02239_0
+    rocketce::numpy==1.24.3 
 
 RUN git clone https://github.com/ntl-ibm/opencv-python.git
 WORKDIR /wheels
