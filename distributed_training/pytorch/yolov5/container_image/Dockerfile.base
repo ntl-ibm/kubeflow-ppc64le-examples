@@ -11,56 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
-FROM $ROOT_CONTAINER as BASE
-LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
+ARG ROOT_CONTAINER=quay.io/ntlawrence/pytorch@sha256:2785144522de455249fc4c015ed739463c7a9212d3b9d189dfc47388b369aac8
 
-# This container includes packages and tooling to Run PyTorch distributed on
-# IBM Power 9 or Power 10 hardware.
-# It does NOT include a notebook server.
-WORKDIR /root
-
-# The trick here is to install into a root prefix that is first in the path
-# Then the python environment will be what we installed using mamba, but we
-# will not need to directly activate the environment.
-ENV CONDA_DIR="/opt/conda"
-ENV PATH=${CONDA_DIR}/bin:${PATH}
-
-## OS Dependencies
-RUN dnf install -y bzip2 \
-        git \
-        wget && \
-    dnf clean all -y 
-
-# dnf group install -y "Development Tools" && \
-
-# Copy a script that we will use to correct permissions after running certain commands
-COPY fix-permissions /usr/local/bin/fix-permissions
-RUN chmod a+rx /usr/local/bin/fix-permissions
-
-## Install mamba and required packages
-# https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
-WORKDIR /tmp
-RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
-    tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
-    rm /tmp/micromamba.tar && \
-    mkdir -p ${CONDA_DIR} && \
-    ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
-    -c rocketce \
-    -c https://repo.anaconda.com/pkgs/main \
-    -c conda-forge \
-    --yes \
-    rocketce::python==3.9.16  \
-    pip==23.3 \
-    mamba==1.4.2 \
-    conda==23.7.4 \
-    && rm /tmp/micromamba
-
-WORKDIR /root
-RUN fix-permissions /root
-
-
-FROM BASE AS build
+FROM $ROOT_CONTAINER AS build
 USER root
 ENV CONDA_DIR="/opt/conda"
 ENV TMPDIR=/root/tmp
@@ -68,7 +21,10 @@ WORKDIR $TMPDIR
 
 WORKDIR /root
 
-
+RUN dnf install -y bzip2 \
+        git \
+        wget && \
+    dnf clean all -y 
 
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
@@ -83,38 +39,16 @@ RUN mamba install -y \
     rocketce::opencv==4.5.5 \
     scikit-build 
 
-RUN pip install numpy==1.19.3 --no-binary :all: --no-use-pep517
-
-
+RUN git clone https://github.com/ntl-ibm/opencv-python.git
 WORKDIR /wheels
-RUN pip wheel -v opencv-python --w /wheels
+RUN pip wheel -v . --w /wheels 
 
-
-
-FROM BASE 
+FROM $ROOT_CONTAINER
+LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 WORKDIR /root
-
-RUN mamba install -y \
-    -c rocketce \
-    -c https://repo.anaconda.com/pkgs/main \
-    -c conda-forge \
-    rocketce::pytorch==2.0.1 \
-    rocketce::pytorch-lightning==2.0.1 \
-    rocketce::torchvision==0.15.2 \
-    rocketce::torchmetrics==0.11.4 \
-    rocketce::nccl==2.17.1 \
-    rocketce::onnx==1.13.1 \
-    rocketce::onnxruntime==1.15.1 \
-    rocketce::cudatoolkit==11.8.0 \
-    && fix-premissions ${CONDA_DIR}
-
-RUN pip install --verbose "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
-    && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
-    && pip cache purge \
-    && fix-permissions ${CONDA_DIR}
-
-WORKDIR /wheels/opencv-python
 COPY --from=build  /wheels .
+
+RUN mamba install -y -c rocketce rocketce::opencv==4.5.5
 
 # Checks out a specific version of the yolov5 tools.
 # This is a little newer that the latest release, but has some
