@@ -42,16 +42,14 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
-    rocketce::python=3.10.13  \
+    rocketce::python==3.10.11=h8b3979d_3  \
     pip \
     mamba==1.4.2 \
-    rocketce::pytorch==2.0.1=cuda11.8_py310_1 \
-    rocketce::torchdata==0.6.0=py310_2 \
-    torchvision-base \
+    rocketce::pytorch==2.0.1=cuda12.2_py310_1 \
     rocketce::nccl \
-    rocketce::cudatoolkit=11.8.0=h70ec917_2 \
-    rocketce::cudnn=8.9.2_11.8 \
-    rocketce::opencv==4.8.0=cuda11.8_py310_pb4.21.12_1 \
+    rocketce::cudatoolkit==12.2.0 \
+    rocketce::cudnn==8.9.2 \
+    rocketce::opencv==4.8.0=cuda12.2_py310_pb4.21.12_1 \
     rocketce::numpy==1.24.3=py310hd869246_0  \
     && rm /tmp/micromamba
 
