@@ -36,7 +36,7 @@ RUN mamba install -y \
     gfortran \
     cmake \
     cython \
-    rocketce::opencv==4.5.5 \
+    rocketce::opencv==4.8.0 \
     scikit-build 
 
 RUN git clone https://github.com/ntl-ibm/opencv-python.git
@@ -48,7 +48,7 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 WORKDIR /root
 COPY --from=build  /wheels .
 
-RUN mamba install -y -c rocketce rocketce::opencv==4.5.5
+RUN mamba install -y -c rocketce rocketce::opencv==4.8.0
 
 # Checks out a specific version of the yolov5 tools.
 # This is a little newer that the latest release, but has some
