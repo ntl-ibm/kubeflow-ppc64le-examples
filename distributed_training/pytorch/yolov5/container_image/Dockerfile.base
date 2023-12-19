@@ -16,7 +16,6 @@ FROM ${ROOT_CONTAINER} AS build
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
 ENV CONDA_DIR="/opt/conda"
-ENV PATH=${CONDA_DIR}/bin:${PATH}
 
 WORKDIR /root
 
@@ -31,7 +30,7 @@ RUN dnf -y groupinstall "Development Tools" \
 COPY fix-permissions /usr/local/bin/fix-permissions
 RUN chmod a+rx /usr/local/bin/fix-permissions
 
-
+WORKDIR /tmp
 RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
     tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
     rm /tmp/micromamba.tar && \
@@ -51,6 +50,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::numpy==1.24.3 \
     && rm /tmp/micromamba
 
+ENV PATH=${CONDA_DIR}/bin:${PATH}
 
 RUN git clone https://github.com/ntl-ibm/opencv-python.git
 WORKDIR /wheels
