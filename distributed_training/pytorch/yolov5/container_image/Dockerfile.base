@@ -92,9 +92,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     setuptools \
     pip \
     rocketce::pytorch==2.0.1=cuda11.8_py311_1 \
-    rocketce::nccl \
-    rocketce::cudatoolkit==11.8.0 \
-    rocketce::cudnn==8.9.2_11.8  \ 
+    rocketce::nccl==2.17.1 \
+    rocketce::cudatoolkit==11.8.0=h70ec917_2 \
+    rocketce::cudnn==8.9.2_11.8=h9ceb136_2  \ 
     rocketce::opencv==4.8.0=cuda11.8_py311_pb4.21.12_1  \
     rocketce::py-opencv==4.8.0=h6d0e968_cuda11.8_py311_pb4.21.12_1 \
     rocketce::numpy==1.24.3 \
@@ -138,11 +138,16 @@ RUN git clone https://github.com/ultralytics/yolov5 . && \
 # The download of the same file multiple times in a small timewindow causes the download request to
 # be rejected. 
 # https://stackoverflow.com/questions/71251177/how-to-use-yolov5-api-with-flask-offline
-ENV YOLOV5_CONFIG_DIR="/yolov5-config"
+ENV YOLO_CONFIG_DIR="/yolov5-config"
 WORKDIR /yolov5-config
 RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
 RUN fix-permissions /yolov5-config
 
+ENV MPLCONFIGDIR="/matplotlib_config"
+WORKDIR /matplotlib_config
+RUN fix-permissions /matplotlib_config
+
+ENV YOLO_AUTOINSTALL=false
 WORKDIR /yolov5
 
 CMD ["bash"]
