@@ -103,7 +103,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     psutil==5.9.0 \
     pyyaml==6.0.1  \
     requests==2.31.0 \
-    rocketce::scipy=1.10.1 \
+    rocketce::scipy==1.8.1=py310h8d9d9fb_0 \
     rocketce::torchvision==0.15.2=cuda11.8_py310_1 \
     rocketce::torchvision-base=0.15.2=cuda11.8_py310_1 \
     tqdm==4.65.0 \
