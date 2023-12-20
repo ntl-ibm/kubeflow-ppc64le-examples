@@ -42,6 +42,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::python==3.11.3  \
     scikit-build \
     setuptools \ 
+    ninja \
     pip \
     rocketce::pytorch==2.0.1=cuda12.2_py311_1 \
     rocketce::nccl \
@@ -53,13 +54,17 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
-RUN git clone https://github.com/ntl-ibm/opencv-python.git /root/opencv-python
+# Pulling version 76 because that still uses opencv 4.8.0, which is the latest in 
+# RocketCE conda
+# CUDA was installed earler, so that if we did need a build of opencv here, it 
+# would hopefully build the CUDA version.
+RUN git clone https://github.com/opencv/opencv-python.git /root/opencv-python -b 76
 
 WORKDIR /wheels
 WORKDIR /root/opencv-python
 RUN pip list installed
-RUN pip wheel  . -vvv --no-deps --no-build-isolation
-
+ENV ENABLE_HEADLESS=1
+RUN pip wheel -vvv . --no-deps --no-build-isolation
 
 
 # Checks out a specific version of the yolov5 tools.
