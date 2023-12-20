@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
+ARG YOLOV5_COMMIT=63555c8e2230328585d09fdc50a6601822a70ded
+
 FROM ${ROOT_CONTAINER} AS build
-LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
 ENV CONDA_DIR="/opt/conda"
 
@@ -27,8 +28,6 @@ RUN dnf install -y bzip2 \
 RUN dnf -y groupinstall "Development Tools" \
     && dnf clean all -y
 
-COPY fix-permissions /usr/local/bin/fix-permissions
-RUN chmod a+rx /usr/local/bin/fix-permissions
 
 WORKDIR /tmp
 RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
@@ -64,8 +63,62 @@ WORKDIR /wheels
 WORKDIR /root/opencv-python
 RUN pip list installed
 ENV ENABLE_HEADLESS=1
-RUN pip wheel -vvv . --no-deps --no-build-isolation
+RUN pip wheel -vvv . --w /wheels --no-deps --no-build-isolation
 
+
+
+FROM ${ROOT_CONTAINER}
+LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
+
+WORKDIR /root
+COPY fix-permissions /usr/local/bin/fix-permissions
+RUN chmod a+rx /usr/local/bin/fix-permissions
+RUN dnf install -y bzip2 \
+        git \
+        wget && \
+    dnf clean all -y 
+
+WORKDIR /tmp
+RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
+    tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
+    rm /tmp/micromamba.tar && \
+    mkdir -p ${CONDA_DIR} && \
+    ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
+    -c rocketce \
+    -c https://repo.anaconda.com/pkgs/main \
+    --yes \
+    rocketce::python==3.11.3  \
+    setuptools \
+    pip \
+    rocketce::pytorch==2.0.1=cuda12.2_py311_1 \
+    rocketce::nccl \
+    rocketce::cudatoolkit==12.2.0 \
+    rocketce::cudnn==8.9.2_12.2  \
+    rocketce::opencv==4.8.0=cuda12.2_py311_pb4.21.12_1 \
+    rocketce::numpy==1.24.3 \
+    gitpython==3.1.37 \
+    matplotlib==3.8.0 \
+    pillow==10.0.1 \
+    psutil==5.9.0 \
+    pyyaml==6.0.1  \
+    requests==2.31.0 \
+    rocketce::scipy==1.11.1 \
+    rocketce::torchvision==0.15.2 \
+    tqdm==4.65.0 \
+    pandas==2.1.1 \
+    seaborn==0.12.2 \
+    rocketce::onnx==1.14.0 \
+    scikit-learn==1.3.0 \
+    rocketce::openblas==0.3.23 \
+    && rm /tmp/micromamba
+
+
+WORKDIR /opencv-python
+COPY --from=build /wheels .
+
+WORKDIR /yolov5
+RUN git clone $YOLOV5_COMMIT https://github.com/ultralytics/yolov5 .
+RUN pip install -r requirements.txt --find-links /opencv-python
 
 # Checks out a specific version of the yolov5 tools.
 # This is a little newer that the latest release, but has some
