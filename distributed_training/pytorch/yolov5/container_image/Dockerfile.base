@@ -124,18 +124,19 @@ RUN git clone https://github.com/ultralytics/yolov5 . && \
     git checkout $YOLOV5_COMMIT && \
     git config --system --add safe.directory '/yolov5' && \
     grep -ivE "opencv-python" requirements.txt > real_requirements.txt && \
-    pip install -r requirements.txt --find-links /wheels/opencv-python && \
+    pip install -r real_requirements.txt && \
     fix-permissions /yolov5
 
-# Checks out a specific version of the yolov5 tools.
-# This is a little newer that the latest release, but has some
-# fixes in it for distriubed.
-#WORKDIR /yolov5
-#RUN git clone https://github.com/ultralytics/yolov5 . && \
-#    git checkout a199480ba6bb527598df11abbc1d679ccda82670 && \
-#    git config --system --add safe.directory '/yolov5' && \
-#    pip install -r requirements.txt --find-links /wheels/opencv-python && \
-#    fix-permissions /yolov5
+# When running distributed training, this file gets downloaded in all worker pods at the same time
+# The download of the same file multiple times in a small timewindow causes the download request to
+# be rejected. 
+# https://stackoverflow.com/questions/71251177/how-to-use-yolov5-api-with-flask-offline
+ENV YOLOV5_CONFIG_DIR="/yolov5-config"
+WORKDIR /yolov5-config
+RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
+RUN fix-permissions /yolov5-config
+
+WORKDIR /yolov5
 
 CMD ["bash"]
 USER 1000:0
