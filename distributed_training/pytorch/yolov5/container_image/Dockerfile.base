@@ -40,15 +40,15 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
     rocketce::python==3.11.3  \
+    scikit-build \
+    setuptools \ 
     pip \
-    mamba \
     rocketce::pytorch==2.0.1=cuda12.2_py311_1 \
     rocketce::nccl \
     rocketce::cudatoolkit==12.2.0 \
     rocketce::cudnn==8.9.2_12.2  \
     rocketce::opencv==4.8.0=cuda12.2_py311_pb4.21.12_1 \
     rocketce::numpy==1.24.3 \
-    scikit-build \
     && rm /tmp/micromamba
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
