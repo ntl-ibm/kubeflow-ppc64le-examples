@@ -58,7 +58,7 @@ RUN git clone https://github.com/ntl-ibm/opencv-python.git /root/opencv-python
 WORKDIR /wheels
 WORKDIR /root/opencv-python
 RUN pip list installed
-RUN pip wheel  . -vvv --wheel-dir /wheels --prefer-binary --no-build-isolation
+RUN pip wheel  . -vvv --no-deps --no-build-isolation
 
 
 
