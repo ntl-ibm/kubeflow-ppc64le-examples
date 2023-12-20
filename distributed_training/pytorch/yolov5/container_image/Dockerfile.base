@@ -120,12 +120,18 @@ WORKDIR /opencv-python
 
 WORKDIR /yolov5
 RUN pip list installed
+# https://stackoverflow.com/questions/64221430/is-opencv-on-anaconda-the-same-as-the-opencv-python-on-pip
+# grep -ivE "opencv-python|ultralytics" requirements.txt > real_requirements.txt && \
 RUN git clone https://github.com/ultralytics/yolov5 . && \
     git checkout $YOLOV5_COMMIT && \
     git config --system --add safe.directory '/yolov5' && \
-    grep -ivE "opencv-python" requirements.txt > real_requirements.txt && \
+    grep -ivE "opencv-python|ultralytics" requirements.txt > real_requirements.txt && \
     pip install -r real_requirements.txt && \
-    fix-permissions /yolov5
+    pip install ultralytics==8.0.147 --no-deps && \
+    pip check && \
+    fix-permissions /yolov5 && \
+    fix-permissions ${CONDA_DIR}  
+
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
