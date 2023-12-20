@@ -48,6 +48,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::cudatoolkit==12.2.0 \
     rocketce::cudnn==8.9.2_12.2  \
     rocketce::opencv==4.8.0=cuda12.2_py311_pb4.21.12_1 \
+    rocketce::py-opencv==4.8.0=h6d0e968_cuda12.2_py311_pb4.21.12_1 \
     rocketce::numpy==1.24.3 \
     && rm /tmp/micromamba
 
@@ -69,7 +70,7 @@ RUN pip wheel -vvv . --w /wheels --no-deps --no-build-isolation
 
 FROM ${ROOT_CONTAINER}
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
-
+ENV CONDA_DIR="/opt/conda"
 WORKDIR /root
 COPY fix-permissions /usr/local/bin/fix-permissions
 RUN chmod a+rx /usr/local/bin/fix-permissions
@@ -112,7 +113,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::openblas==0.3.23 \
     && rm /tmp/micromamba
 
-
+ENV PATH=${CONDA_DIR}/bin:${PATH}
 WORKDIR /opencv-python
 COPY --from=build /wheels .
 
