@@ -12,60 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
-ARG YOLOV5_COMMIT=63555c8e2230328585d09fdc50a6601822a70ded
-
-#FROM ${ROOT_CONTAINER} AS build
-#
-#ENV CONDA_DIR="/opt/conda"
-#
-#WORKDIR /root
-
-#RUN dnf install -y bzip2 \
-#        git \
-#        wget && \
-#    dnf clean all -y 
-
-#RUN dnf -y groupinstall "Development Tools" \
-#    && dnf clean all -y
-
-
-#WORKDIR /tmp
-#RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
-#    tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
-#    rm /tmp/micromamba.tar && \
-#    mkdir -p ${CONDA_DIR} && \
-#    ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
-#   -c rocketce \
-#    -c https://repo.anaconda.com/pkgs/main \
-#    --yes \
-#    rocketce::python==3.11.3  \
-#    scikit-build \
-#    setuptools \ 
-#    ninja \
-#    pip \
-#    rocketce::pytorch==2.0.1=cuda12.2_py311_1 \
-#    rocketce::nccl \
-#    rocketce::cudatoolkit==12.2.0 \
-#    rocketce::cudnn==8.9.2_12.2  \
-#    rocketce::opencv==4.8.0=cuda12.2_py311_pb4.21.12_1 \
-#    rocketce::py-opencv==4.8.0=h6d0e968_cuda12.2_py311_pb4.21.12_1 \
-#    rocketce::numpy==1.24.3 \
-#    && rm /tmp/micromamba
-
-#ENV PATH=${CONDA_DIR}/bin:${PATH}
-
-# Pulling version 76 because that still uses opencv 4.8.0, which is the latest in 
-# RocketCE conda
-# CUDA was installed earler, so that if we did need a build of opencv here, it 
-# would hopefully build the CUDA version.
-#RUN git clone https://github.com/opencv/opencv-python.git /root/opencv-python -b 76
-
-#WORKDIR /wheels
-#WORKDIR /root/opencv-python
-#RUN pip list installed
-#ENV ENABLE_HEADLESS=1
-#RUN pip wheel -vvv . --w /wheels --no-deps --no-build-isolation
-
 
 
 FROM ${ROOT_CONTAINER}
@@ -87,9 +33,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
+    -c conda-forge \
     --yes \
     rocketce::python=3.10.9  \
-    setuptools \
     pip \
     rocketce::pytorch=2.0.1=cuda11.8_py310_1 \
     rocketce::nccl=2.17.1=cuda11.8_2 \
@@ -97,7 +43,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::cudnn=8.8.1_11.8=h9ceb136_2  \ 
     rocketce::opencv==4.7.0=py310_pb4.21.12_5 \
     rocketce::numpy=1.23.5=py310hba26dad_0 \
-    gitpython==3.1.37 \
     matplotlib==3.8.0 \
     pillow==10.0.1 \
     psutil==5.9.0 \
@@ -113,42 +58,27 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     scikit-learn==1.3.0 \
     rocketce::libopenblas=0.3.23=openmp_h1234567_1 \
     py-cpuinfo==9.0.0 \
+    conda-forge::ultralytics==8.0.230 \
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}  
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
-WORKDIR /opencv-python
-
-WORKDIR /yolov5
-RUN pip list installed
-# https://stackoverflow.com/questions/64221430/is-opencv-on-anaconda-the-same-as-the-opencv-python-on-pip
-# grep -ivE "opencv-python|ultralytics" requirements.txt > real_requirements.txt && \
-RUN git clone https://github.com/ultralytics/yolov5 . && \
-    git checkout $YOLOV5_COMMIT && \
-    git config --system --add safe.directory '/yolov5' && \
-    grep -ivE "opencv-python" requirements.txt > real_requirements.txt && \
-    pip install -r real_requirements.txt --no-deps && \
-    echo "This check will report errors for opencv-python, but this is available via conda" && \
-    pip check || true && \
-    fix-permissions /yolov5 && \
-    fix-permissions ${CONDA_DIR}  
 
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
 # be rejected. 
 # https://stackoverflow.com/questions/71251177/how-to-use-yolov5-api-with-flask-offline
-ENV YOLO_CONFIG_DIR="/yolov5-config"
-WORKDIR /yolov5-config
-RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolov5-config/Arial.ttf
-RUN fix-permissions /yolov5-config
+ENV YOLO_CONFIG_DIR="/yolo-config"
+WORKDIR /yolo-config
+RUN wget https://ultralytics.com/assets/Arial.ttf  -O /yolo-config/Arial.ttf
+RUN fix-permissions /yolo-config
 
 ENV MPLCONFIGDIR="/matplotlib_config"
 WORKDIR /matplotlib_config
 RUN fix-permissions /matplotlib_config
 
-ENV YOLO_AUTOINSTALL=false
-WORKDIR /yolov5
 
+WORKDIR /workspace
 CMD ["bash"]
 USER 1000:0
