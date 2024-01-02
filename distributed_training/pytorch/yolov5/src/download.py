@@ -8,7 +8,7 @@ download("https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n
 with open("./data.yaml") as f:
     cfg = yaml.safe_load(f.read())
 
-os.makedirs(cfg["path"].parent, exist_ok=True)
+os.makedirs(Path(cfg["path"]).parent, exist_ok=True)
 download(
     "https://ultralytics.com/assets/coco128.zip",
     dir=Path(cfg["path"]).parent,
