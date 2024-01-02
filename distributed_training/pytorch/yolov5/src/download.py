@@ -3,6 +3,8 @@ from pathlib import Path
 import yaml
 import os
 
+download("https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt")
+
 with open("./data.yaml") as f:
     cfg = yaml.safe_load(f.read())
 
