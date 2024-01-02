@@ -53,7 +53,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         """Construct and return dataloader."""
         assert mode in ["train", "val"]
         with torch_distributed_zero_first(
-            local_rank if local_rank >= 0 else LOCAL_RANK
+            RANK
         ):  # init dataset *.cache only once if DDP
             dataset = self.build_dataset(dataset_path, mode, batch_size)
         shuffle = mode == "train"
