@@ -81,14 +81,15 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
 
     def _setup_train(self, world_size):
         """Builds dataloaders and optimizer on correct rank process."""
+        LOGGER.info("Setup train")
 
-        # Model
+        LOGGER.info("Model...")
         self.run_callbacks("on_pretrain_routine_start")
         ckpt = self.setup_model()
         self.model = self.model.to(self.device)
         self.set_model_attributes()
 
-        # Freeze layers
+        LOGGER.info("Freeze Layers...")
         freeze_list = (
             self.args.freeze
             if isinstance(self.args.freeze, list)
@@ -110,7 +111,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
                 )
                 v.requires_grad = True
 
-        # Check AMP
+        LOGGER.info("Check AMP...")
         self.amp = torch.tensor(self.args.amp).to(self.device)  # True or False
         if self.amp and RANK in (-1, 0):  # Single-GPU and DDP
             callbacks_backup = (
@@ -129,13 +130,13 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
                 self.model, device_ids=[LOCAL_RANK]
             )
 
-        # Check imgsz
+        LOGGER.info("Check imgsz...")
         gs = max(
             int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32
         )  # grid size (max stride)
         self.args.imgsz = check_imgsz(self.args.imgsz, stride=gs, floor=gs, max_dim=1)
 
-        # Batch size
+        LOGGER.info("Batch Size")
         if (
             self.batch_size == -1 and RANK == -1
         ):  # single-GPU only, estimate best batch size
@@ -143,7 +144,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
                 self.model, self.args.imgsz, self.amp
             )
 
-        # Dataloaders
+        LOGGER.info("Data Loaders")
         batch_size = self.batch_size // max(world_size, 1)
         self.train_loader = self.get_dataloader(
             self.trainset, batch_size=batch_size, rank=RANK, mode="train"
@@ -161,7 +162,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
             if self.args.plots:
                 self.plot_training_labels()
 
-        # Optimizer
+        LOGGER.info("Optimizer")
         self.accumulate = max(
             round(self.args.nbs / self.batch_size), 1
         )  # accumulate loss before optimizing
@@ -182,12 +183,14 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
             decay=weight_decay,
             iterations=iterations,
         )
-        # Scheduler
+        LOGGER.info("Scheduler")
         self._setup_scheduler()
         self.stopper, self.stop = EarlyStopping(patience=self.args.patience), False
         self.resume_training(ckpt)
         self.scheduler.last_epoch = self.start_epoch - 1  # do not move
         self.run_callbacks("on_pretrain_routine_end")
+
+        LOGGER.info("Setup train done")
 
     def _do_train(self, world_size=1):
         """Train completed, evaluate and plot if specified by arguments."""
