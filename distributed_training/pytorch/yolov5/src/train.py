@@ -16,11 +16,11 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         self._do_train(world_size)
 
 
-dist.init_process_group(
-    backend="nccl",
-    world_size=int(os.environ["WORLD_SIZE"]),
-    rank=int(os.environ["RANK"]),
-)
+# dist.init_process_group(
+#    backend="nccl",
+#    world_size=int(os.environ["WORLD_SIZE"]),
+#    rank=int(os.environ["RANK"]),
+# )
 
 with open("./data.yaml") as f:
     cfg = yaml.safe_load(f)
@@ -33,6 +33,7 @@ results = model.train(
     data="./data.yaml",
     cfg="./train.yaml",
     device=[d for d in range(torch.cuda.device_count())],
+    trainer=YoloDdpTrainer,
 )
 
 print(type(results))
