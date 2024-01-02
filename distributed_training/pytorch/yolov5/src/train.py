@@ -16,7 +16,8 @@ from ultralytics.data import build_dataloader, build_yolo_dataset
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from ultralytics.utils.torch_utils import EarlyStopping, ModelEMA
-from ultralytics.utils.checks import check_amp, check_imgsz, check_train_batch_size
+from ultralytics.utils.autobatch import check_train_batch_size
+from ultralytics.utils.checks import check_amp, check_imgsz
 from torch import nn
 
 LOCAL_RANK = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
