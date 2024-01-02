@@ -8,5 +8,8 @@ with open("./data.yaml") as f:
 
 os.makedirs(cfg["path"], exist_ok=True)
 download(
-    "https://ultralytics.com/assets/coco128.zip", dir=Path(cfg["path"]), delete=True
+    "https://ultralytics.com/assets/coco128.zip",
+    dir=Path(cfg["path"]),
+    unzip=True,
+    delete=True,
 )
