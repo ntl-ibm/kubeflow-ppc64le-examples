@@ -1,6 +1,7 @@
 from ultralytics.utils.downloads import download
 from pathlib import Path
 import yaml
+import os
 
 with open("./data.yaml") as f:
     cfg = yaml.safe_load(f.read())
@@ -8,6 +9,10 @@ with open("./data.yaml") as f:
 # Download labels
 segments = True  # segment or box labels
 dir = Path(cfg["path"])  # dataset root dir
+
+if os.path.exists(dir):
+    exit(0)
+
 url = "https://github.com/ultralytics/yolov5/releases/download/v1.0/"
 urls = [
     url + ("coco2017labels-segments.zip" if segments else "coco2017labels.zip")
