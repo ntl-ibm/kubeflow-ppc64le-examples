@@ -8,13 +8,28 @@ import subprocess
 from ultralytics.models import yolo
 from ultralytics.utils.torch_utils import torch_distributed_zero_first
 from ultralytics.data import build_dataloader, build_yolo_dataset
+from datetime import datetime, timedelta
+
+LOCAL_RANK = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
 
 
 class YoloDdpTrainer(yolo.detect.DetectionTrainer):
     def train(self):
         """"""
         world_size = int(os.environ["WORLD_SIZE"])
-        print(f"{world_size}, {RANK}")
+
+        if self.args.rect:
+            LOGGER.warning(
+                "WARNING ⚠️ 'rect=True' is incompatible with Multi-GPU training, setting 'rect=False'"
+            )
+            self.args.rect = False
+        if self.args.batch == -1:
+            LOGGER.warning(
+                "WARNING ⚠️ 'batch=-1' for AutoBatch is incompatible with Multi-GPU training, setting "
+                "default 'batch=16'"
+            )
+            self.args.batch = 16
+
         self._do_train(world_size)
 
     def get_dataloader(
@@ -23,9 +38,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         """Construct and return dataloader."""
         assert mode in ["train", "val"]
         with torch_distributed_zero_first(
-            local_rank
-            if local_rank > 0
-            else (int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else 0)
+            local_rank if local_rank >= 0 else LOCAL_RANK
         ):  # init dataset *.cache only once if DDP
             dataset = self.build_dataset(dataset_path, mode, batch_size)
         shuffle = mode == "train"
@@ -38,6 +51,19 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         return build_dataloader(
             dataset, batch_size, workers, shuffle, rank
         )  # return dataloader
+
+    def _setup_ddp(self, world_size):
+        """Initializes and sets the DistributedDataParallel parameters for training."""
+        torch.cuda.set_device(LOCAL_RANK)
+        self.device = torch.device("cuda", LOCAL_RANK)
+        # LOGGER.info(f'DDP info: RANK {RANK}, WORLD_SIZE {world_size}, DEVICE {self.device}')
+        os.environ["NCCL_BLOCKING_WAIT"] = "1"  # set to enforce timeout
+        dist.init_process_group(
+            "nccl" if dist.is_nccl_available() else "gloo",
+            timeout=timedelta(seconds=10800),  # 3 hours
+            rank=RANK,
+            world_size=world_size,
+        )
 
 
 # dist.init_process_group(
@@ -56,7 +82,6 @@ model = YOLO(cfg.get("model", "yolov8n.pt"))
 results = model.train(
     data="./data.yaml",
     cfg="./train.yaml",
-    device=[d for d in range(torch.cuda.device_count())],
     trainer=YoloDdpTrainer,
 )
 
