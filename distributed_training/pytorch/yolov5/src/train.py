@@ -6,7 +6,8 @@ import os
 from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
 import subprocess
 from ultralytics.models import yolo
-from ultralytics.utils.torch_utils import torch_distributed_zero_first
+
+# from ultralytics.utils.torch_utils import torch_distributed_zero_first
 from ultralytics.data import build_dataloader, build_yolo_dataset
 from datetime import datetime, timedelta
 from contextlib import contextmanager
@@ -21,10 +22,10 @@ def torch_distributed_zero_first(local_rank: int):
         torch.distributed.is_available() and torch.distributed.is_initialized()
     )
     if initialized and local_rank not in (-1, 0):
-        dist.barrier(device_ids=[local_rank])
+        dist.barrier()
     yield
     if initialized and local_rank == 0:
-        dist.barrier(device_ids=[0])
+        dist.barrier()
 
 
 class YoloDdpTrainer(yolo.detect.DetectionTrainer):
