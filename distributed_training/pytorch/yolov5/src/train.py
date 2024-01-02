@@ -8,7 +8,7 @@ with open("./data.yaml") as f:
 model = YOLO(cfg.get("model", "yolov8n.pt"))
 
 # Train the model
-results = model.train(data="./data.yaml", cfg="./train.yaml")
+results = model.train(cfg="./train.yaml")
 
 print(type(results))
 print(str(results))
