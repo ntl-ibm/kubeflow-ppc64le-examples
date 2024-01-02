@@ -15,19 +15,6 @@ from contextlib import contextmanager
 LOCAL_RANK = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
 
 
-@contextmanager
-def torch_distributed_zero_first(local_rank: int):
-    """Decorator to make all processes in distributed training wait for each local_master to do something."""
-    initialized = (
-        torch.distributed.is_available() and torch.distributed.is_initialized()
-    )
-    if initialized and local_rank not in (-1, 0):
-        dist.barrier()
-    yield
-    if initialized and local_rank == 0:
-        dist.barrier()
-
-
 class YoloDdpTrainer(yolo.detect.DetectionTrainer):
     def train(self):
         """"""
@@ -52,10 +39,13 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
     ):
         """Construct and return dataloader."""
         assert mode in ["train", "val"]
-        with torch_distributed_zero_first(
-            RANK
-        ):  # init dataset *.cache only once if DDP
+
+        # init dataset *.cache only once if DDP
+        # assumes multi-node will share the same dataset
+        if RANK == 0:
             dataset = self.build_dataset(dataset_path, mode, batch_size)
+        dist.barrier()
+
         shuffle = mode == "train"
         if getattr(dataset, "rect", False) and shuffle:
             LOGGER.warning(
