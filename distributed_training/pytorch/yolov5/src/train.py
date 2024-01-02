@@ -5,7 +5,6 @@ import torch
 import os
 from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
 import subprocess
-from ultralytics.utils.dist import ddp_cleanup, generate_ddp_command, colorstr
 from ultralytics.models import yolo
 
 
