@@ -1,7 +1,8 @@
 from ultralytics import YOLO
 import yaml
 
-cfg = yaml.safe_load("./data.yaml")
+with open("./data.yaml") as f:
+    cfg = yaml.safe_load(f)
 
 # Load a model
 model = YOLO(cfg.get("model", "yolov8n.pt"))
