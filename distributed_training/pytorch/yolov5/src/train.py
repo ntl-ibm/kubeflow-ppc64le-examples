@@ -3,6 +3,18 @@ import yaml
 import torch.distributed as dist
 import torch
 import os
+from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
+import subprocess
+from ultralytics.utils.dist import ddp_cleanup, generate_ddp_command, colorstr
+from ultralytics.models import yolo
+
+
+class YoloDdpTrainer(yolo.detect.DetectionTrainer):
+    def train(self):
+        """"""
+        world_size = int(os.environ["WORLD_SIZE"])
+        self._do_train(world_size)
+
 
 dist.init_process_group(
     backend="nccl",
