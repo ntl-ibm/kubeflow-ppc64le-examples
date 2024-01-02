@@ -12,6 +12,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
     def train(self):
         """"""
         world_size = int(os.environ["WORLD_SIZE"])
+        print(f"{world_size}, {RANK}")
         self._do_train(world_size)
 
 
