@@ -2,7 +2,8 @@ from ultralytics.utils.downloads import download
 from pathlib import Path
 import yaml
 
-cfg = yaml.safe_load("./data.yaml")
+with open("./data.yaml") as f:
+    cfg = yaml.safe_load(f.read())
 
 # Download labels
 segments = True  # segment or box labels
