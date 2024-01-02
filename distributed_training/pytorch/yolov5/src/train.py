@@ -1,8 +1,12 @@
 from ultralytics import YOLO
 import yaml
 import torch.distributed as dist
+import torch
+import os
 
-dist.init_process_group(backend="nccl")
+dist.init_process_group(
+    backend="nccl", world_size=os.environ["WORLD_SIZE"], rank=int(os.environ["RANK"])
+)
 
 with open("./data.yaml") as f:
     cfg = yaml.safe_load(f)
@@ -11,7 +15,11 @@ with open("./data.yaml") as f:
 model = YOLO(cfg.get("model", "yolov8n.pt"))
 
 # Train the model
-results = model.train(data="./data.yaml", cfg="./train.yaml")
+results = model.train(
+    data="./data.yaml",
+    cfg="./train.yaml",
+    device=[d for d in range(torch.cuda.device_count())],
+)
 
 print(type(results))
 print(str(results))
