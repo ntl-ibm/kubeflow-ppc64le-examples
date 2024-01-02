@@ -41,10 +41,13 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         assert mode in ["train", "val"]
 
         # init dataset *.cache only once if DDP
-        # assumes multi-node will share the same dataset
+        # Assumes dataset and cache are shared by all
         if RANK == 0:
             dataset = self.build_dataset(dataset_path, mode, batch_size)
         dist.barrier()
+        # Rank 0 built, OK to build others
+        if RANK != 0:
+            dataset = self.build_dataset(dataset_path, mode, batch_size)
 
         shuffle = mode == "train"
         if getattr(dataset, "rect", False) and shuffle:
