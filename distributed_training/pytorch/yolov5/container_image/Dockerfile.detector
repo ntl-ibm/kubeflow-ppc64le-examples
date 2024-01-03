@@ -56,7 +56,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::libopenblas=0.3.23=openmp_h1234567_1 \
     py-cpuinfo==9.0.0 \
     conda-forge::ultralytics==8.0.230 \
-    conda-forge::tritonclient-http==1.23.0 \
+    conda-forge::tritonclient-http==2.34.0 \
     flask==2.2.2 \
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}  
