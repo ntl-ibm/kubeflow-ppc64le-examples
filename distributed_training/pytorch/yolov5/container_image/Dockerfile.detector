@@ -80,6 +80,7 @@ RUN fix-permissions /matplotlib_config
 
 WORKDIR /root
 COPY detect_service.py .
+RUN fix-permissions /root
 
 CMD ["bash"]
 USER 1000:0
