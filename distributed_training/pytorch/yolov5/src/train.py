@@ -50,9 +50,11 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         # Assumes dataset and cache are shared by all
         if RANK == 0:
             dataset = self.build_dataset(dataset_path, mode, batch_size)
+        LOGGER.info("waiting for rank 0 to create dataset")
         dist.barrier()
         # Rank 0 built, OK to build others
         if RANK != 0:
+            LOGGER.info("rank not 0 creates dataset")
             dataset = self.build_dataset(dataset_path, mode, batch_size)
 
         shuffle = mode == "train"
