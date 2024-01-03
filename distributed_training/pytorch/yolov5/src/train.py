@@ -438,7 +438,7 @@ results = model.train(
     trainer=YoloDdpTrainer,
 )
 if RANK in (-1, 0):
-    r = results.results_dict()
+    r = results.results_dict
     with open("result_metrics.json", "w") as outfile:
         json.dump(r, outfile)
 
