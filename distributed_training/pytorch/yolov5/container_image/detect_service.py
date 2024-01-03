@@ -22,7 +22,7 @@ from ultralytics import YOLO
 
 INFERENCE_HOST = os.environ.get(
     "INFERENCE_HOST",
-    "http://yolo-predictor-default-ntl-us-ibm-com.apps.openshift.ibmscoutsandbox",
+    "http://yolo.ntl-us-ibm-com.svc.cluster.local/v2/models/yolo/infer",
 )
 
 app = Flask(__name__, instance_relative_config=True)
@@ -41,7 +41,7 @@ def detect():
 
     image = Image.open(io.BytesIO(request.data))
 
-    model = YOLO(f"{INFERENCE_HOST}/v2/models/yolo/infer", task="detect")
+    model = YOLO(INFERENCE_HOST, task="detect")
 
     results = model(image)
 

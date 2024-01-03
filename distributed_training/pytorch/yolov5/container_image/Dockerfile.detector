@@ -37,7 +37,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     --yes \
     rocketce::python=3.10.9  \
     pip \
-    rocketce::pytorch=2.0.1 \
+    rocketce::pytorch-cpu=2.0.1 \
     rocketce::opencv==4.7.0=py310_pb4.21.12_5 \
     rocketce::numpy=1.23.5=py310hba26dad_0 \
     matplotlib==3.8.0 \
@@ -46,7 +46,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     pyyaml==6.0.1  \
     requests==2.31.0 \
     scipy=1.10.1=py310h6a19e1b_1 \
-    rocketce::torchvision==0.15.2 \
+    rocketce::torchvision-cpu==0.15.2 \
     rocketce::torchvision-base=0.15.2 \
     tqdm==4.65.0 \
     pandas==2.1.1 \
