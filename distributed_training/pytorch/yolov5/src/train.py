@@ -19,6 +19,7 @@ from ultralytics.utils.torch_utils import EarlyStopping, ModelEMA
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_imgsz
 from torch import nn
+import json
 
 LOCAL_RANK = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
 
@@ -436,8 +437,9 @@ results = model.train(
     cfg="./train.yaml",
     trainer=YoloDdpTrainer,
 )
+if RANK in (-1, 0):
+    r = results.results_dict()
+    with open("result_metrics.json", "w") as outfile:
+        json.dump(r, outfile)
 
-print(type(results))
-r = results.mean_results()
-print(type(r))
-print(str(r))
+    model.export()
