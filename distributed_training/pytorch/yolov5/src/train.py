@@ -42,19 +42,25 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
 
         self._do_train(world_size)
 
-    def get_dataloader(self, dataset_path, batch_size=16, rank=0, mode="train"):
+    def get_dataloader(
+        self, dataset_path, batch_size=16, distributed=True, mode="train"
+    ):
         """Construct and return dataloader."""
         assert mode in ["train", "val"]
 
-        # init dataset *.cache only once if DDP
+        # init dataset *.cache only once if distributed
         # Assumes dataset and cache are shared by all
-        if RANK == 0:
+        if RANK in (-1, 0):
             dataset = self.build_dataset(dataset_path, mode, batch_size)
-        LOGGER.info("waiting for rank 0 to create dataset")
-        dist.barrier()
+
+        if distributed:
+            LOGGER.info(
+                "waiting for all ranks to synchronize after rank 0 builds dataset (and cache) "
+            )
+            dist.barrier()
+
         # Rank 0 built, OK to build others
-        if RANK != 0:
-            LOGGER.info("rank not 0 creates dataset")
+        if RANK not in (-1, 0):
             dataset = self.build_dataset(dataset_path, mode, batch_size)
 
         shuffle = mode == "train"
@@ -65,7 +71,7 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
             shuffle = False
         workers = self.args.workers if mode == "train" else self.args.workers * 2
         return build_dataloader(
-            dataset, batch_size, workers, shuffle, rank
+            dataset, batch_size, workers, shuffle, rank=(RANK if distributed else -1)
         )  # return dataloader
 
     def _setup_ddp(self, world_size):
@@ -149,11 +155,14 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
         LOGGER.info("Data Loaders")
         batch_size = self.batch_size // max(world_size, 1)
         self.train_loader = self.get_dataloader(
-            self.trainset, batch_size=batch_size, rank=RANK, mode="train"
+            self.trainset, batch_size=batch_size, distributed=True, mode="train"
         )
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(
-                self.testset, batch_size=batch_size * 2, rank=-1, mode="val"
+                self.testset,
+                batch_size=batch_size * 2,
+                distributed=False,
+                mode="val",
             )
             self.validator = self.get_validator()
             metric_keys = self.validator.metrics.keys + self.label_loss_items(
