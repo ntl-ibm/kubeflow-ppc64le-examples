@@ -438,4 +438,6 @@ results = model.train(
 )
 
 print(type(results))
-print(str(results))
+r = results.mean_results()
+print(type(r))
+print(str(r))
