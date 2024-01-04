@@ -19,11 +19,8 @@ from PIL import Image
 import io
 import os
 from ultralytics import YOLO
+import http.client
 
-INFERENCE_HOST = os.environ.get(
-    "INFERENCE_HOST",
-    "http://yolo.ntl-us-ibm-com.svc.cluster.local/v2/models/yolo/infer",
-)
 
 app = Flask(__name__, instance_relative_config=True)
 
@@ -45,13 +42,18 @@ def detect():
 
     results = model(image)
 
-    predicted_image = results.render()[0]
+    # predicted_image = results.render()[0]
+    result_image = results[0].plot(
+        conf=True, pil=True, boxes=True, labels=True, probs=True
+    )
 
-    img_byte_arr = io.BytesIO()
-    predicted_image.save(img_byte_arr, format="JPEG")
-    resp = Response(img_byte_arr.getvalue())
-    resp.headers["Content-Type"] = "image/jpeg"
-    return resp
+    buffered = io.BytesIO()
+    result_image.save(buffered, format="JPEG")
+    return Response(
+        buffered.getvalue(),
+        status=http.client.OK,
+        headers={"Content-Type": "image/jpeg"},
+    )
 
 
 if __name__ == "__main__":

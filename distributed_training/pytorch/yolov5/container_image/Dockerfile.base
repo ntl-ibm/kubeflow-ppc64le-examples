@@ -63,11 +63,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
-RUN pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
-    && pip install kserve==0.10.1 \
-    && pip cache purge \
-    && fix-permissions ${CONDA_DIR}
-
 RUN pip check
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
