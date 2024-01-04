@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG BASE_CONTAINER="quay.io/ntlawrence/yolov5@sha256:77fdc8c08ec5f70a3f21191b1722fdd5315ff49b44b67a64d01f28aa5f3be30b"
+ARG BASE_CONTAINER="quay.io/ntlawrence/yolov5@sha256:4b7bee38998b5d8e956871615ba26fbffb069f889d7726e6b8dc1c2cde2d15e1"
 FROM $BASE_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
