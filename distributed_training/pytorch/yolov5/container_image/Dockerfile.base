@@ -59,11 +59,11 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::libopenblas=0.3.23=openmp_h1234567_1 \
     py-cpuinfo==9.0.0 \
     conda-forge::ultralytics==8.0.230 \
-    rocketce::grpcio \
+    main::grpcio==1.42.0 \
     aiosignal \ 
-    rocketce::protobuf==4.21.12 \
+    main::protobuf==3.20.3 \
     attrs \
-    click \
+    click==8.0.4 \
     jsonschema \
     msgpack-python \
     frozenlist \
@@ -73,6 +73,12 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
+RUN pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
+    && pip install kserve==0.10.1 \
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR}
+
+RUN pip check
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
