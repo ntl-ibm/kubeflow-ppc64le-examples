@@ -21,6 +21,8 @@ import os
 from ultralytics import YOLO
 import http.client
 
+IOU = float(os.environ.get("IOU", "0.7"))
+CONF = float(os.environ.get("CONF", "0.25"))
 
 app = Flask(__name__, instance_relative_config=True)
 
@@ -38,9 +40,13 @@ def detect():
 
     image = Image.open(io.BytesIO(request.data))
 
-    model = YOLO(INFERENCE_HOST, task="detect")
+    model = YOLO("/mnt/models/model.pt", task="detect")
 
-    results = model(image)
+    results = model(
+        image,
+        iou=IOU,
+        conf=CONF,
+    )
 
     # predicted_image = results.render()[0]
     result_image = results[0].plot(
