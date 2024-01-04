@@ -63,8 +63,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
-RUN pip check
-
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
 # be rejected. 
