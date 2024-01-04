@@ -54,7 +54,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     tqdm==4.65.0 \
     pandas==2.1.1 \
     seaborn==0.12.2 \
-    rocketce::onnx==1.13.1=h6c35e85_py310_pb4.21.12_1 \
     scikit-learn==1.3.0 \
     rocketce::libopenblas=0.3.23=openmp_h1234567_1 \
     py-cpuinfo==9.0.0 \
