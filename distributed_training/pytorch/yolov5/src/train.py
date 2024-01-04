@@ -442,4 +442,4 @@ if RANK in (-1, 0):
     with open("result_metrics.json", "w") as outfile:
         json.dump(r, outfile)
 
-    model.export()
+    # model.export()

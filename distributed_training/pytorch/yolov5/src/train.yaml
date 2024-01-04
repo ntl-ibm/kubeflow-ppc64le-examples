@@ -58,14 +58,6 @@ show_conf: True # (bool) show prediction confidence, i.e. '0.99'
 show_boxes: True # (bool) show prediction boxes
 line_width: # (int, optional) line width of the bounding boxes. Scaled to image size if None.
 
-# Export settings ------------------------------------------------------------------------------------------------------
-format: onnx # (str) format to export to, choices at https://docs.ultralytics.com/modes/export/#export-formats
-optimize: False # (bool) TorchScript: optimize for mobile
-int8: False # (bool) CoreML/TF INT8 quantization
-dynamic: False # (bool) ONNX/TF/TensorRT: dynamic axes
-simplify: False # (bool) ONNX: simplify model
-opset: 15 # (int, optional) ONNX: opset version
-
 # Hyperparameters ------------------------------------------------------------------------------------------------------
 lr0: 0.01 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
 lrf: 0.01 # (float) final learning rate (lr0 * lrf)
