@@ -25,6 +25,8 @@ import logging
 
 IOU = float(os.environ.get("IOU", "0.7"))
 CONF = float(os.environ.get("CONF", "0.25"))
+MODEL_DIR = "./models"
+MODEL_PATH = f"{MODEL_DIR}/model.pt"
 
 app = Flask(__name__, instance_relative_config=True)
 app.logger.setLevel(level=logging.INFO)
@@ -43,8 +45,8 @@ def detect():
 
     image = Image.open(io.BytesIO(request.data))
 
-    app.logger.info("Loading model")
-    model = YOLO("/mnt/models/model.pt", task="detect")
+    app.logger.info(f"Loading model {MODEL_PATH}")
+    model = YOLO(MODEL_PATH, task="detect")
     results = model(
         image,
         iou=IOU,
@@ -67,5 +69,5 @@ def detect():
 
 
 if __name__ == "__main__":
-    download_s3(os.environ["STORAGE_URI"], "./models")
+    download_s3(os.environ["STORAGE_URI"], MODEL_DIR)
     app.run(debug=False, host="0.0.0.0", port=8080)
