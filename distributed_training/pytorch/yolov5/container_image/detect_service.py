@@ -46,7 +46,11 @@ def detect():
     image = Image.open(io.BytesIO(request.data))
 
     app.logger.info(f"Loading model {MODEL_PATH}")
+
     model = YOLO(MODEL_PATH, task="detect")
+
+    # app.logger.info(f"starting inference")
+    app.logger.info(f"starting inference")
     results = model(
         image,
         iou=IOU,
@@ -54,9 +58,11 @@ def detect():
     )
 
     app.logger.info("Plotting detected objects")
-    result_image = results[0].plot(
+    # https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.plot
+    result_image_array = results[0].plot(
         conf=True, pil=True, boxes=True, labels=True, probs=True
     )
+    result_image = Image.fromarray(result_image_array)
 
     app.logger.info("Return response")
     buffered = io.BytesIO()
