@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG BASE_CONTAINER="quay.io/ntlawrence/yolov5@sha256:736ce5625e7f20b00553a02efeaa87604f0325af2a0935ca249e606440d29915"
+ARG BASE_CONTAINER
 FROM $BASE_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
@@ -19,7 +19,7 @@ USER root
 WORKDIR /root
 
 
-COPY detect_service.py .
+COPY app.py .
 COPY download_model.py .
 RUN fix-permissions /root
 

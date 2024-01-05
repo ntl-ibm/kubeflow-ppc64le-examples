@@ -1,32 +1,57 @@
-from ultralytics import YOLO
-import yaml
-import torch.distributed as dist
-import torch
-import os
-from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK, colorstr, TQDM, callbacks
-import subprocess
-from ultralytics.models import yolo
-import time
-import numpy as np
-import math
-import warnings
+# Copyright 2024 IBM All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# from ultralytics.utils.torch_utils import torch_distributed_zero_first
+"""
+Trainer for YOLO models that understands DDP
+
+The ultralytics version used for this example (8.0.230) does not support multi-node 
+DDP correctly.
+
+This module contains an extension of the trainer, with modifications and fixes to
+all DDP to complete. It is experimental and has not been fully tested. It is unlikely 
+to work if any nodes have more than a single GPU.
+
+The request for offical support of multi-node DDP is documented as an issue, and once
+implemented this trainer will not be needed.
+https://github.com/ultralytics/ultralytics/issues/7282
+
+"""
+from ultralytics.models import yolo
+from ultralytics.utils import LOGGER, RANK, colorstr, TQDM, callbacks
+import torch.distributed as dist
+import os
 from ultralytics.data import build_dataloader, build_yolo_dataset
-from datetime import datetime, timedelta
-from contextlib import contextmanager
+from datetime import timedelta
 from ultralytics.utils.torch_utils import EarlyStopping, ModelEMA
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_imgsz
 from torch import nn
-import json
+import warnings
+import math
+import numpy as np
+import time
+import torch
 
 LOCAL_RANK = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
 
 
-class YoloDdpTrainer(yolo.detect.DetectionTrainer):
+class YoloDdpDetectTrainer(yolo.detect.DetectionTrainer):
+    """Detection trainer to avoid issue
+    https://github.com/ultralytics/ultralytics/issues/7282
+    """
+
     def train(self):
-        """"""
         world_size = int(os.environ["WORLD_SIZE"])
 
         if self.args.rect:
@@ -417,29 +442,3 @@ class YoloDdpTrainer(yolo.detect.DetectionTrainer):
             self.run_callbacks("on_train_end")
         torch.cuda.empty_cache()
         self.run_callbacks("teardown")
-
-
-# dist.init_process_group(
-#    backend="nccl",
-#    world_size=int(os.environ["WORLD_SIZE"]),
-#    rank=int(os.environ["RANK"]),
-# )
-
-with open("./data.yaml") as f:
-    cfg = yaml.safe_load(f)
-
-# Load a model
-model = YOLO(cfg.get("model", "yolov8n.pt"))
-
-# Train the model
-results = model.train(
-    data="./data.yaml",
-    cfg="./train.yaml",
-    trainer=YoloDdpTrainer,
-)
-if RANK in (-1, 0):
-    r = results.results_dict
-    with open("result_metrics.json", "w") as outfile:
-        json.dump(r, outfile)
-
-    # model.export()

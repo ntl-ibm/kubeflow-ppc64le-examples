@@ -30,10 +30,14 @@ from download_model import download_s3
 import logging
 import sys
 
+# Configuration comes from the environment
 IOU = float(os.environ.get("IOU", "0.7"))
 CONF = float(os.environ.get("CONF", "0.25"))
+FONT_SIZE = float(os.environ["FONT_SIZE"]) if "FONT_SIZE" in os.environ else None
+LINE_WIDTH = float(os.environ["LINE_WIDTH"]) if "LINE_WIDTH" in os.environ else None
 MODEL_DIR = "./models"
 MODEL_PATH = f"{MODEL_DIR}/model.pt"
+
 
 app = Flask(__name__, instance_relative_config=True)
 
@@ -82,6 +86,8 @@ def detect():
         image,
         iou=IOU,
         conf=CONF,
+        font_size=FONT_SIZE,
+        line_width=LINE_WIDTH,
     )
 
     # Plotting example taken from
@@ -97,6 +103,7 @@ def detect():
 
 
 if __name__ == "__main__":
+    # Download model from S3 to container storage
     download_s3(os.environ["STORAGE_URI"], MODEL_DIR)
 
     # The default behavior for development server is 1 request at a time

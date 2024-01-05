@@ -167,7 +167,3 @@ def _unpack_archive_file(file_path, mimetype, target_dir=None):
     The file format is not valid."
         )
     os.remove(file_path)
-
-
-if __name__ == "__main__":
-    download_s3(sys.args[1], sys.args[2])
