@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This module implements a simple flask server that accepts a JPEG image and 
+returns the JPEG with bounding boxes of detected objects.
+"""
 from flask import Flask, Response, request
 import http
 from werkzeug import exceptions
@@ -31,6 +35,7 @@ MODEL_PATH = f"{MODEL_DIR}/model.pt"
 
 app = Flask(__name__, instance_relative_config=True)
 
+# Setup logging to stdout
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -43,6 +48,7 @@ app.logger.setLevel(level=logging.INFO)
 
 @app.route("/alive", methods=["GET"])
 def alive():
+    """Health check API used for readiness probes"""
     return Response(status=http.HTTPStatus.OK)
 
 
@@ -72,7 +78,7 @@ def detect():
 
     app.logger.info("Plotting detected objects")
     # https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.plot
-    result_image_array = results[0].plot(conf=True, boxes=True, labels=True, probs=True)
+    result_image_array = results[0].plot()  # plot a BGR numpy array of predictions
     result_image = Image.fromarray(result_image_array[..., ::-1])
 
     app.logger.info("Returning response as jpeg")
@@ -80,7 +86,7 @@ def detect():
     result_image.save(buffered, format="JPEG")
 
     return Response(
-        buffered.getvalue(),
+        buffered,
         status=http.client.OK,
         headers={"Content-Type": "image/jpeg"},
     )
