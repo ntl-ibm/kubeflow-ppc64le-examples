@@ -86,14 +86,17 @@ def detect():
         image,
         iou=IOU,
         conf=CONF,
-        font_size=FONT_SIZE,
-        line_width=LINE_WIDTH,
     )
 
     # Plotting example taken from
     # https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.plot
     app.logger.info("Plotting detected objects")
-    result_image_array = results[0].plot()  # plot a BGR numpy array of predictions
+
+    # plot a BGR numpy array of predictions
+    result_image_array = results[0].plot(
+        font_size=FONT_SIZE,
+        line_width=LINE_WIDTH,
+    )
     result_image = Image.fromarray(result_image_array[..., ::-1])
 
     app.logger.info("Returning response as jpeg")
