@@ -21,7 +21,9 @@ import os
 from ultralytics import YOLO
 import http.client
 from download_model import download_s3
+import logging
 
+logging.basicConfig(level=logging.INFO)
 IOU = float(os.environ.get("IOU", "0.7"))
 CONF = float(os.environ.get("CONF", "0.25"))
 
@@ -41,7 +43,7 @@ def detect():
 
     image = Image.open(io.BytesIO(request.data))
 
-    model = YOLO("./model.pt", task="detect")
+    model = YOLO("/mnt/models/model.pt", task="detect")
     results = model(
         image,
         iou=IOU,
@@ -63,5 +65,5 @@ def detect():
 
 
 if __name__ == "__main__":
-    download_s3(os.environ["STORAGE_URI"], "./model.pt")
+    download_s3(os.environ["STORAGE_URI"], "/mnt/models")
     app.run(debug=False, host="0.0.0.0", port=8080)
