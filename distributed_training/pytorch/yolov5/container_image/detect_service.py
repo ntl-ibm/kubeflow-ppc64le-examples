@@ -65,5 +65,5 @@ def detect():
 
 
 if __name__ == "__main__":
-    download_s3(os.environ["STORAGE_URI"], "/mnt/models")
+    download_s3(os.environ["STORAGE_URI"], "./models")
     app.run(debug=False, host="0.0.0.0", port=8080)
