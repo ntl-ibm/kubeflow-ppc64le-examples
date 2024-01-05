@@ -22,6 +22,7 @@ from ultralytics import YOLO
 import http.client
 from download_model import download_s3
 import logging
+import sys
 
 IOU = float(os.environ.get("IOU", "0.7"))
 CONF = float(os.environ.get("CONF", "0.25"))
@@ -29,6 +30,14 @@ MODEL_DIR = "./models"
 MODEL_PATH = f"{MODEL_DIR}/model.pt"
 
 app = Flask(__name__, instance_relative_config=True)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+logging.getLogger().addHandler(handler)
+logging.getLogger().setLevel(level=logging.INFO)
+
 app.logger.setLevel(level=logging.INFO)
 
 
@@ -39,18 +48,22 @@ def alive():
 
 @app.route("/detect", methods=["POST"])
 def detect():
+    app.logger.info("Reading input image")
     content_type = request.headers.get("Content-Type")
     if not (content_type and content_type.lower() == "image/jpeg"):
         raise exceptions.UnsupportedMediaType()
 
-    image = Image.open(io.BytesIO(request.data))
+    try:
+        image = Image.open(io.BytesIO(request.data))
+    except Exception:
+        raise exceptions.BadRequest("Unable to read JPEG image")
 
-    app.logger.info(f"Loading model {MODEL_PATH}")
-
+    # Model is loaded in the method because documentation says it should not be shared across threads:
+    # https://docs.ultralytics.com/guides/yolo-thread-safe-inference/#thread-safe-example
+    app.logger.info(f"Loading model from {MODEL_PATH}")
     model = YOLO(MODEL_PATH, task="detect")
 
-    # app.logger.info(f"starting inference")
-    app.logger.info(f"starting inference")
+    app.logger.info(f"Starting inference")
     results = model(
         image,
         iou=IOU,
@@ -59,14 +72,13 @@ def detect():
 
     app.logger.info("Plotting detected objects")
     # https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.plot
-    result_image_array = results[0].plot(
-        conf=True, pil=True, boxes=True, labels=True, probs=True
-    )
-    result_image = Image.fromarray(result_image_array)
+    result_image_array = results[0].plot(conf=True, boxes=True, labels=True, probs=True)
+    result_image = Image.fromarray(result_image_array[..., ::-1])
 
-    app.logger.info("Return response")
+    app.logger.info("Returning response as jpeg")
     buffered = io.BytesIO()
     result_image.save(buffered, format="JPEG")
+
     return Response(
         buffered.getvalue(),
         status=http.client.OK,
@@ -76,4 +88,7 @@ def detect():
 
 if __name__ == "__main__":
     download_s3(os.environ["STORAGE_URI"], MODEL_DIR)
+
+    # The default behavior for development server is 1 request at a time
+    # https://stackoverflow.com/questions/10938360/how-many-concurrent-requests-does-a-single-flask-process-receive
     app.run(debug=False, host="0.0.0.0", port=8080)
