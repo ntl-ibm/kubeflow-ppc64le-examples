@@ -23,11 +23,11 @@ import http.client
 from download_model import download_s3
 import logging
 
-logging.basicConfig(level=logging.INFO)
 IOU = float(os.environ.get("IOU", "0.7"))
 CONF = float(os.environ.get("CONF", "0.25"))
 
 app = Flask(__name__, instance_relative_config=True)
+app.logger.setLevel(level=logging.INFO)
 
 
 @app.route("/alive", methods=["GET"])
@@ -43,6 +43,7 @@ def detect():
 
     image = Image.open(io.BytesIO(request.data))
 
+    app.logger.info("Loading model")
     model = YOLO("/mnt/models/model.pt", task="detect")
     results = model(
         image,
@@ -50,11 +51,12 @@ def detect():
         conf=CONF,
     )
 
-    # predicted_image = results.render()[0]
+    app.logger.info("Plotting detected objects")
     result_image = results[0].plot(
         conf=True, pil=True, boxes=True, labels=True, probs=True
     )
 
+    app.logger.info("Return response")
     buffered = io.BytesIO()
     result_image.save(buffered, format="JPEG")
     return Response(
