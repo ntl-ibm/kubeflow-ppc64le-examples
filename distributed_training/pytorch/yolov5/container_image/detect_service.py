@@ -1,4 +1,4 @@
-# Copyright 2023 IBM All Rights Reserved.
+# Copyright 2024 IBM All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@
 """
 This module implements a simple flask server that accepts a JPEG image and 
 returns the JPEG with bounding boxes of detected objects.
+
+Author: ntl@us.ibm.com
 """
-from flask import Flask, Response, request
+from flask import Flask, Response, request, send_file
 import http
 from werkzeug import exceptions
 from PIL import Image
@@ -54,6 +56,11 @@ def alive():
 
 @app.route("/detect", methods=["POST"])
 def detect():
+    """Detection API
+
+    Input: JPEG image
+    OUTPUT: JPEG image with detections drawn
+    """
     app.logger.info("Reading input image")
     content_type = request.headers.get("Content-Type")
     if not (content_type and content_type.lower() == "image/jpeg"):
@@ -64,7 +71,8 @@ def detect():
     except Exception:
         raise exceptions.BadRequest("Unable to read JPEG image")
 
-    # Model is loaded in the method because documentation says it should not be shared across threads:
+    # Model is loaded in this method every time because documentation says the model
+    # should not be shared across threads:
     # https://docs.ultralytics.com/guides/yolo-thread-safe-inference/#thread-safe-example
     app.logger.info(f"Loading model from {MODEL_PATH}")
     model = YOLO(MODEL_PATH, task="detect")
@@ -76,20 +84,16 @@ def detect():
         conf=CONF,
     )
 
-    app.logger.info("Plotting detected objects")
+    # Plotting example taken from
     # https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.plot
+    app.logger.info("Plotting detected objects")
     result_image_array = results[0].plot()  # plot a BGR numpy array of predictions
     result_image = Image.fromarray(result_image_array[..., ::-1])
 
     app.logger.info("Returning response as jpeg")
     buffered = io.BytesIO()
     result_image.save(buffered, format="JPEG")
-
-    return Response(
-        buffered,
-        status=http.client.OK,
-        headers={"Content-Type": "image/jpeg"},
-    )
+    return send_file(io.BytesIO(buffered.getvalue()), mimetype="image/jpeg")
 
 
 if __name__ == "__main__":
