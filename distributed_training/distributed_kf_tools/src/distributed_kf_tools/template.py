@@ -84,7 +84,8 @@ def build_pytorch_job_template(
     gpus_per_worker: int,
     env: Optional[Dict[str, str]],
     working_dir: Optional[str],
-    image_pull_policy: str,
+    image_pull_policy: Optional[str],
+    node_selector: Optional[Dict[str, str]],
 ) -> KubeflowOrgV1PyTorchJob:
     """Builds a PyTorchJob template
     Params:
@@ -108,6 +109,7 @@ def build_pytorch_job_template(
     env - the environment variables to pass to each worker (optional)
     working_dir - working directory for each worker (optional)
     image_pull_pollicy - when to pull a new container image (optional)
+    node_selector - node selector for each worker (optional)
     """
 
     # An owner reference for the workflow
@@ -180,6 +182,7 @@ def build_pytorch_job_template(
             annotations={"sidecar.istio.io/inject": "false"},
         ),
         spec=V1PodSpec(
+            node_selector=node_selector,
             containers=[
                 V1Container(
                     name=constants.PYTORCHJOB_CONTAINER,

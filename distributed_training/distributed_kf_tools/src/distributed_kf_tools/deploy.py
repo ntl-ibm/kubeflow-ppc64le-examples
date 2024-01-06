@@ -206,6 +206,7 @@ def run_pytorch_job(
     env: Optional[Dict[str, str]] = None,
     working_dir: Optional[str] = None,
     image_pull_policy: str = "IfNotPresent",
+    node_selector: Optional[Dict[str, str]] = None,
     completion_timeout: int = syncjob.TIMEOUT_ONE_YEAR,
     log_pytorch_job_template: bool = True,
     load_in_cluster_config: bool = True,
@@ -245,6 +246,7 @@ def run_pytorch_job(
     env - the environment variables to pass to each worker (optional)
     working_dir - working directory for each worker (optional)
     image_pull_pollicy - when to pull a new container image (optional, default is IfNotPresent)
+    node_selector - selectors used to select the node the workers run on.
     completion_timeout - how long to wait for the training to complete (optional, default is one year)
     load_in_cluster_config - load the kubernetes configuration from within the cluster, if this is false,
                              you will need to initialize the config before calling the method.
@@ -274,6 +276,7 @@ def run_pytorch_job(
         env=env,
         working_dir=working_dir,
         image_pull_policy=image_pull_policy,
+        node_selector=node_selector,
     )
 
     if log_pytorch_job_template:
