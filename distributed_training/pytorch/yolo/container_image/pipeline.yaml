@@ -1,0 +1,158 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  annotations:
+    sidecar.istio.io/inject: "false"
+  creationTimestamp: "2024-01-05T19:46:55Z"
+  generation: 3
+  managedFields:
+    - apiVersion: tekton.dev/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        "f:metadata":
+          "f:annotations":
+            .: {}
+            "f:sidecar.istio.io/inject": {}
+        "f:spec":
+          .: {}
+          "f:finally": {}
+          "f:params": {}
+          "f:resources": {}
+          "f:tasks": {}
+          "f:workspaces": {}
+      manager: Mozilla
+      operation: Update
+      time: "2024-01-05T20:27:03Z"
+  name: build-yolo-example
+  namespace: ntl-us-ibm-com
+  resourceVersion: "243634155"
+  uid: 3aa43073-7df4-4b56-971a-93d4041ccd98
+spec:
+  params:
+    - default: "https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git"
+      description: github repo with container source
+      name: repo
+      type: string
+    - default: yolov5-update
+      description: branch or tag
+      name: branch
+      type: string
+    - default: distributed_training/pytorch/yolo/container_image
+      description: location of dockerfiles
+      name: context
+      type: string
+    - default: quay.io/ntlawrence/yolo-base
+      name: base-image
+      type: string
+    - default: quay.io/ntlawrence/yolo-app
+      name: app-image
+      type: string
+    - default: 0.0.0
+      name: image-tag
+      type: string
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.repo)
+        - name: revision
+          value: $(params.branch)
+        - name: refspec
+          value: ""
+        - name: submodules
+          value: "true"
+        - name: depth
+          value: "1"
+        - name: sslVerify
+          value: "true"
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: subdirectory
+          value: repo
+        - name: sparseCheckoutDirectories
+          value: ""
+        - name: deleteExisting
+          value: "true"
+        - name: httpProxy
+          value: ""
+        - name: httpsProxy
+          value: ""
+        - name: noProxy
+          value: ""
+        - name: verbose
+          value: "true"
+        - name: gitInitImage
+          value: >-
+            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:a652e2fec41694745977d385c845244db3819acca926d85a52c77515f1f2e612
+        - name: userHome
+          value: /home/git
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: buildah-base
+      params:
+        - name: IMAGE
+          value: "$(params.base-image):$(params.image-tag)"
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:3c2ea396a114221575a4031d90d28c43563f7b96288374e0ba8b22de3ed97b5a
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.base
+        - name: CONTEXT
+          value: repo/$(params.context)
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: ""
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: buildah-app
+      params:
+        - name: IMAGE
+          value: "$(params.app-image):$(params.image-tag)"
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:3c2ea396a114221575a4031d90d28c43563f7b96288374e0ba8b22de3ed97b5a
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile.app
+        - name: CONTEXT
+          value: repo/$(params.context)
+        - name: TLSVERIFY
+          value: "true"
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "--build-arg BASE_CONTAINER=$(params.base-image):$(params.image-tag)"
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+      runAfter:
+        - buildah-base
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: workspace
+  workspaces:
+    - name: workspace
