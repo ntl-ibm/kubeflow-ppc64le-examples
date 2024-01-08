@@ -34,8 +34,6 @@ amp: False # (bool) Automatic Mixed Precision (AMP) training, choices=[True, Fal
 fraction: 1.0 # (float) dataset fraction to train on (default is 1.0, all images in train set)
 profile: False # (bool) profile ONNX and TensorRT speeds during training for loggers
 freeze: None # (int | list, optional) freeze first n layers, or freeze list of layer indices during training
-logdir: /workspace/tensorboard_logs
-loggers: tensorboard
 
 # Val/Test settings ----------------------------------------------------------------------------------------------------
 val: True # (bool) validate/test during training
