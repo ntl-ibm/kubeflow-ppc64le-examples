@@ -69,7 +69,7 @@ ENV PATH=${CONDA_DIR}/bin:${PATH}
 RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.24.8/bin/linux/ppc64le/kubectl && \
     chmod +x ./kubectl && \
     cp ./kubectl /usr/local/bin/oc && \
-    mv ./kubectl /usr/local/bin/kubectl && \
+    mv ./kubectl /usr/local/bin/kubectl
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
