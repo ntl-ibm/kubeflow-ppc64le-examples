@@ -40,8 +40,6 @@ results = model.train(
     data="./data.yaml",
     cfg="./train.yaml",
     trainer=YoloDdpDetectTrainer if RANK != -1 else None,
-    logdir="/workspace/tensorboard_logs",
-    loggers="tensorboard",
 )
 if RANK in (-1, 0):
     # Save test metrics for the model
