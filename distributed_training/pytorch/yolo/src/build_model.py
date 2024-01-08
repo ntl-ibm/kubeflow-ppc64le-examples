@@ -40,6 +40,9 @@ results = model.train(
     data="./data.yaml",
     cfg="./train.yaml",
     trainer=YoloDdpDetectTrainer if RANK != -1 else None,
+    project="runs/detect",
+    name="train",
+    exist_ok=True,
 )
 if RANK in (-1, 0):
     # Save test metrics for the model
