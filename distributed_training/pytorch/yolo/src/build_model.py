@@ -42,12 +42,8 @@ results = model.train(
     trainer=YoloDdpDetectTrainer if RANK != -1 else None,
 )
 if RANK in (-1, 0):
-    # Save metrics for the model
-    # Although the script is called for all workers, this only happens for the first on.
-    # TODO: THIS EXAMPLE DOES NOT INCLUDE PROPER TESTING of model predictions
-    #   In the real world, we be most interested in metrics from the unseen test data.
-    #   In this example, we did not download test data, and don't evaluate against unseen data.
-    #   This is bad data science, but good enough to show distributed training and infrastructure.
-    r = results.results_dict
+    # Save test metrics for the model
+    test_results = model.val(data="./data.yaml", cfg="./train.yaml", split="test")
+    r = test_results.results_dict
     with open("result_metrics.json", "w") as outfile:
         json.dump(r, outfile)

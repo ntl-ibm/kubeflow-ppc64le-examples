@@ -7,10 +7,14 @@
 #     └── coco128  ← downloads here (7 MB)
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+# Would normally download different datasets for train/test/eval
+# These can be downloaded from from https://cocodataset.org/#download
+# The small dataset we are using is just for testing the pipeline, so we have the
+# same images used for all three phases. (Use different images for real data science projects!)
 path: /workspace/datasets/coco128 # dataset root dir
 train: images/train2017 # train images (relative to 'path') 128 images
 val: images/train2017 # val images (relative to 'path') 128 images
-test: # test images (optional)
+test: images/train2017 # test images
 
 # Classes
 names:
