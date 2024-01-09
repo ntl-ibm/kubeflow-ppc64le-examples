@@ -58,12 +58,18 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::libopenblas=0.3.23=openmp_h1234567_1 \
     py-cpuinfo==9.0.0 \
     conda-forge::ultralytics==8.0.230 \
+    rocketce::tensorboard==2.12.2 \
     flask==2.2.2 \
     boto3 \
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}  
 
 ENV PATH=${CONDA_DIR}/bin:${PATH}
+
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.24.8/bin/linux/ppc64le/kubectl && \
+    chmod +x ./kubectl && \
+    cp ./kubectl /usr/local/bin/oc && \
+    mv ./kubectl /usr/local/bin/kubectl
 
 # When running distributed training, this file gets downloaded in all worker pods at the same time
 # The download of the same file multiple times in a small timewindow causes the download request to
