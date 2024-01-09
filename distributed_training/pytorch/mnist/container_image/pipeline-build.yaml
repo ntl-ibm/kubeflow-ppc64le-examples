@@ -3,8 +3,6 @@ kind: Pipeline
 metadata:
   annotations:
     sidecar.istio.io/inject: "false"
-  creationTimestamp: "2023-12-11T15:54:52Z"
-  generation: 4
   managedFields:
     - apiVersion: tekton.dev/v1beta1
       fieldsType: FieldsV1
@@ -23,7 +21,7 @@ metadata:
       manager: Mozilla
       operation: Update
       time: "2023-12-15T23:07:07Z"
-  name: build-pytorch-image
+  name: build-pytorch210-image
   namespace: ntl-us-ibm-com
 spec:
   params:
@@ -42,7 +40,7 @@ spec:
     - default: Dockerfile
       name: filename
       type: string
-    - default: "quay.io/ntlawrence/pytorch:0.0.1"
+    - default: "quay.io/ntlawrence/pytorch:1.0.0"
       name: image
       type: string
   tasks:

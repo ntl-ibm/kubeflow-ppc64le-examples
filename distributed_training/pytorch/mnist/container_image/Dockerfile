@@ -64,7 +64,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::onnx==1.13.1 \
     rocketce::onnxruntime==1.15.1 \
     rocketce::cudatoolkit==11.8.0 \
-    && rm /tmp/micromamba
+    && rm /tmp/micromamba \
+    && fix-permissions ${CONDA_DIR}  
 
 WORKDIR /root
 RUN fix-permissions /root
