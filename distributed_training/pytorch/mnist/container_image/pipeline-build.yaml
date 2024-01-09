@@ -2,38 +2,36 @@ apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
   annotations:
-    sidecar.istio.io/inject: 'false'
-  creationTimestamp: '2023-12-11T15:54:52Z'
+    sidecar.istio.io/inject: "false"
+  creationTimestamp: "2023-12-11T15:54:52Z"
   generation: 4
   managedFields:
     - apiVersion: tekton.dev/v1beta1
       fieldsType: FieldsV1
       fieldsV1:
-        'f:metadata':
-          'f:annotations':
+        "f:metadata":
+          "f:annotations":
             .: {}
-            'f:sidecar.istio.io/inject': {}
-        'f:spec':
+            "f:sidecar.istio.io/inject": {}
+        "f:spec":
           .: {}
-          'f:finally': {}
-          'f:params': {}
-          'f:resources': {}
-          'f:tasks': {}
-          'f:workspaces': {}
+          "f:finally": {}
+          "f:params": {}
+          "f:resources": {}
+          "f:tasks": {}
+          "f:workspaces": {}
       manager: Mozilla
       operation: Update
-      time: '2023-12-15T23:07:07Z'
+      time: "2023-12-15T23:07:07Z"
   name: build-pytorch-image
   namespace: ntl-us-ibm-com
-  resourceVersion: '129035704'
-  uid: eaa18ebe-e0f2-438c-bbd6-300611609227
 spec:
   params:
-    - default: 'https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git'
+    - default: "https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git"
       description: github-repo
       name: repo
       type: string
-    - default: pytorch_example_improvements
+    - default: 3.0.0
       description: branch or tag
       name: branch
       type: string
@@ -44,7 +42,7 @@ spec:
     - default: Dockerfile
       name: filename
       type: string
-    - default: 'quay.io/ntlawrence/pytorch:0.0.1'
+    - default: "quay.io/ntlawrence/pytorch:0.0.1"
       name: image
       type: string
   tasks:
@@ -55,29 +53,29 @@ spec:
         - name: revision
           value: $(params.branch)
         - name: refspec
-          value: ''
+          value: ""
         - name: submodules
-          value: 'true'
+          value: "true"
         - name: depth
-          value: '1'
+          value: "1"
         - name: sslVerify
-          value: 'true'
+          value: "true"
         - name: crtFileName
           value: ca-bundle.crt
         - name: subdirectory
           value: repo
         - name: sparseCheckoutDirectories
-          value: ''
+          value: ""
         - name: deleteExisting
-          value: 'true'
+          value: "true"
         - name: httpProxy
-          value: ''
+          value: ""
         - name: httpsProxy
-          value: ''
+          value: ""
         - name: noProxy
-          value: ''
+          value: ""
         - name: verbose
-          value: 'true'
+          value: "true"
         - name: gitInitImage
           value: >-
             registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:697b1d12faa0c3ddde73706b304b3c267539bca689ae614815f2186d6befce0b
@@ -103,15 +101,15 @@ spec:
         - name: CONTEXT
           value: $(params.path)
         - name: TLSVERIFY
-          value: 'true'
+          value: "true"
         - name: FORMAT
           value: oci
         - name: BUILD_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: PUSH_EXTRA_ARGS
-          value: ''
+          value: ""
         - name: SKIP_PUSH
-          value: 'false'
+          value: "false"
       runAfter:
         - git-clone
       taskRef:
