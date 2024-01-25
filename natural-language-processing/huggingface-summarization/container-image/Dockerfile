@@ -66,7 +66,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # For KServe
     six==1.16.0 \
     python-dateutil \
-    kubernetes \
+    python-kubernetes \
     minio==7.1.0 \
     google-cloud-storage>=1.20.0 \
     adal>=1.2.7 \
@@ -83,7 +83,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::grpcio>=1.34.0 \
     # tritonclient==2.18.0 \
     rocketce::protobuf>=3.19.0 \
-    prometheus-client>=0.13.1 \
+    prometheus_client>=0.13.1 \
     orjson>=3.8.0 \
     httpx>=0.23.0 \
     rocketce::fastapi==0.85.1 \
