@@ -80,7 +80,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     boto3==1.21.32 \
     psutil>=5.9.0 \
     # ray[serve]==2.0.0 (only 2.0.1 is in anaconda/rocketce) \
-    rocketce::grpcio>=1.34.0 \
     # tritonclient==2.18.0 \
     protobuf>=3.19.0 \
     prometheus_client>=0.13.1 \
