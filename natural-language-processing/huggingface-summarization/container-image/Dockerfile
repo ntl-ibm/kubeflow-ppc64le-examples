@@ -53,8 +53,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     --yes \
     rocketce::python==3.10.9  \
     pip==23.3 \
-    mamba==1.4.2 \
-    conda==23.7.4 \
+    rocketce::mamba \
+    conda \
     rocketce::pytorch==2.0.1 \
     rocketce::nccl==2.17.1 \
     rocketce::cudatoolkit==11.8.0 \
