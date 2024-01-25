@@ -61,6 +61,37 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     huggingface::datasets==2.16.1 \
     huggingface::transformers==4.33.3 \
     conda-forge::optimum==1.16.1 \
+    conda-forge::rouge-score==0.1.2 \
+    conda-forge::rouge \
+    # For KServe
+    six==1.16.0 \
+    python-dateutil \
+    kubernetes \
+    minio==7.1.0 \
+    google-cloud-storage>=1.20.0 \
+    adal>=1.2.7 \
+    tabulate>=0.9.0 \
+    numpy>=1.21.5 \
+    #azure-storage-blob==12.9.0 \
+    #azure-storage-file-share==12.7.0 \
+    #azure-identity>=1.8.0 \
+    #cloudevents>=1.6.2 \
+    #avro>=1.11.0 \
+    boto3==1.21.32 \
+    psutil>=5.9.0 \
+    # ray[serve]==2.0.0 (only 2.0.1 is in anaconda/rocketce) \
+    rocketce::grpcio>=1.34.0 \
+    # tritonclient==2.18.0 \
+    rocketce::protobuf>=3.19.0 \
+    prometheus-client>=0.13.1 \
+    orjson>=3.8.0 \
+    httpx>=0.23.0 \
+    rocketce::fastapi==0.85.1 \
+    # timing_asgi>=0.3.0 \
+    && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
+    && pip install kserve==0.10.1 \
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR} \
     && rm /tmp/micromamba \
     && fix-permissions ${CONDA_DIR}  
 
