@@ -91,6 +91,10 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     click==8.0.4 \
     jsonschema \
     virtualenv \
+    uvicorn==0.16.0 \
+    aiorwlock \
+    conda-forge::gpustat \
+    msgpack-python \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
