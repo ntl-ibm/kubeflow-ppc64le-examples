@@ -84,7 +84,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # tritonclient==2.18.0 \
     protobuf>=3.19.0 \
     prometheus_client>=0.13.1 \
-    grpcio==1.42.0=py310hedb86c2_0   \
+    grpcio   \
     orjson>=3.8.0 \
     httpx>=0.23.0 \
     rocketce::fastapi==0.85.1 \
