@@ -98,6 +98,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     aiorwlock \
     fastapi \
     starlette \
+    rocketce::cryptography \
+    conda-forge::avro \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
