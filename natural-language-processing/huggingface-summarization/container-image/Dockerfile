@@ -82,12 +82,16 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # ray[serve]==2.0.0 (only 2.0.1 is in anaconda/rocketce) \
     rocketce::grpcio>=1.34.0 \
     # tritonclient==2.18.0 \
-    rocketce::protobuf>=3.19.0 \
+    protobuf==3.20.3 \
     prometheus_client>=0.13.1 \
+    grpcio==1.42.0  \
     orjson>=3.8.0 \
     httpx>=0.23.0 \
     rocketce::fastapi==0.85.1 \
     # timing_asgi>=0.3.0 \
+    click==8.4.0 \
+    jsonsechema \
+    virtualenv \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
