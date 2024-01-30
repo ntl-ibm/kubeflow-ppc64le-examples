@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
         default="ca_test",
     )
     parser.add_argument("--prepared_dataset_dir", type=str, help="transformed dataset")
+    parser.add_argument("--prefix", type=str, help="prefix", default="summarize: ")
     parser.add_argument(
         "--model_max_len",
         type=int,

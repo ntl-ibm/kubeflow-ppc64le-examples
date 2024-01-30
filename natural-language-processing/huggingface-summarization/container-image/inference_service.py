@@ -44,14 +44,13 @@ class BillSummarizer(kserve.Model):
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.name = "billsum"
-        self.model_path = f"/mnt/models/{self.name}"
         self.load()
         self.ready = True
 
     def load(self):
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_path)
-        self.model.to(self.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        model_path = f"/mnt/models/{self.name}"
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_path).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     def predict(
         self,
@@ -61,7 +60,11 @@ class BillSummarizer(kserve.Model):
         if "instances" not in payload or len(payload["instances"]):
             raise ValueError("Instances must be a list of a single instance")
 
-        text = payload["instances"][0]
+        text = (
+            os.environ.get("PREFIX", "")
+            + payload["instances"][0]
+            + os.environ("SUFFIX", "")
+        )
         inputs = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
         outputs = self.model.generate(
             inputs, max_new_tokens=headers.get("max_new_tokens", 128)
