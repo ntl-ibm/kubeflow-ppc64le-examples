@@ -16,10 +16,10 @@ import argparse
 from datasets import load_dataset
 from transformers import AutoTokenizer
 from transformers import DataCollatorForSeq2Seq
-import evaluate
-import numpy as np
-import rouge
 from transformers import AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+import os
+
+from metrics import compute_metrics
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,29 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=str, help="model checkpoint")
     parser.add_argument("--prepared_dataset_dir", type=str, help="transformed dataset")
     parser.add_argument("--model_dir", type=str, help="output model")
+    parser.add_argument("--epochs", type=int, help="epochs", default=3)
+    parser.add_argument("--optim", type=str, help="optimizer", default="adafactor")
+    parser.add_argument("--batch_size", type=int, help="batch size", default=16)
 
     return parser.parse_args()
-
-
-def compute_metrics(eval_pred):
-    predictions, labels = eval_pred
-    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-
-    # -100 tells the loss function to ignore the pad
-    # convert it back for the rouge computation
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    result = rouge.compute(
-        predictions=decoded_preds, references=decoded_labels, use_stemmer=True
-    )
-
-    prediction_lens = [
-        np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions
-    ]
-    result["gen_len"] = np.mean(prediction_lens)
-
-    return {k: round(v, 4) for k, v in result.items()}
 
 
 if __name__ == "__main__":
@@ -62,21 +44,26 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=args.checkpoint)
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir=args.model_dir,
+        output_dir="./model",
         evaluation_strategy="epoch",
+        logging_steps=int(args.batch_size / 2),
         learning_rate=2e-5,
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
         weight_decay=0.01,
         save_total_limit=3,
-        num_train_epochs=4,
+        num_train_epochs=args.epochs,
         predict_with_generate=True,
-        fp16=True,
+        fp16=False,
         push_to_hub=False,
+        # Used to reduce memory, with the price tag that training is much slower
+        gradient_checkpointing=True,
+        optim=args.optim,
     )
 
     model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint)
     tokenized_dataset = load_dataset(args.prepared_dataset_dir)
+
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
@@ -84,7 +71,10 @@ if __name__ == "__main__":
         eval_dataset=tokenized_dataset["validation"],
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=lambda eval_pred: compute_metrics(eval_pred, tokenizer),
     )
 
     trainer.train()
+
+    os.makedirs(args.model_dir, exist_ok=True)
+    trainer.save_model(output_dir=args.model_dir)
