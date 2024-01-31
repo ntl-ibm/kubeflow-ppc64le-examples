@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.9
+ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
 FROM $ROOT_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
@@ -29,7 +29,7 @@ ENV CONDA_DIR="/opt/conda"
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
 ## OS Dependencies
-#RUN dnf upgrade -y almalinux-release
+RUN dnf upgrade -y almalinux-release
 RUN dnf install -y bzip2 \
         git \
         wget && \
