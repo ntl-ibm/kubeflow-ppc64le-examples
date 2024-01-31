@@ -105,8 +105,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     && pip install kserve==0.10.1 \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} \
-    && rm /tmp/micromamba \
-    && fix-permissions ${CONDA_DIR}  \
     && fix-permissions /.cache
 
 WORKDIR /root
