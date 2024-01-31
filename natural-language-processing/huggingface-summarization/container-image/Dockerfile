@@ -57,8 +57,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::pytorch==2.0.1 \
     rocketce::nccl==2.17.1 \
     rocketce::cudatoolkit==11.8.0 \
-    rocketce::datasets==2.12.0 \
-    rocketce::transformers==4.32.1 \
+    rocketce::datasets==2.14.4  \
+    rocketce::transformers==4.19.2 \
     conda-forge::optimum==1.16.1 \
     conda-forge::rouge-score==0.1.2 \
     conda-forge::rouge \
