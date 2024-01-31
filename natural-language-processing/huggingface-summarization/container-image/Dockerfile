@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
+ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.7
 FROM $ROOT_CONTAINER
 LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 
