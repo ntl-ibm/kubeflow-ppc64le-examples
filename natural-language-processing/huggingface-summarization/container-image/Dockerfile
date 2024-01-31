@@ -104,8 +104,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
-    && fix-permissions ${CONDA_DIR} \
-    && fix-permissions /.cache
+    && fix-permissions ${CONDA_DIR} 
 
 WORKDIR /root
 RUN fix-permissions /root
