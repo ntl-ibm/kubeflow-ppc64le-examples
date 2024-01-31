@@ -57,8 +57,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::pytorch==2.0.1 \
     rocketce::nccl==2.17.1 \
     rocketce::cudatoolkit==11.8.0 \
-    rocketce::datasets==2.7.1  \
-    rocketce::transformers==4.19.2 \
+    huggingface::datasets>=2.1.0  \
+    transformers \
     conda-forge::rouge-score==0.1.2 \
     conda-forge::rouge \
     # For KServe
