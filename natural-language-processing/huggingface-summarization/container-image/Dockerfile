@@ -53,8 +53,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     --yes \
     rocketce::python==3.10.9  \
     pip==23.3 \
-    rocketce::mamba \
-    conda \
     rocketce::pytorch==2.0.1 \
     rocketce::nccl==2.17.1 \
     rocketce::cudatoolkit==11.8.0 \
@@ -100,12 +98,15 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     starlette \
     cryptography==3.4.8 \
     conda-forge::avro \
+    dill>=0.3.4 \ 
+    && mv ./micromamba ${CONDA_DIR}/bin \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} \
     && rm /tmp/micromamba \
-    && fix-permissions ${CONDA_DIR}  
+    && fix-permissions ${CONDA_DIR}  \
+    && fix-permissions /.cache
 
 WORKDIR /root
 RUN fix-permissions /root
