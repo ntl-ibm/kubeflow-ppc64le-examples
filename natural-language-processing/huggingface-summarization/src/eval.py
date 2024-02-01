@@ -34,6 +34,7 @@ if __name__ == "__main__":
     tokenized_dataset = load_dataset(args.prepared_dataset_dir)
 
     training_args = Seq2SeqTrainingArguments(
+        output_dir="/tmp/predictions",
         per_device_eval_batch_size=args.batch_size,
         fp16=False,
     )
