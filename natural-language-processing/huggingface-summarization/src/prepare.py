@@ -77,6 +77,7 @@ if __name__ == "__main__":
         }
     )
 
+    print(billsum)
     tokennizer = AutoTokenizer.from_pretrained(args.checkpoint)
 
     tokenized_dataset = billsum.map(
