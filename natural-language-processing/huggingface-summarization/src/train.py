@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from transformers import AutoTokenizer
 from transformers import DataCollatorForSeq2Seq
 from transformers import AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     )
 
     model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint)
-    tokenized_dataset = load_dataset(args.prepared_dataset_dir)
+    tokenized_dataset = load_from_disk(args.prepared_dataset_dir)
 
     trainer = Seq2SeqTrainer(
         model=model,

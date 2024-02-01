@@ -86,5 +86,6 @@ if __name__ == "__main__":
         batched=True,
     )
 
+    tokenized_dataset = tokenized_dataset.remove_columns(["text", "summary"])
     print(tokenized_dataset)
     tokenized_dataset.save_to_disk(args.prepared_dataset_dir)
