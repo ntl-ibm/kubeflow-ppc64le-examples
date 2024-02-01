@@ -37,6 +37,7 @@ if __name__ == "__main__":
         output_dir="/tmp/predictions",
         per_device_eval_batch_size=args.batch_size,
         fp16=False,
+        gradient_checkpointing=True,
     )
 
     trainer = Seq2SeqTrainer(
