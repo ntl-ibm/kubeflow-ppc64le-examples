@@ -63,6 +63,7 @@ def preprocess(
 
 if __name__ == "__main__":
     args = parse_args()
+    os.makedirs(args.prepared_dataset_dir, exist_ok=True)
 
     billsum = load_dataset("billsum", split=args.split)
 
@@ -85,5 +86,5 @@ if __name__ == "__main__":
         batched=True,
     )
 
-    os.makedirs(args.prepared_dataset_dir, exist_ok=True)
+    print(tokenized_dataset)
     tokenized_dataset.save_to_disk(args.prepared_dataset_dir)
