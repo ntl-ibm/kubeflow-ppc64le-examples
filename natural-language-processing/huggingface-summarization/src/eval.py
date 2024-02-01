@@ -44,6 +44,7 @@ if __name__ == "__main__":
         args=training_args,
         tokenizer=tokenizer,
         data_collator=data_collator,
+        eval_dataset=tokenized_dataset["test"],
         compute_metrics=lambda eval_pred: compute_metrics(eval_pred, tokenizer),
     )
 
