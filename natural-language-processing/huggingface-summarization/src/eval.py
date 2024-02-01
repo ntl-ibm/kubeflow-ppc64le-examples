@@ -1,5 +1,5 @@
 import argparse
-from datasets import load_dataset
+from datasets import load_from_disk
 from transformers import AutoTokenizer
 from transformers import DataCollatorForSeq2Seq
 from transformers import AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=args.model_dir)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(args.model_dir)
-    tokenized_dataset = load_dataset(args.prepared_dataset_dir)
+    tokenized_dataset = load_from_disk(args.prepared_dataset_dir)
 
     training_args = Seq2SeqTrainingArguments(
         output_dir="/tmp/predictions",
@@ -44,7 +44,6 @@ if __name__ == "__main__":
         args=training_args,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        eval_dataset=tokenized_dataset["test"],
         compute_metrics=lambda eval_pred: compute_metrics(eval_pred, tokenizer),
     )
 
