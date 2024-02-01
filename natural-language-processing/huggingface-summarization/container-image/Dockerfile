@@ -58,7 +58,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::nccl==2.17.1 \
     rocketce::cudatoolkit==11.8.0 \
     huggingface::datasets>=2.1.0  \
-    transformers \
+    defaults::transformers==4.32.1  \
+    rocketce::tokenizers==0.11.4 \
     conda-forge::rouge-score==0.1.2 \
     conda-forge::rouge \
     # For KServe
