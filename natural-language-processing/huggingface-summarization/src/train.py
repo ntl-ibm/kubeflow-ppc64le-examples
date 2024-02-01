@@ -68,7 +68,7 @@ if __name__ == "__main__":
         model=model,
         args=training_args,
         train_dataset=tokenized_dataset["train"],
-        eval_dataset=tokenized_dataset["validation"],
+        eval_dataset=tokenized_dataset["valid"],
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=lambda eval_pred: compute_metrics(eval_pred, tokenizer),
