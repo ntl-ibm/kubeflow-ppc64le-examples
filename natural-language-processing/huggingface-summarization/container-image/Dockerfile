@@ -62,6 +62,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # https://github.com/huggingface/transformers/issues/21805
     main::transformers==4.32.1  \
     main::tokenizers==0.13.2 \
+    # main huggingface_accelerate is older
+    conda-forge::accelerate==0.23.0 \
     conda-forge::rouge-score==0.1.2 \
     conda-forge::rouge \
     # For KServe
