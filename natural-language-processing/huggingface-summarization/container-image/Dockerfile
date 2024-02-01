@@ -108,6 +108,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} 
 
+WORKDIR /.cache
+RUN fix-permissions /.cache
+
 WORKDIR /root
 RUN fix-permissions /root
 
