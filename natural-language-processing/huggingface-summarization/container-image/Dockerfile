@@ -66,6 +66,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::accelerate==0.23.0 \
     conda-forge::rouge-score==0.1.2 \
     conda-forge::rouge \
+    conda-forge::evaluate==0.4.1 \
     # For KServe
     six==1.16.0 \
     python-dateutil \
