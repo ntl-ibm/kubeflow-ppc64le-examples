@@ -1,5 +1,7 @@
 import numpy as np
-import rouge
+import evaluate
+
+rouge_metric = evaluate.load("rouge")
 
 
 def compute_metrics(eval_pred, tokenizer):
@@ -11,7 +13,7 @@ def compute_metrics(eval_pred, tokenizer):
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-    result = rouge.compute(
+    result = rouge_metric.compute(
         predictions=decoded_preds, references=decoded_labels, use_stemmer=True
     )
 
