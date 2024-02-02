@@ -27,6 +27,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import kserve
 import torch
 from ray import serve
+from pathlib import Path
 
 NUM_GPUS = torch.cuda.device_count()
 NUM_REPLICAS = 1
@@ -49,6 +50,11 @@ class BillSummarizer(kserve.Model):
 
     def load(self):
         model_path = f"/mnt/models/{self.name}"
+
+        for file in Path(model_path).rglob("*"):
+            if not file.is_dir():
+                print(str(file.relative_to(model_path)))
+
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_path).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
