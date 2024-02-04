@@ -105,6 +105,8 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     cryptography==3.4.8 \
     conda-forge::avro \
     dill>=0.3.4 \ 
+    # needed for huggingface with GPU
+    conda-forge::gputil \
     && mv ./micromamba ${CONDA_DIR}/bin \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
