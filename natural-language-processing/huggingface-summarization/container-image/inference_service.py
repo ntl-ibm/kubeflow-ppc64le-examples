@@ -43,14 +43,14 @@ class BillSummarizer(kserve.Model):
 
     def __init__(self):
         self.name = "billsum"
-        super().__init__(self.name)
+        super().__init__(name=self.name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.name = "billsum"
         self.load()
         self.ready = True
 
     def load(self):
-        model_path = f"/mnt/models/{self.name}"
+        model_path = f"/mnt/models/1/{self.name}"
 
         for file in Path(model_path).rglob("*"):
             if not file.is_dir():
