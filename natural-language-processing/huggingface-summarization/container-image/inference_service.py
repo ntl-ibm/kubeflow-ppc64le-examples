@@ -42,7 +42,8 @@ class BillSummarizer(kserve.Model):
     MODEL_PATH = "/mnt/models/pt"
 
     def __init__(self):
-        super().__init__()
+        self.name = "billsum"
+        super().__init__(self.name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.name = "billsum"
         self.load()
