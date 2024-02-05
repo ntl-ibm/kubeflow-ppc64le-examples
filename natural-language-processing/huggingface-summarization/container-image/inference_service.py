@@ -41,7 +41,7 @@ NUM_REPLICAS = 1
 class BillSummarizer(kserve.Model):
     MODEL_PATH = "/mnt/models/pt"
 
-    def __init__(self, name: str):
+    def __init__(self):
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.name = "billsum"

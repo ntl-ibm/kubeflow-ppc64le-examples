@@ -106,6 +106,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::avro \
     dill>=0.3.4 \ 
     # needed for huggingface with GPU
+    # https://github.com/ray-project/ray/issues/28064
     conda-forge::gputil \
     && mv ./micromamba ${CONDA_DIR}/bin \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
