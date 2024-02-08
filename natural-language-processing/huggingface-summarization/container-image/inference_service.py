@@ -64,7 +64,11 @@ class BillSummarizer(kserve.Model):
         payload: Dict,
         headers: Dict[str, str] = None,
     ) -> Dict:
-        if "instances" not in payload or len(payload["instances"]):
+        if (
+            "instances" not in payload
+            or not isinstance(payload["instances"], list)
+            or (len(payload["instances"]) != 1)
+        ):
             raise ValueError("Instances must be a list of a single instance")
 
         text = (
