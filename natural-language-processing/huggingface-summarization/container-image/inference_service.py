@@ -72,7 +72,7 @@ class BillSummarizer(kserve.Model):
             or (len(payload["instances"]) != 1)
         ):
             raise HTTPException(
-                status_code=int(http.client.BAD_REQUEST),
+                status_code=400,
                 detail='Payload must contain an "Instances" which must be a list of a single document',
             )
 
