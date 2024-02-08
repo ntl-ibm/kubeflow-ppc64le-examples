@@ -29,35 +29,21 @@ import torch
 from ray import serve
 from pathlib import Path
 from fastapi import HTTPException
-import http.client
-
-NUM_GPUS = torch.cuda.device_count()
-NUM_REPLICAS = 1
+from werkzeug.exceptions import BadRequest
 
 
-@serve.deployment(
-    name="billsum",
-    num_replicas=NUM_REPLICAS,
-    ray_actor_options={"num_cpus": 1, "num_gpus": NUM_GPUS / NUM_REPLICAS},
-)
-class BillSummarizer(kserve.Model):
-    MODEL_PATH = "/mnt/models/pt"
+class KServeModelForSeq2SeqLM(kserve.Model):
 
-    def __init__(self):
-        self.name = "billsum"
+    def __init__(self, name, version):
+        self.name = name
+        self.version = version
         super().__init__(name=self.name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.name = "billsum"
         self.load()
         self.ready = True
 
     def load(self):
-        model_path = f"/mnt/models/1/{self.name}"
-
-        for file in Path(model_path).rglob("*"):
-            if not file.is_dir():
-                print(str(file.relative_to(model_path)))
-
+        model_path = f"/mnt/models/{self.version}/{self.name}"
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_path).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -71,10 +57,11 @@ class BillSummarizer(kserve.Model):
             or not isinstance(payload["instances"], list)
             or (len(payload["instances"]) != 1)
         ):
-            raise HTTPException(
-                status_code=400,
-                detail='Payload must contain an "Instances" which must be a list of a single document',
+            raise BadRequest(
+                description='Payload must contain an "Instances" which must be a list of a single document'
             )
+
+        max_new_tokens = headers.get("max_new_tokens", 128) if headers else 128
 
         text = (
             os.environ.get("PREFIX", "")
@@ -83,21 +70,42 @@ class BillSummarizer(kserve.Model):
         )
         inputs = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
         outputs = self.model.generate(
-            inputs,
-            max_new_tokens=headers.get("max_new_tokens", 128) if headers else 128,
+            inputs, max_new_tokens=max_new_tokens, do_sample=False
         )
         summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         return {"summary": summary}
 
 
+def create_ray_deployment(model_name, model_version, num_replicas):
+    @serve.deployment(
+        name=model_name,
+        num_replicas=num_replicas,
+        ray_actor_options={"num_gpus": torch.cuda.device_count() / num_replicas},
+    )
+    class ModelDeployment(KServeModelForSeq2SeqLM):
+        def __init__(self):
+            super.__init__(name=model_name, version=model_version)
+
+    return ModelDeployment
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(parents=[kserve.model_server.parser])
-
-    # This arg is automatically provided by the inferenceservice
-    # it contains the name of the inference service resource.
     parser.add_argument(
         "--model_name", help="The name that the model is served under.", required=True
     )
-    args, _ = parser.parse_known_args()
+    parser.add_argument(
+        "--model_version", help="Version of the model.", type=int, required=True
+    )
+    parser.add_argument(
+        "--num_replicas", help="number of replicas", type=int, default=1
+    )
 
-    kserve.ModelServer().start({"billsum": BillSummarizer})
+    args, _ = parser.parse_known_args()
+    deployment = create_ray_deployment(
+        model_name=args.model_name,
+        model_version=args.model_version,
+        num_replicas=args.num_replicas,
+    )
+
+    kserve.ModelServer().start({args.model_name: deployment})
