@@ -72,14 +72,14 @@ class BillSummarizer(kserve.Model):
             or (len(payload["instances"]) != 1)
         ):
             raise HTTPException(
-                status_code=http.client.BAD_REQUEST,
+                status_code=int(http.client.BAD_REQUEST),
                 detail='Payload must contain an "Instances" which must be a list of a single document',
             )
 
         text = (
             os.environ.get("PREFIX", "")
             + payload["instances"][0]
-            + os.environ("SUFFIX", "")
+            + os.environ.get("SUFFIX", "")
         )
         inputs = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
         outputs = self.model.generate(
