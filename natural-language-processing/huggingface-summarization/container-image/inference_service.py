@@ -28,6 +28,8 @@ import kserve
 import torch
 from ray import serve
 from pathlib import Path
+from fastapi import HTTPException
+import http.client
 
 NUM_GPUS = torch.cuda.device_count()
 NUM_REPLICAS = 1
@@ -69,7 +71,10 @@ class BillSummarizer(kserve.Model):
             or not isinstance(payload["instances"], list)
             or (len(payload["instances"]) != 1)
         ):
-            raise ValueError("Instances must be a list of a single instance")
+            raise HTTPException(
+                status_code=http.client.BAD_REQUEST,
+                detail='Payload must contain an "Instances" which must be a list of a single document',
+            )
 
         text = (
             os.environ.get("PREFIX", "")
