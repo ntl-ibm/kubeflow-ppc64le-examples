@@ -105,6 +105,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     cryptography==3.4.8 \
     conda-forge::avro \
     dill>=0.3.4 \ 
+    werkzeug \
     # needed for huggingface with GPU
     # https://github.com/ray-project/ray/issues/28064
     conda-forge::gputil \
