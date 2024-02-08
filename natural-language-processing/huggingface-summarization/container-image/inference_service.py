@@ -12,23 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Implements and InferenceService prdictor for the credit-risk demo.
-Inferencing is performed using an ONNX model and onnx-runtime.
-
-Models are evaluated using CPU only.
 
 Author: ntl@us.ibm.com
 """
 import argparse
-import logging
 import os
-from typing import Dict, Union
+from typing import Dict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import kserve
 import torch
 from ray import serve
-from pathlib import Path
-from fastapi import HTTPException
 from werkzeug.exceptions import BadRequest
 
 
