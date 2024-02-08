@@ -83,7 +83,8 @@ class BillSummarizer(kserve.Model):
         )
         inputs = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
         outputs = self.model.generate(
-            inputs, max_new_tokens=headers.get("max_new_tokens", 128)
+            inputs,
+            max_new_tokens=headers.get("max_new_tokens", 128) if headers else 128,
         )
         summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         return {"summary": summary}
