@@ -77,7 +77,7 @@ def create_ray_deployment(model_name, model_version, num_replicas):
     )
     class ModelDeployment(KServeModelForSeq2SeqLM):
         def __init__(self):
-            super.__init__(name=model_name, version=model_version)
+            super().__init__(name=model_name, version=model_version)
 
     return ModelDeployment
 
