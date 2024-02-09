@@ -53,7 +53,7 @@ class KServeModelForSeq2SeqLM(kserve.Model):
                 description='Payload must contain an "Instances" which must be a list of a single document'
             )
 
-        max_new_tokens = headers.get("max_new_tokens", 128) if headers else 128
+        max_new_tokens = int(headers.get("max_new_tokens", "128")) if headers else 128
 
         text = (
             os.environ.get("PREFIX", "")
