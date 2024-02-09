@@ -33,7 +33,8 @@ def parse_args() -> argparse.Namespace:
         default="ca_test",
     )
     parser.add_argument("--prepared_dataset_dir", type=str, help="transformed dataset")
-    parser.add_argument("--prefix", type=str, help="prefix", default="summarize: ")
+    parser.add_argument("--prefix", type=str, help="prefix", default="")
+    parser.add_argument("--suffix", type=str, help="suffix", default="")
     parser.add_argument(
         "--model_max_len",
         type=int,
@@ -48,9 +49,9 @@ prefix = "summarize: "
 
 
 def preprocess(
-    examples, tokenizer, model_max_len
+    examples, tokenizer, model_max_len, prefix, suffix
 ) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
-    inputs = [doc for doc in examples["text"]]
+    inputs = [(prefix + doc + suffix) for doc in examples["text"]]
     model_inputs = tokenizer(inputs, max_length=model_max_len, truncation=True)
 
     labels = tokenizer(
@@ -78,11 +79,16 @@ if __name__ == "__main__":
         }
     )
 
-    print(billsum)
     tokennizer = AutoTokenizer.from_pretrained(args.checkpoint)
 
     tokenized_dataset = billsum.map(
-        lambda examples: preprocess(examples, tokennizer, args.model_max_len),
+        lambda examples: preprocess(
+            examples=examples,
+            tokenizer=tokennizer,
+            model_max_len=args.model_max_len,
+            prefix=args.prefix,
+            suffix=args.suffix,
+        ),
         batched=True,
     )
 
