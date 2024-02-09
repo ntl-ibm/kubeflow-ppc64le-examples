@@ -51,6 +51,11 @@ prefix = "summarize: "
 def preprocess(
     examples, tokenizer, model_max_len, prefix, suffix
 ) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
+    if prefix:
+        prefix = prefix + " "
+    if suffix:
+        suffix = suffix + " "
+
     inputs = [(prefix + doc + suffix) for doc in examples["text"]]
     model_inputs = tokenizer(inputs, max_length=model_max_len, truncation=True)
 
