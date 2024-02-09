@@ -21,7 +21,6 @@ from typing import Dict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import kserve
 import torch
-from ray import serve
 from werkzeug.exceptions import BadRequest
 
 
@@ -69,19 +68,6 @@ class KServeModelForSeq2SeqLM(kserve.Model):
         return {"summary": summary}
 
 
-def create_ray_deployment(model_name, model_version, num_replicas):
-    @serve.deployment(
-        name=model_name,
-        num_replicas=num_replicas,
-        ray_actor_options={"num_gpus": torch.cuda.device_count() / num_replicas},
-    )
-    class ModelDeployment(KServeModelForSeq2SeqLM):
-        def __init__(self):
-            super().__init__(name=model_name, version=model_version)
-
-    return ModelDeployment
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(parents=[kserve.model_server.parser])
     parser.add_argument(
@@ -90,15 +76,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_version", help="Version of the model.", type=int, required=True
     )
-    parser.add_argument(
-        "--num_replicas", help="number of replicas", type=int, default=1
-    )
 
     args, _ = parser.parse_known_args()
-    deployment = create_ray_deployment(
-        model_name=args.model_name,
-        model_version=args.model_version,
-        num_replicas=args.num_replicas,
-    )
 
-    kserve.ModelServer().start({args.model_name: deployment})
+    model = KServeModelForSeq2SeqLM(name=args.model_name, version=args.model_version)
+    kserve.ModelServer().start([model])
