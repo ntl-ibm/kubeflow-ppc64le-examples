@@ -44,7 +44,7 @@ RUN chmod a+rx /usr/local/bin/fix-permissions
 ## Install mamba and required packages
 # https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
 WORKDIR /tmp
-RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2 && \
+RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/latest && \
     tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
     rm /tmp/micromamba.tar && \
     mkdir -p ${CONDA_DIR} && \
