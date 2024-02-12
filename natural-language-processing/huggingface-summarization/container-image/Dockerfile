@@ -111,7 +111,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # needed for huggingface with GPU in inference service/ray
     # https://github.com/ray-project/ray/issues/28064
     conda-forge::gputil \
-    rocketce::tensorboard==2.12.2 \ 
+    # conda-forge tensorboard has more flexible dependencies
+    # than the version from rocketce
+    conda-forge::tensorboard>=2.11.0 \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
     && echo "Installing packages with pip......" \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
