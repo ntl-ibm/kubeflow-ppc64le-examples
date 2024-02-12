@@ -1,9 +1,13 @@
 name: Configure tensorboard
 description: Monitors a training job based on Tensorboard logs.
 inputs:
+- {name: pipeline_name, type: String}
 - {name: pvc_name, type: String}
 - {name: pvc_path, type: String, default: '', optional: true}
-- {name: tensorboard_name, type: String, default: '', optional: true}
+- name: remove_prior_pipeline_runs
+  type: Boolean
+  default: "True"
+  optional: true
 outputs:
 - {name: mlpipeline_ui_metadata, type: String}
 implementation:
@@ -29,9 +33,10 @@ implementation:
 
       def configure_tensorboard(
           mlpipeline_ui_metadata_path,
+          pipeline_name,
           pvc_name,
           pvc_path = "",
-          tensorboard_name = "",
+          remove_prior_pipeline_runs = True,
       ):
           """
           Monitors a training job based on Tensorboard logs.
@@ -40,11 +45,15 @@ implementation:
           Params:
           mlpipeline_ui_metadata_path - Kubeflow provided path for visualizations
                                         The visualization contains a link to the deployed tensorboard service
+          pipeline_name: str - the name of the pipeline associated with the tensorboard. This is added as a label to the tensorboard
+                               the name of the tensorboard is the workflow name, which is unique. Tensorboards with the same pipeline
+                               name may be removed prior to creating the new tensorboard by setting "remove_prior_pipeline_runs".
           pvc_name: str - the name of the pvc where the logs are stored
           pvc_path: str - the path to the logs on the pvc. This path should NOT include any mount point.
                           So for example if the traning component mounts the pvc as "/workspace" and the logs are written to
                           "/workspace/tensorboard_logs", you should only provide "tensorborad_logs" for this param.
-          tensorboard_name: str - the name of the tensorboard, if empty, the name of the workflow is used.
+          remove_prior_pipeline_runs: bool - remove existing tensorboards that are from the same pipeline name. This avoids tensorboards from
+                                    accumulating from repeated runs of the same pipeline.
           """
           from collections import namedtuple
           import json
@@ -64,9 +73,7 @@ implementation:
           )
           logger = logging.getLogger()
 
-          if not tensorboard_name:
-              tensorboard_name = "{{workflow.name}}"
-
+          tensorboard_name = f"tb-" + "{{workflow.name}}"
           namespace = "{{workflow.namespace}}"
 
           config.load_incluster_config()
@@ -74,19 +81,30 @@ implementation:
           apps_api = client.AppsV1Api(api_client)
           custom_object_api = client.CustomObjectsApi(api_client)
 
-          # Delete possible existing tensorboard
-          try:
-              custom_object_api.delete_namespaced_custom_object(
-                  group="tensorboard.kubeflow.org",
-                  version="v1alpha1",
-                  plural="tensorboards",
-                  namespace=namespace,
-                  name=tensorboard_name,
-                  body=client.V1DeleteOptions(),
-              )
-          except client.exceptions.ApiException as e:
-              if e.status != http.HTTPStatus.NOT_FOUND:
-                  raise
+          # Delete possible existing tensorboards
+          if remove_prior_pipeline_runs:
+              try:
+                  existing_tensorboards = custom_object_api.list_namespaced_custom_object(
+                      group="tensorboard.kubeflow.org",
+                      version="v1alpha1",
+                      plural="tensorboards",
+                      namespace=namespace,
+                      label_selector=f"pipeline-name={pipeline_name}",
+                  )
+
+                  for existing_tb in existing_tensorboards["items"]:
+                      custom_object_api.delete_namespaced_custom_object(
+                          group="tensorboard.kubeflow.org",
+                          version="v1alpha1",
+                          plural="tensorboards",
+                          namespace=namespace,
+                          name=existing_tb["metadata"]["name"],
+                          body=client.V1DeleteOptions(),
+                      )
+
+              except client.exceptions.ApiException as e:
+                  if e.status != http.HTTPStatus.NOT_FOUND:
+                      raise
 
           tensorboard_spec = textwrap.dedent(
               f"""\
@@ -100,6 +118,8 @@ implementation:
                         kind: Workflow
                         name: "{{workflow.name}}"
                         uid: "{{workflow.uid}}"
+                    labels:
+                        pipeline-name: {pipeline_name}
                   spec:
                     logspath: "pvc://{pvc_name}/{pvc_path}"
                   """
@@ -217,16 +237,23 @@ implementation:
 
           logging.info("Finished.")
 
+      def _deserialize_bool(s) -> bool:
+          from distutils.util import strtobool
+          return strtobool(s) == 1
+
       import argparse
       _parser = argparse.ArgumentParser(prog='Configure tensorboard', description='Monitors a training job based on Tensorboard logs.')
+      _parser.add_argument("--pipeline-name", dest="pipeline_name", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--pvc-name", dest="pvc_name", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--pvc-path", dest="pvc_path", type=str, required=False, default=argparse.SUPPRESS)
-      _parser.add_argument("--tensorboard-name", dest="tensorboard_name", type=str, required=False, default=argparse.SUPPRESS)
+      _parser.add_argument("--remove-prior-pipeline-runs", dest="remove_prior_pipeline_runs", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)
       _parser.add_argument("--mlpipeline-ui-metadata", dest="mlpipeline_ui_metadata_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
       _parsed_args = vars(_parser.parse_args())
 
       _outputs = configure_tensorboard(**_parsed_args)
     args:
+    - --pipeline-name
+    - {inputValue: pipeline_name}
     - --pvc-name
     - {inputValue: pvc_name}
     - if:
@@ -235,9 +262,9 @@ implementation:
         - --pvc-path
         - {inputValue: pvc_path}
     - if:
-        cond: {isPresent: tensorboard_name}
+        cond: {isPresent: remove_prior_pipeline_runs}
         then:
-        - --tensorboard-name
-        - {inputValue: tensorboard_name}
+        - --remove-prior-pipeline-runs
+        - {inputValue: remove_prior_pipeline_runs}
     - --mlpipeline-ui-metadata
     - {outputPath: mlpipeline_ui_metadata}
