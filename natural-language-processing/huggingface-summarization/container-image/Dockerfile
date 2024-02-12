@@ -112,7 +112,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::gputil \
     tensorboard \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
-    echo "Installing packages with pip......" && \
+    && echo "Installing packages with pip......" \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
