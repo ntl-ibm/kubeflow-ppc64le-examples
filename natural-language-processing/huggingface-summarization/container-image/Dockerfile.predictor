@@ -21,7 +21,7 @@ WORKDIR /root
 # Tensorboard and KServe don't install well together
 # They share some of the same dependencies, but at different version
 # requirements. KServe especially needs very specific versions of things.
-RUN  micromamba remove tensorboard
+RUN  micromamba remove --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} tensorboard
 RUN  micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
