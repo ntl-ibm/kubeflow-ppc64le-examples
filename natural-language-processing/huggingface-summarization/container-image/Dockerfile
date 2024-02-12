@@ -53,7 +53,6 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
-    -vv \ 
     rocketce::python==3.10.9  \
     pip==23.3 \
     rocketce::pytorch==2.0.1 \
@@ -71,55 +70,17 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::evaluate==0.4.1 \
     # conda-forge tensorboard has more flexible dependencies
     # than the version from rocketce
-    conda-forge::tensorboard==2.12.3 \ 
-    # For KServe
-    six==1.16.0 \
-    python-dateutil \
-    python-kubernetes \
-    minio==7.1.0 \
-    google-cloud-storage>=1.20.0 \
-    adal>=1.2.7 \
-    tabulate>=0.9.0 \
-    numpy>=1.21.5 \
-    #azure-storage-blob==12.9.0 \
-    #azure-storage-file-share==12.7.0 \
-    #azure-identity>=1.8.0 \
-    #cloudevents>=1.6.2 \
-    #avro>=1.11.0 \
-    boto3==1.21.32 \
-    psutil>=5.9.0 \
-    # ray[serve]==2.0.0 (only 2.0.1 is in anaconda/rocketce) \
-    # tritonclient==2.18.0 \
-    protobuf>=3.19.0 \
-    prometheus_client>=0.13.1 \
-    conda-forge::grpcio>=1.43.0   \
-    orjson>=3.8.0 \
-    httpx>=0.23.0 \
-    rocketce::fastapi==0.85.1 \
-    # timing_asgi>=0.3.0 \
-    click==8.0.4 \
-    jsonschema \
-    virtualenv \
-    uvicorn==0.16.0 \
-    aiorwlock \
-    conda-forge::gpustat \
-    msgpack-python \
-    aiorwlock \
-    fastapi \
-    starlette \
-    cryptography==3.4.8 \
-    conda-forge::avro \
-    dill>=0.3.4 \ 
-    # werkzeug \
-    # needed for huggingface with GPU in inference service/ray
-    # https://github.com/ray-project/ray/issues/28064
-    conda-forge::gputil \
+    rocketce::tensorboard==2.12.3 \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
-    && echo "Installing packages with pip......" \
-    && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
-    && pip install kserve==0.10.1 \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} 
+
+# These packages should stay at the same level for inferencing,
+# do not allow them to be up or downgraded accidently
+RUN   echo "python==3.10.9" >> ${CONDA_DIr}/conda-meta/pinned \
+   && echo "pytorch==2.0.1" >> ${CONDA_DIr}/conda-meta/pinned \
+   && echo "transformers==4.32.1" >> ${CONDA_DIr}/conda-meta/pinned \
+   && echo "tokenizers==0.13.2"
 
 WORKDIR /.cache
 RUN fix-permissions /.cache
