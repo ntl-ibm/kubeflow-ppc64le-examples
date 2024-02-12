@@ -77,9 +77,9 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
 
 # These packages should stay at the same level for inferencing,
 # do not allow them to be up or downgraded accidently
-RUN   echo "python==3.10.9" >> ${CONDA_DIr}/conda-meta/pinned \
-   && echo "pytorch==2.0.1" >> ${CONDA_DIr}/conda-meta/pinned \
-   && echo "transformers==4.32.1" >> ${CONDA_DIr}/conda-meta/pinned \
+RUN   echo "python==3.10.9" >> ${CONDA_DIR}/conda-meta/pinned \
+   && echo "pytorch==2.0.1" >> ${CONDA_DIR}/conda-meta/pinned \
+   && echo "transformers==4.32.1" >> ${CONDA_DIR}/conda-meta/pinned \
    && echo "tokenizers==0.13.2"
 
 WORKDIR /.cache
