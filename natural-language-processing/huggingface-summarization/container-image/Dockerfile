@@ -48,6 +48,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  && \
     rm /tmp/micromamba.tar && \
     mkdir -p ${CONDA_DIR} && \
+    echo "Installing packages...." && \
     ./micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
@@ -111,6 +112,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::gputil \
     tensorboard \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
+    echo "Installing packages with pip......" && \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
     && pip cache purge \
