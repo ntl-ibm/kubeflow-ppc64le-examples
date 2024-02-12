@@ -71,7 +71,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::evaluate==0.4.1 \
     # conda-forge tensorboard has more flexible dependencies
     # than the version from rocketce
-    conda-forge::tensorboard==2.11.0 \ 
+    conda-forge::tensorboard==2.12.3 \ 
     # For KServe
     six==1.16.0 \
     python-dateutil \
@@ -92,7 +92,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # tritonclient==2.18.0 \
     protobuf>=3.19.0 \
     prometheus_client>=0.13.1 \
-    conda-forge::grpcio==1.43.0   \
+    conda-forge::grpcio>=1.43.0   \
     orjson>=3.8.0 \
     httpx>=0.23.0 \
     rocketce::fastapi==0.85.1 \
