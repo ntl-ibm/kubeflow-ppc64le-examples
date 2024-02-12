@@ -53,6 +53,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
+    -vv \ 
     rocketce::python==3.10.9  \
     pip==23.3 \
     rocketce::pytorch==2.0.1 \
