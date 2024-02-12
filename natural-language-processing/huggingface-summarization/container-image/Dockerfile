@@ -109,7 +109,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     # needed for huggingface with GPU in inference service/ray
     # https://github.com/ray-project/ray/issues/28064
     conda-forge::gputil \
-    rocketce::tensorboard \ 
+    tensorboard \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
     && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
     && pip install kserve==0.10.1 \
