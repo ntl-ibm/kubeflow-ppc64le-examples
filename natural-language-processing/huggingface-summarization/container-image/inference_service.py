@@ -21,7 +21,8 @@ from typing import Dict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import kserve
 import torch
-from werkzeug.exceptions import BadRequest
+from fastapi import HTTPException
+from http import HTTPStatus
 
 
 class KServeModelForSeq2SeqLM(kserve.Model):
@@ -49,8 +50,9 @@ class KServeModelForSeq2SeqLM(kserve.Model):
             or not isinstance(payload["instances"], list)
             or (len(payload["instances"]) != 1)
         ):
-            raise BadRequest(
-                description='Payload must contain an "Instances" which must be a list of a single document'
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Payload must contain an "Instances" which must be a list of a single document',
             )
 
         max_new_tokens = int(headers.get("max_new_tokens", "128")) if headers else 128

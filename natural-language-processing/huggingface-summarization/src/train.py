@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, help="epochs", default=3)
     parser.add_argument("--optim", type=str, help="optimizer", default="adafactor")
     parser.add_argument("--batch_size", type=int, help="batch size", default=16)
-    parser.add_argument("--tensorboard", type=str, help="batch size", default=None)
+    parser.add_argument("--tensorboard", type=str, help="tensorboard", default=None)
 
     return parser.parse_args()
 
