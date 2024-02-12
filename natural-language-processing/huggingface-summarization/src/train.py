@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, help="epochs", default=3)
     parser.add_argument("--optim", type=str, help="optimizer", default="adafactor")
     parser.add_argument("--batch_size", type=int, help="batch size", default=16)
+    parser.add_argument("--tensorboard", type=str, help="batch size", default=None)
 
     return parser.parse_args()
 
@@ -60,6 +61,7 @@ if __name__ == "__main__":
         # Used to reduce memory, with the price tag that training is much slower
         gradient_checkpointing=True,
         optim=args.optim,
+        logging_dir=args.tensorboard,
     )
 
     model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint)
