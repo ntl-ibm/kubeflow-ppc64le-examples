@@ -70,7 +70,7 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     conda-forge::evaluate==0.4.1 \
     # conda-forge tensorboard has more flexible dependencies
     # than the version from rocketce
-    rocketce::tensorboard==2.12.3 \ 
+    conda-forge::tensorboard==2.12.3 \ 
     && mv ./micromamba ${CONDA_DIR}/bin \
     && pip cache purge \
     && fix-permissions ${CONDA_DIR} 
