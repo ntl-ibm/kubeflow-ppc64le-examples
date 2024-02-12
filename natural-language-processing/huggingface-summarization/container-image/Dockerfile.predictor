@@ -18,11 +18,17 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 USER root
 WORKDIR /root
 
+# Tensorboard and KServe don't install well together
+# They share some of the same dependencies, but at different version
+# requirements. KServe especially needs very specific versions of things.
+RUN  micromamba uninstall tensorboard
 RUN  micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
     -c rocketce \
     -c https://repo.anaconda.com/pkgs/main \
     --yes \
-    # For KServe
+    # For KServe, which is installed by pip
+    # commented out lines are packages in the requirements.txt,
+    # but do not exist in conda
     six==1.16.0 \
     python-dateutil \
     python-kubernetes \
