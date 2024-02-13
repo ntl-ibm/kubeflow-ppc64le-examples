@@ -8,7 +8,14 @@ Because Kubeflow uses Istio to manage network traffic and PostgreSQL is not desi
 
 The modified template is in `postgresql-no-istio-persistent.yaml`.
 
-Run the following oc command to create the results in the template. You may need to run this from a command line, rather than a Jupyter terminal.
+You can use the `oc` command to process the template and deploy PostgreSQL. 
+The terminal in a Jupyter Notebook does not have sufficient authority to process a template, the workaround is:
+
+1) Open a terminal to the bastion node (The node with the oc command)
+2) Log into OpenShift.  (You can get a login token from the OpenShift console. Choose "Copy Login command from the drop down under your email in the top right corner).
+3) Clone this github repo. git clone https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git -b 3.0.0
+4) cd to this working directory
+5) Run the following command
 
 `oc process  -f ./postgresql-no-istio-persistent.yaml   -l component=credit-risk-pg -p POSTGRESQL_USER=pguser -p POSTGRESQL_DATABASE=credit-risk | oc create -f -`
 
