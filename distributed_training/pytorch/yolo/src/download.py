@@ -23,6 +23,9 @@ import os
 import stat
 import sys
 
+# Expect the directory to download stuff from as a param
+# Would normally use a URL, but there are firewall concerns in some
+# demo environments
 path = sys.argv[1]
 
 # Download Pretrained weights
@@ -40,7 +43,7 @@ with open("./data.yaml") as f:
 # Due to firewall issues in some environments, the zip is included in my github repo
 os.makedirs(Path(cfg["path"]).parent, exist_ok=True)
 download(
-    "file://{path}/coco128.zip",
+    f"file://{path}/coco128.zip",
     dir=Path(cfg["path"]).parent,
     unzip=True,
     delete=True,
