@@ -23,7 +23,11 @@ import os
 import stat
 
 # Download Pretrained weights
-download("https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt")
+# Normally https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
+# but changed due to firewall issues
+download(
+    "https://github.com/ntl-ibm/kubeflow-ppc64le-examples/raw/3.0.0/distributed_training/pytorch/yolo/assets/yolov8n.pt"
+)
 os.chmod("yolov8n.pt", stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
 
 # Open configuration
