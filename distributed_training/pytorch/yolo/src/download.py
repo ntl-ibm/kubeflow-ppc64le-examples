@@ -21,11 +21,14 @@ from pathlib import Path
 import yaml
 import os
 import stat
+import sys
+
+path = sys.argv[1]
 
 # Download Pretrained weights
 # Normally https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
 # but changed due to firewall issues
-download("file://assets/yolov8n.pt")
+download(f"file://{path}/yolov8n.pt")
 os.chmod("yolov8n.pt", stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
 
 # Open configuration
@@ -37,7 +40,7 @@ with open("./data.yaml") as f:
 # Due to firewall issues in some environments, the zip is included in my github repo
 os.makedirs(Path(cfg["path"]).parent, exist_ok=True)
 download(
-    "file://assets/coco128.zip",
+    "file://{path}/coco128.zip",
     dir=Path(cfg["path"]).parent,
     unzip=True,
     delete=True,
