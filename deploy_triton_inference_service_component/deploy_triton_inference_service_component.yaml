@@ -39,8 +39,8 @@ implementation:
       \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-http-endpoint\n\
       \    # https://github.com/kserve/kserve/blob/master/docs/samples/multimodelserving/triton/README.md\n\
       \    # https://kserve.github.io/website/modelserving/v1beta1/triton/torchscript/#inference-with-grpc-endpoint\n\
-      \n    # Caution: If using nodeSelector, this capability must be enabled for\
-      \ knative by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n\
+      \n    # Caution: If using nodeSelector, the nodeSelector capability must be\
+      \ enabled for knative by an admin\n    # https://knative.dev/docs/serving/configuration/feature-flags/#kubernetes-node-selector\n\
       \    # The default for our installs is FALSE\n    # once enabled, the value\
       \ should be 'label: \"value\"', to force the predictor/transformer to\n    #\
       \ run on specific hardware\n\n    # It happens that the credentials for the\
@@ -55,29 +55,29 @@ implementation:
       \ \"us-west1\"\n        serving.kserve.io/s3-useanoncredential: \"false\"\n\
       \    type: Opaque\n    data:\n      AWS_ACCESS_KEY_ID: {secret['data']['accesskey']}\n\
       \      AWS_SECRET_ACCESS_KEY: {secret['data']['secretkey']}\n    \"\"\"\n\n\
-      \    print(s3_credentials_spec)\n    subprocess.run(\n        [\"kubectl\",\
-      \ \"apply\", \"-f\", \"-\"],\n        input=s3_credentials_spec,\n        check=True,\n\
-      \        text=True,\n    )\n\n    sa_spec = \"\"\"\n    apiVersion: v1\n   \
-      \ kind: ServiceAccount\n    metadata:\n      name: kserve-inference-sa\n   \
-      \ secrets:\n    - name: minio-credentials\n    \"\"\"\n\n    print(sa_spec)\n\
-      \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
-      \ check=True, text=True\n    )\n\n    ### Remove Existing Inferenceservice,\
-      \ if requested\n    ### Ignores errrors if service does not already exist\n\
-      \    if rm_existing:\n        subprocess.run([\"kubectl\", \"delete\", \"inferenceservice\"\
-      , name], check=False)\n\n    ####### Transformer Spec ######\n    if transformer_specification:\n\
-      \        min_t_replicas = (\n            (\"minReplicas: \" + transformer_specification[\"\
-      min_replicas\"])\n            if \"min_replicas\" in transformer_specification\n\
-      \            else \"\"\n        )\n        max_t_replicas = (\n            (\"\
-      maxReplicas: \" + transformer_specification[\"max_replicas\"])\n           \
-      \ if \"min_replicas\" in transformer_specification\n            else \"\"\n\
-      \        )\n\n        # EnvFrom allows all vars to be read from a config map\n\
-      \        # If a variable is defined by both env and envFrom,\n        # env\
-      \ takes precedance. If a variable is defined twice\n        # in env from, then\
-      \ the last one wins.\n        if \"env_configmap\" in transformer_specification:\n\
-      \            envFrom = f\"\"\"\n          envFrom:\n            - configMapRef:\n\
-      \                name: {transformer_specification[\"env_configmap\"]}\n    \
-      \      \"\"\"\n        else:\n            envFrom = \"\"\n\n        # Node selector\n\
-      \        # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
+      \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"],\n   \
+      \     input=s3_credentials_spec,\n        check=True,\n        text=True,\n\
+      \    )\n\n    sa_spec = \"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n\
+      \    metadata:\n      name: kserve-inference-sa\n    secrets:\n    - name: minio-credentials\n\
+      \    \"\"\"\n\n    print(sa_spec)\n    subprocess.run(\n        [\"kubectl\"\
+      , \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n\
+      \    ### Remove Existing Inferenceservice, if requested\n    ### Ignores errrors\
+      \ if service does not already exist\n    if rm_existing:\n        subprocess.run([\"\
+      kubectl\", \"delete\", \"inferenceservice\", name], check=False)\n\n    #######\
+      \ Transformer Spec ######\n    if transformer_specification:\n        min_t_replicas\
+      \ = (\n            (\"minReplicas: \" + transformer_specification[\"min_replicas\"\
+      ])\n            if \"min_replicas\" in transformer_specification\n         \
+      \   else \"\"\n        )\n        max_t_replicas = (\n            (\"maxReplicas:\
+      \ \" + transformer_specification[\"max_replicas\"])\n            if \"min_replicas\"\
+      \ in transformer_specification\n            else \"\"\n        )\n\n       \
+      \ # EnvFrom allows all vars to be read from a config map\n        # If a variable\
+      \ is defined by both env and envFrom,\n        # env takes precedance. If a\
+      \ variable is defined twice\n        # in env from, then the last one wins.\n\
+      \        if \"env_configmap\" in transformer_specification:\n            envFrom\
+      \ = f\"\"\"\n          envFrom:\n            - configMapRef:\n             \
+      \   name: {transformer_specification[\"env_configmap\"]}\n          \"\"\"\n\
+      \        else:\n            envFrom = \"\"\n\n        # Node selector\n    \
+      \    # https://kserve.github.io/website/0.9/modelserving/nodescheduling/inferenceservicenodescheduling/#usage\n\
       \        if \"node_selector\" in transformer_specification:\n            t_node_selector\
       \ = (\n                f'nodeSelector:\\n          {transformer_specification[\"\
       node_selector\"]}'\n            )\n        else:\n            t_node_selector\

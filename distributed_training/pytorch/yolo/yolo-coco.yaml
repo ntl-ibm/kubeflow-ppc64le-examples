@@ -1,0 +1,1293 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: yolo-coco-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18, pipelines.kubeflow.org/pipeline_compilation_time: '2024-02-16T23:19:20.361134',
+    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"default": "quay.io/ntlawrence/yolo-base:0.0.2",
+      "name": "worker_image", "optional": true, "type": "String"}, {"default": "quay.io/ntlawrence/yolo-app:0.0.2",
+      "name": "app_image", "optional": true, "type": "String"}, {"default": "https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git",
+      "name": "source_repo", "optional": true, "type": "String"}, {"default": "3.0.0",
+      "name": "source_branch", "optional": true, "type": "String"}, {"default": "distributed_training/pytorch/yolo/src",
+      "name": "source_context", "optional": true, "type": "String"}, {"default": "minio-service.kubeflow:9000",
+      "name": "minio_endpoint", "optional": true}, {"default": "1", "name": "model_version",
+      "optional": true, "type": "Integer"}, {"default": "yolo", "name": "model_name",
+      "optional": true, "type": "String"}], "name": "yolo-coco"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.18}
+spec:
+  entrypoint: yolo-coco
+  templates:
+  - name: configure-tensorboard
+    container:
+      args:
+      - --pipeline-name
+      - yolo-coco
+      - --pvc-name
+      - '{{inputs.parameters.create-workspace-for-training-name}}'
+      - --pvc-path
+      - repo/{{inputs.parameters.source_context}}/runs/detect/train
+      - --remove-prior-pipeline-runs
+      - "True"
+      - --mlpipeline-ui-metadata
+      - /tmp/outputs/mlpipeline_ui_metadata/data
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+        'kubernetes' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet
+        --no-warn-script-location 'kubernetes' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def configure_tensorboard(
+            mlpipeline_ui_metadata_path,
+            pipeline_name,
+            pvc_name,
+            pvc_path = "",
+            remove_prior_pipeline_runs = True,
+        ):
+            """
+            Monitors a training job based on Tensorboard logs.
+            Logs are expected to be written to the specified subpath of the pvc
+
+            Params:
+            mlpipeline_ui_metadata_path - Kubeflow provided path for visualizations
+                                          The visualization contains a link to the deployed tensorboard service
+            pipeline_name: str - the name of the pipeline associated with the tensorboard. This is added as a label to the tensorboard
+                                 the name of the tensorboard is the workflow name, which is unique. Tensorboards with the same pipeline
+                                 name may be removed prior to creating the new tensorboard by setting "remove_prior_pipeline_runs".
+            pvc_name: str - the name of the pvc where the logs are stored
+            pvc_path: str - the path to the logs on the pvc. This path should NOT include any mount point.
+                            So for example if the traning component mounts the pvc as "/workspace" and the logs are written to
+                            "/workspace/tensorboard_logs", you should only provide "tensorborad_logs" for this param.
+            remove_prior_pipeline_runs: bool - remove existing tensorboards that are from the same pipeline name. This avoids tensorboards from
+                                      accumulating from repeated runs of the same pipeline.
+            """
+            from collections import namedtuple
+            import json
+            from kubernetes import client, config, watch
+            import logging
+            import sys
+            import os
+            import yaml
+            import textwrap
+            import json
+            import http
+
+            logging.basicConfig(
+                stream=sys.stdout,
+                level=logging.INFO,
+                format="%(levelname)s %(asctime)s: %(message)s",
+            )
+            logger = logging.getLogger()
+
+            tensorboard_name = f"tb-" + "{{workflow.name}}"
+            namespace = "{{workflow.namespace}}"
+
+            config.load_incluster_config()
+            api_client = client.ApiClient()
+            apps_api = client.AppsV1Api(api_client)
+            custom_object_api = client.CustomObjectsApi(api_client)
+
+            # Delete possible existing tensorboards
+            if remove_prior_pipeline_runs:
+                try:
+                    existing_tensorboards = custom_object_api.list_namespaced_custom_object(
+                        group="tensorboard.kubeflow.org",
+                        version="v1alpha1",
+                        plural="tensorboards",
+                        namespace=namespace,
+                        label_selector=f"pipeline-name={pipeline_name}",
+                    )
+
+                    for existing_tb in existing_tensorboards["items"]:
+                        custom_object_api.delete_namespaced_custom_object(
+                            group="tensorboard.kubeflow.org",
+                            version="v1alpha1",
+                            plural="tensorboards",
+                            namespace=namespace,
+                            name=existing_tb["metadata"]["name"],
+                            body=client.V1DeleteOptions(),
+                        )
+
+                except client.exceptions.ApiException as e:
+                    if e.status != http.HTTPStatus.NOT_FOUND:
+                        raise
+
+            tensorboard_spec = textwrap.dedent(
+                f"""\
+                    apiVersion: tensorboard.kubeflow.org/v1alpha1
+                    kind: Tensorboard
+                    metadata:
+                      name: "{tensorboard_name}"
+                      namespace: "{namespace}"
+                      ownerReferences:
+                        - apiVersion: v1
+                          kind: Workflow
+                          name: "{{workflow.name}}"
+                          uid: "{{workflow.uid}}"
+                      labels:
+                          pipeline-name: {pipeline_name}
+                    spec:
+                      logspath: "pvc://{pvc_name}/{pvc_path}"
+                    """
+            )
+
+            logger.info(tensorboard_spec)
+
+            custom_object_api.create_namespaced_custom_object(
+                group="tensorboard.kubeflow.org",
+                version="v1alpha1",
+                plural="tensorboards",
+                namespace=namespace,
+                body=yaml.safe_load(tensorboard_spec),
+                pretty=True,
+            )
+
+            tensorboard_watch = watch.Watch()
+            try:
+                for tensorboard_event in tensorboard_watch.stream(
+                    custom_object_api.list_namespaced_custom_object,
+                    group="tensorboard.kubeflow.org",
+                    version="v1alpha1",
+                    plural="tensorboards",
+                    namespace=namespace,
+                    field_selector=f"metadata.name={tensorboard_name}",
+                    timeout_seconds=0,
+                ):
+
+                    logger.info(f"tensorboard_event: {json.dumps(tensorboard_event, indent=2)}")
+
+                    if tensorboard_event["type"] == "DELETED":
+                        raise RuntimeError("The tensorboard was deleted!")
+
+                    tensorboard = tensorboard_event["object"]
+
+                    if "status" not in tensorboard:
+                        continue
+
+                    deployment_state = "Progressing"
+                    if "conditions" in tensorboard["status"]:
+                        deployment_state = tensorboard["status"]["conditions"][-1][
+                            "deploymentState"
+                        ]
+
+                    if deployment_state == "Progressing":
+                        logger.info("Tensorboard deployment is progressing...")
+                    elif deployment_state == "Available":
+                        logger.info("Tensorboard deployment is Available.")
+                        break
+                    elif deployment_state == "ReplicaFailure":
+                        raise RuntimeError(
+                            "Tensorboard deployment failed with a ReplicaFailure!"
+                        )
+                    else:
+                        raise RuntimeError(f"Unknown deployment state: {deployment_state}")
+            finally:
+                tensorboard_watch.stop()
+
+            button_style = (
+                "align-items: center; "
+                "appearance: none; "
+                "background-color: rgb(26, 115, 232); "
+                "border: 0px none rgb(255, 255, 255); "
+                "border-radius: 3px; "
+                "box-sizing: border-box; "
+                "color: rgb(255, 255, 255); "
+                "cursor: pointer; "
+                "display: inline-flex; "
+                "font-family: 'Google Sans', 'Helvetica Neue', sans-serif; "
+                "font-size: 14px; "
+                "font-stretch: 100%; "
+                "font-style: normal; font-weight: 700; "
+                "justify-content: center; "
+                "letter-spacing: normal; "
+                "line-height: 24.5px; "
+                "margin: 0px 10px 2px 0px; "
+                "min-height: 25px; "
+                "min-width: 64px; "
+                "padding: 2px 6px 2px 6px; "
+                "position: relative; "
+                "tab-size: 4; "
+                "text-align: center; "
+                "text-indent: 0px; "
+                "text-rendering: auto; "
+                "text-shadow: none; "
+                "text-size-adjust: 100%; "
+                "text-transform: none; "
+                "user-select: none; "
+                "vertical-align: middle; "
+                "word-spacing: 0px; "
+                "writing-mode: horizontal-tb;"
+            )
+
+            # See: https://github.com/kubeflow/kubeflow/blob/master/components/crud-web-apps/tensorboards/frontend/src/app/pages/index/index.component.ts
+            # window.open(`/tensorboard/${tensorboard.namespace}/${tensorboard.name}/`);
+            ui_address = f"/tensorboard/{namespace}/{tensorboard_name}/#scalars"
+
+            markdown = textwrap.dedent(
+                f"""\
+                # Tensorboard
+                - <a href="{ui_address}" style="{button_style}" target="_blank">Connect</a>
+                - <a href="/_/tensorboards/" style="{button_style}" target="_blank">Manage all</a>
+                """
+            )
+
+            markdown_output = {
+                "type": "markdown",
+                "storage": "inline",
+                "source": markdown,
+            }
+
+            ui_metadata = {"outputs": [markdown_output]}
+            with open(mlpipeline_ui_metadata_path, "w") as metadata_file:
+                json.dump(ui_metadata, metadata_file)
+
+            logging.info("Finished.")
+
+        def _deserialize_bool(s) -> bool:
+            from distutils.util import strtobool
+            return strtobool(s) == 1
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Configure tensorboard', description='Monitors a training job based on Tensorboard logs.')
+        _parser.add_argument("--pipeline-name", dest="pipeline_name", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--pvc-name", dest="pvc_name", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--pvc-path", dest="pvc_path", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--remove-prior-pipeline-runs", dest="remove_prior_pipeline_runs", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--mlpipeline-ui-metadata", dest="mlpipeline_ui_metadata_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = configure_tensorboard(**_parsed_args)
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0
+    inputs:
+      parameters:
+      - {name: create-workspace-for-training-name}
+      - {name: source_context}
+    outputs:
+      artifacts:
+      - {name: mlpipeline-ui-metadata, path: /tmp/outputs/mlpipeline_ui_metadata/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Monitors
+          a training job based on Tensorboard logs.", "implementation": {"container":
+          {"args": ["--pipeline-name", {"inputValue": "pipeline_name"}, "--pvc-name",
+          {"inputValue": "pvc_name"}, {"if": {"cond": {"isPresent": "pvc_path"}, "then":
+          ["--pvc-path", {"inputValue": "pvc_path"}]}}, {"if": {"cond": {"isPresent":
+          "remove_prior_pipeline_runs"}, "then": ["--remove-prior-pipeline-runs",
+          {"inputValue": "remove_prior_pipeline_runs"}]}}, "--mlpipeline-ui-metadata",
+          {"outputPath": "mlpipeline_ui_metadata"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet --no-warn-script-location ''kubernetes''
+          || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+          ''kubernetes'' --user) && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef configure_tensorboard(\n    mlpipeline_ui_metadata_path,\n    pipeline_name,\n    pvc_name,\n    pvc_path
+          = \"\",\n    remove_prior_pipeline_runs = True,\n):\n    \"\"\"\n    Monitors
+          a training job based on Tensorboard logs.\n    Logs are expected to be written
+          to the specified subpath of the pvc\n\n    Params:\n    mlpipeline_ui_metadata_path
+          - Kubeflow provided path for visualizations\n                                  The
+          visualization contains a link to the deployed tensorboard service\n    pipeline_name:
+          str - the name of the pipeline associated with the tensorboard. This is
+          added as a label to the tensorboard\n                         the name of
+          the tensorboard is the workflow name, which is unique. Tensorboards with
+          the same pipeline\n                         name may be removed prior to
+          creating the new tensorboard by setting \"remove_prior_pipeline_runs\".\n    pvc_name:
+          str - the name of the pvc where the logs are stored\n    pvc_path: str -
+          the path to the logs on the pvc. This path should NOT include any mount
+          point.\n                    So for example if the traning component mounts
+          the pvc as \"/workspace\" and the logs are written to\n                    \"/workspace/tensorboard_logs\",
+          you should only provide \"tensorborad_logs\" for this param.\n    remove_prior_pipeline_runs:
+          bool - remove existing tensorboards that are from the same pipeline name.
+          This avoids tensorboards from\n                              accumulating
+          from repeated runs of the same pipeline.\n    \"\"\"\n    from collections
+          import namedtuple\n    import json\n    from kubernetes import client, config,
+          watch\n    import logging\n    import sys\n    import os\n    import yaml\n    import
+          textwrap\n    import json\n    import http\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=\"%(levelname)s
+          %(asctime)s: %(message)s\",\n    )\n    logger = logging.getLogger()\n\n    tensorboard_name
+          = f\"tb-\" + \"{{workflow.name}}\"\n    namespace = \"{{workflow.namespace}}\"\n\n    config.load_incluster_config()\n    api_client
+          = client.ApiClient()\n    apps_api = client.AppsV1Api(api_client)\n    custom_object_api
+          = client.CustomObjectsApi(api_client)\n\n    # Delete possible existing
+          tensorboards\n    if remove_prior_pipeline_runs:\n        try:\n            existing_tensorboards
+          = custom_object_api.list_namespaced_custom_object(\n                group=\"tensorboard.kubeflow.org\",\n                version=\"v1alpha1\",\n                plural=\"tensorboards\",\n                namespace=namespace,\n                label_selector=f\"pipeline-name={pipeline_name}\",\n            )\n\n            for
+          existing_tb in existing_tensorboards[\"items\"]:\n                custom_object_api.delete_namespaced_custom_object(\n                    group=\"tensorboard.kubeflow.org\",\n                    version=\"v1alpha1\",\n                    plural=\"tensorboards\",\n                    namespace=namespace,\n                    name=existing_tb[\"metadata\"][\"name\"],\n                    body=client.V1DeleteOptions(),\n                )\n\n        except
+          client.exceptions.ApiException as e:\n            if e.status != http.HTTPStatus.NOT_FOUND:\n                raise\n\n    tensorboard_spec
+          = textwrap.dedent(\n        f\"\"\"\\\n            apiVersion: tensorboard.kubeflow.org/v1alpha1\n            kind:
+          Tensorboard\n            metadata:\n              name: \"{tensorboard_name}\"\n              namespace:
+          \"{namespace}\"\n              ownerReferences:\n                - apiVersion:
+          v1\n                  kind: Workflow\n                  name: \"{{workflow.name}}\"\n                  uid:
+          \"{{workflow.uid}}\"\n              labels:\n                  pipeline-name:
+          {pipeline_name}\n            spec:\n              logspath: \"pvc://{pvc_name}/{pvc_path}\"\n            \"\"\"\n    )\n\n    logger.info(tensorboard_spec)\n\n    custom_object_api.create_namespaced_custom_object(\n        group=\"tensorboard.kubeflow.org\",\n        version=\"v1alpha1\",\n        plural=\"tensorboards\",\n        namespace=namespace,\n        body=yaml.safe_load(tensorboard_spec),\n        pretty=True,\n    )\n\n    tensorboard_watch
+          = watch.Watch()\n    try:\n        for tensorboard_event in tensorboard_watch.stream(\n            custom_object_api.list_namespaced_custom_object,\n            group=\"tensorboard.kubeflow.org\",\n            version=\"v1alpha1\",\n            plural=\"tensorboards\",\n            namespace=namespace,\n            field_selector=f\"metadata.name={tensorboard_name}\",\n            timeout_seconds=0,\n        ):\n\n            logger.info(f\"tensorboard_event:
+          {json.dumps(tensorboard_event, indent=2)}\")\n\n            if tensorboard_event[\"type\"]
+          == \"DELETED\":\n                raise RuntimeError(\"The tensorboard was
+          deleted!\")\n\n            tensorboard = tensorboard_event[\"object\"]\n\n            if
+          \"status\" not in tensorboard:\n                continue\n\n            deployment_state
+          = \"Progressing\"\n            if \"conditions\" in tensorboard[\"status\"]:\n                deployment_state
+          = tensorboard[\"status\"][\"conditions\"][-1][\n                    \"deploymentState\"\n                ]\n\n            if
+          deployment_state == \"Progressing\":\n                logger.info(\"Tensorboard
+          deployment is progressing...\")\n            elif deployment_state == \"Available\":\n                logger.info(\"Tensorboard
+          deployment is Available.\")\n                break\n            elif deployment_state
+          == \"ReplicaFailure\":\n                raise RuntimeError(\n                    \"Tensorboard
+          deployment failed with a ReplicaFailure!\"\n                )\n            else:\n                raise
+          RuntimeError(f\"Unknown deployment state: {deployment_state}\")\n    finally:\n        tensorboard_watch.stop()\n\n    button_style
+          = (\n        \"align-items: center; \"\n        \"appearance: none; \"\n        \"background-color:
+          rgb(26, 115, 232); \"\n        \"border: 0px none rgb(255, 255, 255); \"\n        \"border-radius:
+          3px; \"\n        \"box-sizing: border-box; \"\n        \"color: rgb(255,
+          255, 255); \"\n        \"cursor: pointer; \"\n        \"display: inline-flex;
+          \"\n        \"font-family: ''Google Sans'', ''Helvetica Neue'', sans-serif;
+          \"\n        \"font-size: 14px; \"\n        \"font-stretch: 100%; \"\n        \"font-style:
+          normal; font-weight: 700; \"\n        \"justify-content: center; \"\n        \"letter-spacing:
+          normal; \"\n        \"line-height: 24.5px; \"\n        \"margin: 0px 10px
+          2px 0px; \"\n        \"min-height: 25px; \"\n        \"min-width: 64px;
+          \"\n        \"padding: 2px 6px 2px 6px; \"\n        \"position: relative;
+          \"\n        \"tab-size: 4; \"\n        \"text-align: center; \"\n        \"text-indent:
+          0px; \"\n        \"text-rendering: auto; \"\n        \"text-shadow: none;
+          \"\n        \"text-size-adjust: 100%; \"\n        \"text-transform: none;
+          \"\n        \"user-select: none; \"\n        \"vertical-align: middle; \"\n        \"word-spacing:
+          0px; \"\n        \"writing-mode: horizontal-tb;\"\n    )\n\n    # See: https://github.com/kubeflow/kubeflow/blob/master/components/crud-web-apps/tensorboards/frontend/src/app/pages/index/index.component.ts\n    #
+          window.open(`/tensorboard/${tensorboard.namespace}/${tensorboard.name}/`);\n    ui_address
+          = f\"/tensorboard/{namespace}/{tensorboard_name}/#scalars\"\n\n    markdown
+          = textwrap.dedent(\n        f\"\"\"\\\n        # Tensorboard\n        -
+          <a href=\"{ui_address}\" style=\"{button_style}\" target=\"_blank\">Connect</a>\n        -
+          <a href=\"/_/tensorboards/\" style=\"{button_style}\" target=\"_blank\">Manage
+          all</a>\n        \"\"\"\n    )\n\n    markdown_output = {\n        \"type\":
+          \"markdown\",\n        \"storage\": \"inline\",\n        \"source\": markdown,\n    }\n\n    ui_metadata
+          = {\"outputs\": [markdown_output]}\n    with open(mlpipeline_ui_metadata_path,
+          \"w\") as metadata_file:\n        json.dump(ui_metadata, metadata_file)\n\n    logging.info(\"Finished.\")\n\ndef
+          _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
+          strtobool(s) == 1\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Configure
+          tensorboard'', description=''Monitors a training job based on Tensorboard
+          logs.'')\n_parser.add_argument(\"--pipeline-name\", dest=\"pipeline_name\",
+          type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--pvc-name\",
+          dest=\"pvc_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--pvc-path\",
+          dest=\"pvc_path\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--remove-prior-pipeline-runs\",
+          dest=\"remove_prior_pipeline_runs\", type=_deserialize_bool, required=False,
+          default=argparse.SUPPRESS)\n_parser.add_argument(\"--mlpipeline-ui-metadata\",
+          dest=\"mlpipeline_ui_metadata_path\", type=_make_parent_dirs_and_return_path,
+          required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs
+          = configure_tensorboard(**_parsed_args)\n"], "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:elyra3.13.0-py3.8-tf2.9.2-pt1.12.1-v0"}},
+          "inputs": [{"name": "pipeline_name", "type": "String"}, {"name": "pvc_name",
+          "type": "String"}, {"default": "", "name": "pvc_path", "optional": true,
+          "type": "String"}, {"default": "True", "name": "remove_prior_pipeline_runs",
+          "optional": true, "type": "Boolean"}], "name": "Configure tensorboard",
+          "outputs": [{"name": "mlpipeline_ui_metadata", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "6fd91bac993f162cc81d6721a9a220cc0f12725d68549b68ff4cbcfc7ad99aeb", "url":
+          "/home/jovyan/kubeflow-ppc64le-examples/configure_tensorboard_component/configure_tensorboard_component.yaml"}',
+        pipelines.kubeflow.org/arguments.parameters: '{"pipeline_name": "yolo-coco",
+          "pvc_name": "{{inputs.parameters.create-workspace-for-training-name}}",
+          "pvc_path": "repo/{{inputs.parameters.source_context}}/runs/detect/train",
+          "remove_prior_pipeline_runs": "True"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: create-workspace-for-training
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: '{{workflow.name}}-shared-workspace-pvc'
+        spec:
+          accessModes:
+          - ReadWriteMany
+          resources:
+            requests:
+              storage: 4Gi
+    outputs:
+      parameters:
+      - name: create-workspace-for-training-manifest
+        valueFrom: {jsonPath: '{}'}
+      - name: create-workspace-for-training-name
+        valueFrom: {jsonPath: '{.metadata.name}'}
+      - name: create-workspace-for-training-size
+        valueFrom: {jsonPath: '{.status.capacity.storage}'}
+    metadata:
+      annotations: {pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+  - name: deploy-prediction-visualizer-app
+    container:
+      args:
+      - --name
+      - '{{inputs.parameters.model_name}}-app'
+      - --storage-uri
+      - '{{inputs.parameters.upload-model-triton_s3_address}}'
+      - --image
+      - '{{inputs.parameters.app_image}}'
+      - --rm-existing
+      - "True"
+      - --minio-credential-secret
+      - mlpipeline-minio-artifact
+      - --concurrency-target
+      - '1'
+      - --min-replicas
+      - '0'
+      - --max-replicas
+      - '1'
+      - --gpu-allocation
+      - '1'
+      - --minio-endpoint
+      - '{{inputs.parameters.minio_endpoint}}'
+      - --node-selector
+      - '{"nvidia.com/gpu.product": "Tesla-T4"}'
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - "def deploy_prediction_visualizer_app(\n    name,\n    storage_uri,\n    image,\n\
+        \    rm_existing = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\"\
+        ,\n    concurrency_target = 1,\n    min_replicas = 0,\n    max_replicas =\
+        \ 1,\n    gpu_allocation = 1,\n    minio_endpoint = \"minio-service.kubeflow:9000\"\
+        ,\n    node_selector = None,  # Requires admin to enable the capability\n\
+        ):\n    import subprocess\n    from urllib.parse import urlparse\n    import\
+        \ json\n\n    # triton URL has the MINIO host in it\n    # downloader doesn't\
+        \ like that\n    # Should be formated as s3://<bucket>/<path>\n    parsed_url\
+        \ = urlparse(storage_uri)\n    s3_uri = f\"{parsed_url.scheme}://{parsed_url.path.strip('/')}\"\
+        \n\n    sa_spec = f\"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n\
+        \    metadata:\n      name: {name}-sa\n    \"\"\"\n\n    print(sa_spec)\n\
+        \    subprocess.run(\n        [\"kubectl\", \"apply\", \"-f\", \"-\"], input=sa_spec,\
+        \ check=True, text=True\n    )\n\n    ### Remove Existing Inferenceservice,\
+        \ if requested\n    ### Ignores errrors if service does not already exist\n\
+        \    if rm_existing:\n        subprocess.run([\"kubectl\", \"delete\", \"\
+        ksvc\", name], check=False)\n\n    node_selector_text = (\n        (\"nodeSelector:\
+        \ \" + json.dumps(node_selector)) if node_selector else \"\"\n    )\n\n  \
+        \  template_yaml = f\"\"\"\napiVersion: serving.knative.dev/v1\nkind: Service\n\
+        metadata:\n  name: {name}\n  annotations:\nspec:\n  template:\n    metadata:\n\
+        \      annotations:\n        sidecar.istio.io/inject: \"false\"\n        autoscaling.knative.dev/max-scale:\
+        \ \"{max_replicas}\"\n        autoscaling.knative.dev/metric: concurrency\n\
+        \        autoscaling.knative.dev/min-scale: \"{min_replicas}\"\n        autoscaling.knative.dev/target:\
+        \ \"{concurrency_target}\"\n    spec:\n      containerConcurrency: 1\n   \
+        \   serviceAccountName: {name}-sa\n      {node_selector_text}\n      containers:\n\
+        \        - name: flask\n          image: {image}\n          imagePullPolicy:\
+        \ IfNotPresent\n          command:\n          - python\n          - app.py\n\
+        \          securityContext:\n              allowPrivilegeEscalation: false\n\
+        \              capabilities:\n                drop:\n                - ALL\n\
+        \              readOnlyRootFilesystem: false\n              runAsNonRoot:\
+        \ true\n              seccompProfile:\n                type: RuntimeDefault\n\
+        \          resources:\n              limits:\n                cpu: \"1\"\n\
+        \                memory: 40Gi\n                nvidia.com/gpu: {gpu_allocation}\n\
+        \              requests:\n                cpu: 100m\n                memory:\
+        \ 10Gi\n          readinessProbe:\n              failureThreshold: 3\n   \
+        \           httpGet:\n                path: /alive\n                port:\
+        \ 8080\n                scheme: HTTP\n              periodSeconds: 30\n  \
+        \            successThreshold: 1\n              timeoutSeconds: 1\n      \
+        \    env:\n          - name: AWS_ACCESS_KEY_ID\n            valueFrom: \n\
+        \              secretKeyRef:\n                key: accesskey\n           \
+        \     name: {minio_credential_secret}\n          - name: AWS_SECRET_ACCESS_KEY\n\
+        \            valueFrom:\n              secretKeyRef:\n                key:\
+        \ secretkey\n                name: {minio_credential_secret}\n          -\
+        \ name: S3_USE_HTTPS\n            value: \"0\"\n          - name: S3_ENDPOINT\n\
+        \            value: \"{minio_endpoint}\"\n          - name: AWS_ENDPOINT_URL\n\
+        \            value: \"http://{minio_endpoint}\"\n          - name: AWS_DEFAULT_REGION\n\
+        \            value: \"us-west1\"\n          - name: awsAnonymousCredential\n\
+        \            value: \"false\"\n          - name: STORAGE_URI\n           \
+        \ value: \"{s3_uri}\"\n          - name: CONF\n            value: \"0.69\"\
+        \n    \"\"\"\n\n    print(template_yaml)\n    subprocess.run(\n        [\"\
+        kubectl\", \"apply\", \"-f\", \"-\"], input=template_yaml, check=True, text=True\n\
+        \    )\n\n    print(\"Waiting for app to become available\")\n    subprocess.run(\n\
+        \        [\n            \"kubectl\",\n            \"wait\",\n            \"\
+        --for=condition=Ready\",\n            f\"ksvc/{name}\",\n            \"--timeout=600s\"\
+        ,\n        ],\n        check=True,\n    )\n\ndef _deserialize_bool(s) -> bool:\n\
+        \    from distutils.util import strtobool\n    return strtobool(s) == 1\n\n\
+        import json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Deploy\
+        \ prediction visualizer app', description='')\n_parser.add_argument(\"--name\"\
+        , dest=\"name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --storage-uri\", dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--image\", dest=\"image\", type=str, required=True,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\", dest=\"\
+        rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--minio-credential-secret\", dest=\"minio_credential_secret\"\
+        , type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --concurrency-target\", dest=\"concurrency_target\", type=int, required=False,\
+        \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--min-replicas\", dest=\"\
+        min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        --max-replicas\", dest=\"max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--gpu-allocation\", dest=\"gpu_allocation\", type=int,\
+        \ required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-endpoint\"\
+        , dest=\"minio_endpoint\", type=str, required=False, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"--node-selector\", dest=\"node_selector\", type=json.loads,\
+        \ required=False, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
+        \n_outputs = deploy_prediction_visualizer_app(**_parsed_args)\n"
+      image: quay.io/ntlawrence/yolo-base:0.0.2
+    inputs:
+      parameters:
+      - {name: app_image}
+      - {name: minio_endpoint}
+      - {name: model_name}
+      - {name: upload-model-triton_s3_address}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--name", {"inputValue": "name"}, "--storage-uri", {"inputValue":
+          "storage_uri"}, "--image", {"inputValue": "image"}, {"if": {"cond": {"isPresent":
+          "rm_existing"}, "then": ["--rm-existing", {"inputValue": "rm_existing"}]}},
+          {"if": {"cond": {"isPresent": "minio_credential_secret"}, "then": ["--minio-credential-secret",
+          {"inputValue": "minio_credential_secret"}]}}, {"if": {"cond": {"isPresent":
+          "concurrency_target"}, "then": ["--concurrency-target", {"inputValue": "concurrency_target"}]}},
+          {"if": {"cond": {"isPresent": "min_replicas"}, "then": ["--min-replicas",
+          {"inputValue": "min_replicas"}]}}, {"if": {"cond": {"isPresent": "max_replicas"},
+          "then": ["--max-replicas", {"inputValue": "max_replicas"}]}}, {"if": {"cond":
+          {"isPresent": "gpu_allocation"}, "then": ["--gpu-allocation", {"inputValue":
+          "gpu_allocation"}]}}, {"if": {"cond": {"isPresent": "minio_endpoint"}, "then":
+          ["--minio-endpoint", {"inputValue": "minio_endpoint"}]}}, {"if": {"cond":
+          {"isPresent": "node_selector"}, "then": ["--node-selector", {"inputValue":
+          "node_selector"}]}}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def deploy_prediction_visualizer_app(\n    name,\n    storage_uri,\n    image,\n    rm_existing
+          = False,\n    minio_credential_secret=\"mlpipeline-minio-artifact\",\n    concurrency_target
+          = 1,\n    min_replicas = 0,\n    max_replicas = 1,\n    gpu_allocation =
+          1,\n    minio_endpoint = \"minio-service.kubeflow:9000\",\n    node_selector
+          = None,  # Requires admin to enable the capability\n):\n    import subprocess\n    from
+          urllib.parse import urlparse\n    import json\n\n    # triton URL has the
+          MINIO host in it\n    # downloader doesn''t like that\n    # Should be formated
+          as s3://<bucket>/<path>\n    parsed_url = urlparse(storage_uri)\n    s3_uri
+          = f\"{parsed_url.scheme}://{parsed_url.path.strip(''/'')}\"\n\n    sa_spec
+          = f\"\"\"\n    apiVersion: v1\n    kind: ServiceAccount\n    metadata:\n      name:
+          {name}-sa\n    \"\"\"\n\n    print(sa_spec)\n    subprocess.run(\n        [\"kubectl\",
+          \"apply\", \"-f\", \"-\"], input=sa_spec, check=True, text=True\n    )\n\n    ###
+          Remove Existing Inferenceservice, if requested\n    ### Ignores errrors
+          if service does not already exist\n    if rm_existing:\n        subprocess.run([\"kubectl\",
+          \"delete\", \"ksvc\", name], check=False)\n\n    node_selector_text = (\n        (\"nodeSelector:
+          \" + json.dumps(node_selector)) if node_selector else \"\"\n    )\n\n    template_yaml
+          = f\"\"\"\napiVersion: serving.knative.dev/v1\nkind: Service\nmetadata:\n  name:
+          {name}\n  annotations:\nspec:\n  template:\n    metadata:\n      annotations:\n        sidecar.istio.io/inject:
+          \"false\"\n        autoscaling.knative.dev/max-scale: \"{max_replicas}\"\n        autoscaling.knative.dev/metric:
+          concurrency\n        autoscaling.knative.dev/min-scale: \"{min_replicas}\"\n        autoscaling.knative.dev/target:
+          \"{concurrency_target}\"\n    spec:\n      containerConcurrency: 1\n      serviceAccountName:
+          {name}-sa\n      {node_selector_text}\n      containers:\n        - name:
+          flask\n          image: {image}\n          imagePullPolicy: IfNotPresent\n          command:\n          -
+          python\n          - app.py\n          securityContext:\n              allowPrivilegeEscalation:
+          false\n              capabilities:\n                drop:\n                -
+          ALL\n              readOnlyRootFilesystem: false\n              runAsNonRoot:
+          true\n              seccompProfile:\n                type: RuntimeDefault\n          resources:\n              limits:\n                cpu:
+          \"1\"\n                memory: 40Gi\n                nvidia.com/gpu: {gpu_allocation}\n              requests:\n                cpu:
+          100m\n                memory: 10Gi\n          readinessProbe:\n              failureThreshold:
+          3\n              httpGet:\n                path: /alive\n                port:
+          8080\n                scheme: HTTP\n              periodSeconds: 30\n              successThreshold:
+          1\n              timeoutSeconds: 1\n          env:\n          - name: AWS_ACCESS_KEY_ID\n            valueFrom:
+          \n              secretKeyRef:\n                key: accesskey\n                name:
+          {minio_credential_secret}\n          - name: AWS_SECRET_ACCESS_KEY\n            valueFrom:\n              secretKeyRef:\n                key:
+          secretkey\n                name: {minio_credential_secret}\n          -
+          name: S3_USE_HTTPS\n            value: \"0\"\n          - name: S3_ENDPOINT\n            value:
+          \"{minio_endpoint}\"\n          - name: AWS_ENDPOINT_URL\n            value:
+          \"http://{minio_endpoint}\"\n          - name: AWS_DEFAULT_REGION\n            value:
+          \"us-west1\"\n          - name: awsAnonymousCredential\n            value:
+          \"false\"\n          - name: STORAGE_URI\n            value: \"{s3_uri}\"\n          -
+          name: CONF\n            value: \"0.69\"\n    \"\"\"\n\n    print(template_yaml)\n    subprocess.run(\n        [\"kubectl\",
+          \"apply\", \"-f\", \"-\"], input=template_yaml, check=True, text=True\n    )\n\n    print(\"Waiting
+          for app to become available\")\n    subprocess.run(\n        [\n            \"kubectl\",\n            \"wait\",\n            \"--for=condition=Ready\",\n            f\"ksvc/{name}\",\n            \"--timeout=600s\",\n        ],\n        check=True,\n    )\n\ndef
+          _deserialize_bool(s) -> bool:\n    from distutils.util import strtobool\n    return
+          strtobool(s) == 1\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Deploy
+          prediction visualizer app'', description='''')\n_parser.add_argument(\"--name\",
+          dest=\"name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--storage-uri\",
+          dest=\"storage_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--image\",
+          dest=\"image\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--rm-existing\",
+          dest=\"rm_existing\", type=_deserialize_bool, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-credential-secret\",
+          dest=\"minio_credential_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--concurrency-target\",
+          dest=\"concurrency_target\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--min-replicas\",
+          dest=\"min_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-replicas\",
+          dest=\"max_replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--gpu-allocation\",
+          dest=\"gpu_allocation\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-endpoint\",
+          dest=\"minio_endpoint\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--node-selector\",
+          dest=\"node_selector\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = deploy_prediction_visualizer_app(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolo-base:0.0.2"}}, "inputs": [{"name": "name",
+          "type": "String"}, {"name": "storage_uri", "type": "String"}, {"name": "image",
+          "type": "String"}, {"default": "False", "name": "rm_existing", "optional":
+          true, "type": "Boolean"}, {"default": "mlpipeline-minio-artifact", "name":
+          "minio_credential_secret", "optional": true}, {"default": "1", "name": "concurrency_target",
+          "optional": true, "type": "Integer"}, {"default": "0", "name": "min_replicas",
+          "optional": true, "type": "Integer"}, {"default": "1", "name": "max_replicas",
+          "optional": true, "type": "Integer"}, {"default": "1", "name": "gpu_allocation",
+          "optional": true, "type": "Integer"}, {"default": "minio-service.kubeflow:9000",
+          "name": "minio_endpoint", "optional": true, "type": "String"}, {"name":
+          "node_selector", "optional": true, "type": "typing.Dict[str, str]"}], "name":
+          "Deploy prediction visualizer app"}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"concurrency_target": "1",
+          "gpu_allocation": "1", "image": "{{inputs.parameters.app_image}}", "max_replicas":
+          "1", "min_replicas": "0", "minio_credential_secret": "mlpipeline-minio-artifact",
+          "minio_endpoint": "{{inputs.parameters.minio_endpoint}}", "name": "{{inputs.parameters.model_name}}-app",
+          "node_selector": "{\"nvidia.com/gpu.product\": \"Tesla-T4\"}", "rm_existing":
+          "True", "storage_uri": "{{inputs.parameters.upload-model-triton_s3_address}}"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: run-commands
+    container:
+      args: [--commands, '["git clone {{inputs.parameters.source_repo}} repo -b {{inputs.parameters.source_branch}}",
+          "mkdir -p /workspace/repo/{{inputs.parameters.source_context}}/runs/detect/train"]',
+        --cwd, /workspace]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def run_commands(commands, cwd):
+            import subprocess
+
+            for command in commands:
+                print(command)
+                subprocess.run(command, shell=True, cwd=cwd, check=True)
+
+        import json
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Run commands', description='')
+        _parser.add_argument("--commands", dest="commands", type=json.loads, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--cwd", dest="cwd", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = run_commands(**_parsed_args)
+      image: quay.io/ntlawrence/yolo-base:0.0.2
+      volumeMounts:
+      - {mountPath: /workspace, name: create-workspace-for-training}
+    inputs:
+      parameters:
+      - {name: create-workspace-for-training-name}
+      - {name: source_branch}
+      - {name: source_context}
+      - {name: source_repo}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Clone Repo, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--commands", {"inputValue": "commands"}, "--cwd",
+          {"inputValue": "cwd"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def run_commands(commands, cwd):\n    import subprocess\n\n    for command
+          in commands:\n        print(command)\n        subprocess.run(command, shell=True,
+          cwd=cwd, check=True)\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Run
+          commands'', description='''')\n_parser.add_argument(\"--commands\", dest=\"commands\",
+          type=json.loads, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--cwd\",
+          dest=\"cwd\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = run_commands(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolo-base:0.0.2"}}, "inputs": [{"name": "commands",
+          "type": "typing.List[str]"}, {"name": "cwd", "type": "String"}], "name":
+          "Run commands"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"commands":
+          "[\"git clone {{inputs.parameters.source_repo}} repo -b {{inputs.parameters.source_branch}}\",
+          \"mkdir -p /workspace/repo/{{inputs.parameters.source_context}}/runs/detect/train\"]",
+          "cwd": "/workspace"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: create-workspace-for-training
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.create-workspace-for-training-name}}'}
+  - name: run-commands-2
+    container:
+      args: [--commands, '["python download.py /workspace/repo/{{inputs.parameters.source_context}}/../assets"]',
+        --cwd, '/workspace/repo/{{inputs.parameters.source_context}}']
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def run_commands(commands, cwd):
+            import subprocess
+
+            for command in commands:
+                print(command)
+                subprocess.run(command, shell=True, cwd=cwd, check=True)
+
+        import json
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Run commands', description='')
+        _parser.add_argument("--commands", dest="commands", type=json.loads, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--cwd", dest="cwd", type=str, required=True, default=argparse.SUPPRESS)
+        _parsed_args = vars(_parser.parse_args())
+
+        _outputs = run_commands(**_parsed_args)
+      image: quay.io/ntlawrence/yolo-base:0.0.2
+      volumeMounts:
+      - {mountPath: /workspace, name: create-workspace-for-training}
+    inputs:
+      parameters:
+      - {name: create-workspace-for-training-name}
+      - {name: source_context}
+    metadata:
+      annotations: {pipelines.kubeflow.org/task_display_name: Download data, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--commands", {"inputValue": "commands"}, "--cwd",
+          {"inputValue": "cwd"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def run_commands(commands, cwd):\n    import subprocess\n\n    for command
+          in commands:\n        print(command)\n        subprocess.run(command, shell=True,
+          cwd=cwd, check=True)\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Run
+          commands'', description='''')\n_parser.add_argument(\"--commands\", dest=\"commands\",
+          type=json.loads, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--cwd\",
+          dest=\"cwd\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args
+          = vars(_parser.parse_args())\n\n_outputs = run_commands(**_parsed_args)\n"],
+          "image": "quay.io/ntlawrence/yolo-base:0.0.2"}}, "inputs": [{"name": "commands",
+          "type": "typing.List[str]"}, {"name": "cwd", "type": "String"}], "name":
+          "Run commands"}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"commands":
+          "[\"python download.py /workspace/repo/{{inputs.parameters.source_context}}/../assets\"]",
+          "cwd": "/workspace/repo/{{inputs.parameters.source_context}}"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+    volumes:
+    - name: create-workspace-for-training
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.create-workspace-for-training-name}}'}
+  - name: train-model-distributed
+    container:
+      args: [--workspace-pvc-name, '{{inputs.parameters.create-workspace-for-training-name}}',
+        --context, 'repo/{{inputs.parameters.source_context}}', --worker-image, '{{inputs.parameters.worker_image}}',
+        --replicas, '3', --gpus, '1', --workspace-mount-point, /workspace, --node-selector,
+        '{"nvidia.com/gpu.product": "Tesla-V100-SXM2-32GB"}', --model, /tmp/outputs/model/data,
+        '----output-paths', /tmp/outputs/mlpipeline_metrics/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+        'git+https://github.com/ntl-ibm/kubeflow-ppc64le-examples@3.0.0#subdirectory=distributed_training/distributed_kf_tools'
+        || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+        'git+https://github.com/ntl-ibm/kubeflow-ppc64le-examples@3.0.0#subdirectory=distributed_training/distributed_kf_tools'
+        --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def _make_parent_dirs_and_return_path(file_path: str):
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            return file_path
+
+        def train_model_distributed(
+            model,
+            workspace_pvc_name,
+            context,
+            worker_image,
+            replicas = 3,
+            gpus = 1,
+            workspace_mount_point = "/workspace",
+            node_selector = None,
+        ):
+            import os
+            import shutil
+            import distributed_kf_tools.deploy as deploy
+            from distributed_kf_tools.template import OwningWorkFlow, PvcMount
+            import json
+            from collections import namedtuple
+
+            if gpus > 1:
+                raise ValueError(
+                    "build_model.py does not currently support more than one GPU per node!"
+                )
+
+            devices = ",".join([str(gpu) for gpu in range(gpus)])
+
+            ## Start the PyTorch job for distributed training
+            deploy.run_pytorch_job(
+                # owning_workflow setups it up so that when the pipeline is deleted,
+                # the training job is cleaned up
+                owning_workflow=OwningWorkFlow(
+                    name="{{workflow.name}}", uid="{{workflow.uid}}"
+                ),
+                # These place holders for namespace and job name are
+                # filled in by Kubeflow when the pipeline runs.
+                namespace="{{workflow.namespace}}",
+                pytorch_job_name="{{workflow.name}}",
+                # Shared volumes used by the training script
+                # The key to the mounting is that the "runs" directory of yolov5
+                # is mapped to the "/workspace/output" dir in the pvc.
+                # This allows us to get to the output of the runs
+                # after training (as /workspace/output in our mount of the PVC).
+                pvcs=[PvcMount(pvc_name=workspace_pvc_name, mount_path=workspace_mount_point)],
+                # The command to run in each worker
+                # This almost always starts with "torch.distributed.run" for DDP
+                command=["python", "-m", "torch.distributed.run", "build_model.py"],
+                working_dir=f"{workspace_mount_point}/{context}",
+                # Number of workers
+                num_workers=replicas,
+                # Number of GPUs per worker (OK to leave this at 1)
+                gpus_per_worker=gpus,
+                # The base image used for the worker pods
+                worker_image=worker_image,
+                # run with the correct type of GPU
+                node_selector=node_selector,
+            )
+
+            os.makedirs(os.path.dirname(model), exist_ok=True)
+            shutil.copyfile(
+                f"{workspace_mount_point}/{context}/runs/detect/train/weights/best.pt", model
+            )
+
+            with open(f"{workspace_mount_point}/{context}/result_metrics.json", "r") as f:
+                raw_metrics = json.load(f)
+
+            metrics = {
+                "metrics": [
+                    {
+                        "name": "mAP50",
+                        "numberValue": raw_metrics["metrics/mAP50(B)"],
+                        "format": "RAW",
+                    },
+                    {
+                        "name": "mAP50-95",
+                        "numberValue": raw_metrics["metrics/mAP50-95(B)"],
+                        "format": "RAW",
+                    },
+                ]
+            }
+
+            out_tuple = namedtuple("EvaluationOutput", ["mlpipeline_metrics"])
+            return out_tuple(json.dumps(metrics))
+
+        import json
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Train model distributed', description='')
+        _parser.add_argument("--workspace-pvc-name", dest="workspace_pvc_name", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--context", dest="context", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--worker-image", dest="worker_image", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--replicas", dest="replicas", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--gpus", dest="gpus", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--workspace-mount-point", dest="workspace_mount_point", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--node-selector", dest="node_selector", type=json.loads, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model", dest="model", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = train_model_distributed(**_parsed_args)
+
+        _output_serializers = [
+            str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      image: quay.io/ntlawrence/yolo-base:0.0.2
+      volumeMounts:
+      - {mountPath: /workspace, name: create-workspace-for-training}
+    inputs:
+      parameters:
+      - {name: create-workspace-for-training-name}
+      - {name: source_context}
+      - {name: worker_image}
+    outputs:
+      artifacts:
+      - {name: mlpipeline-metrics, path: /tmp/outputs/mlpipeline_metrics/data}
+      - {name: train-model-distributed-model, path: /tmp/outputs/model/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--workspace-pvc-name", {"inputValue": "workspace_pvc_name"},
+          "--context", {"inputValue": "context"}, "--worker-image", {"inputValue":
+          "worker_image"}, {"if": {"cond": {"isPresent": "replicas"}, "then": ["--replicas",
+          {"inputValue": "replicas"}]}}, {"if": {"cond": {"isPresent": "gpus"}, "then":
+          ["--gpus", {"inputValue": "gpus"}]}}, {"if": {"cond": {"isPresent": "workspace_mount_point"},
+          "then": ["--workspace-mount-point", {"inputValue": "workspace_mount_point"}]}},
+          {"if": {"cond": {"isPresent": "node_selector"}, "then": ["--node-selector",
+          {"inputValue": "node_selector"}]}}, "--model", {"outputPath": "model"},
+          "----output-paths", {"outputPath": "mlpipeline_metrics"}], "command": ["sh",
+          "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+          ''git+https://github.com/ntl-ibm/kubeflow-ppc64le-examples@3.0.0#subdirectory=distributed_training/distributed_kf_tools''
+          || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+          ''git+https://github.com/ntl-ibm/kubeflow-ppc64le-examples@3.0.0#subdirectory=distributed_training/distributed_kf_tools''
+          --user) && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path),
+          exist_ok=True)\n    return file_path\n\ndef train_model_distributed(\n    model,\n    workspace_pvc_name,\n    context,\n    worker_image,\n    replicas
+          = 3,\n    gpus = 1,\n    workspace_mount_point = \"/workspace\",\n    node_selector
+          = None,\n):\n    import os\n    import shutil\n    import distributed_kf_tools.deploy
+          as deploy\n    from distributed_kf_tools.template import OwningWorkFlow,
+          PvcMount\n    import json\n    from collections import namedtuple\n\n    if
+          gpus > 1:\n        raise ValueError(\n            \"build_model.py does
+          not currently support more than one GPU per node!\"\n        )\n\n    devices
+          = \",\".join([str(gpu) for gpu in range(gpus)])\n\n    ## Start the PyTorch
+          job for distributed training\n    deploy.run_pytorch_job(\n        # owning_workflow
+          setups it up so that when the pipeline is deleted,\n        # the training
+          job is cleaned up\n        owning_workflow=OwningWorkFlow(\n            name=\"{{workflow.name}}\",
+          uid=\"{{workflow.uid}}\"\n        ),\n        # These place holders for
+          namespace and job name are\n        # filled in by Kubeflow when the pipeline
+          runs.\n        namespace=\"{{workflow.namespace}}\",\n        pytorch_job_name=\"{{workflow.name}}\",\n        #
+          Shared volumes used by the training script\n        # The key to the mounting
+          is that the \"runs\" directory of yolov5\n        # is mapped to the \"/workspace/output\"
+          dir in the pvc.\n        # This allows us to get to the output of the runs\n        #
+          after training (as /workspace/output in our mount of the PVC).\n        pvcs=[PvcMount(pvc_name=workspace_pvc_name,
+          mount_path=workspace_mount_point)],\n        # The command to run in each
+          worker\n        # This almost always starts with \"torch.distributed.run\"
+          for DDP\n        command=[\"python\", \"-m\", \"torch.distributed.run\",
+          \"build_model.py\"],\n        working_dir=f\"{workspace_mount_point}/{context}\",\n        #
+          Number of workers\n        num_workers=replicas,\n        # Number of GPUs
+          per worker (OK to leave this at 1)\n        gpus_per_worker=gpus,\n        #
+          The base image used for the worker pods\n        worker_image=worker_image,\n        #
+          run with the correct type of GPU\n        node_selector=node_selector,\n    )\n\n    os.makedirs(os.path.dirname(model),
+          exist_ok=True)\n    shutil.copyfile(\n        f\"{workspace_mount_point}/{context}/runs/detect/train/weights/best.pt\",
+          model\n    )\n\n    with open(f\"{workspace_mount_point}/{context}/result_metrics.json\",
+          \"r\") as f:\n        raw_metrics = json.load(f)\n\n    metrics = {\n        \"metrics\":
+          [\n            {\n                \"name\": \"mAP50\",\n                \"numberValue\":
+          raw_metrics[\"metrics/mAP50(B)\"],\n                \"format\": \"RAW\",\n            },\n            {\n                \"name\":
+          \"mAP50-95\",\n                \"numberValue\": raw_metrics[\"metrics/mAP50-95(B)\"],\n                \"format\":
+          \"RAW\",\n            },\n        ]\n    }\n\n    out_tuple = namedtuple(\"EvaluationOutput\",
+          [\"mlpipeline_metrics\"])\n    return out_tuple(json.dumps(metrics))\n\nimport
+          json\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Train model
+          distributed'', description='''')\n_parser.add_argument(\"--workspace-pvc-name\",
+          dest=\"workspace_pvc_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--context\",
+          dest=\"context\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--worker-image\",
+          dest=\"worker_image\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--replicas\",
+          dest=\"replicas\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--gpus\",
+          dest=\"gpus\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--workspace-mount-point\",
+          dest=\"workspace_mount_point\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--node-selector\",
+          dest=\"node_selector\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\",
+          dest=\"model\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_model_distributed(**_parsed_args)\n\n_output_serializers
+          = [\n    str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "quay.io/ntlawrence/yolo-base:0.0.2"}}, "inputs": [{"name": "workspace_pvc_name",
+          "type": "String"}, {"name": "context", "type": "String"}, {"name": "worker_image",
+          "type": "String"}, {"default": "3", "name": "replicas", "optional": true,
+          "type": "Integer"}, {"default": "1", "name": "gpus", "optional": true, "type":
+          "Integer"}, {"default": "/workspace", "name": "workspace_mount_point", "optional":
+          true, "type": "String"}, {"name": "node_selector", "optional": true, "type":
+          "typing.Dict[str, str]"}], "name": "Train model distributed", "outputs":
+          [{"name": "model", "type": "String"}, {"name": "mlpipeline_metrics", "type":
+          "Metrics"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"context":
+          "repo/{{inputs.parameters.source_context}}", "gpus": "1", "node_selector":
+          "{\"nvidia.com/gpu.product\": \"Tesla-V100-SXM2-32GB\"}", "replicas": "3",
+          "worker_image": "{{inputs.parameters.worker_image}}", "workspace_mount_point":
+          "/workspace", "workspace_pvc_name": "{{inputs.parameters.create-workspace-for-training-name}}"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: create-workspace-for-training
+      persistentVolumeClaim: {claimName: '{{inputs.parameters.create-workspace-for-training-name}}'}
+  - name: upload-model
+    container:
+      args: [--file-dir, /tmp/inputs/file_dir/data, --minio-url, '{{inputs.parameters.minio_endpoint}}',
+        --minio-secret, mlpipeline-minio-artifact, --export-bucket, '{{workflow.namespace}}-models',
+        --model-name, '{{inputs.parameters.model_name}}', --model-version, '1', --model-format,
+        pt, '----output-paths', /tmp/outputs/s3_address/data, /tmp/outputs/triton_s3_address/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def upload_model(
+            file_dir,
+            minio_url = "minio-service.kubeflow:9000",
+            minio_secret = "mlpipeline-minio-artifact",
+            export_bucket = "models",
+            model_name = "my-model",
+            model_version = 1,
+            model_format = "onnx",
+        ):
+            """Uploads a model file to MinIO artifact store."""
+
+            from collections import namedtuple
+            from kubernetes import (
+                client,
+                config
+            )
+            import logging
+            from minio import Minio
+            import sys
+
+            logging.basicConfig(
+                stream=sys.stdout,
+                level=logging.INFO,
+                format='%(levelname)s %(asctime)s: %(message)s'
+            )
+            logger = logging.getLogger()
+
+            def get_minio_client(minio_secret):
+                import base64
+                from kubernetes.client.rest import ApiException
+
+                def get_current_namespace():
+                    SA_NAMESPACE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+                    with open(SA_NAMESPACE) as f:
+                        return f.read()
+
+                def decode(text):
+                    return base64.b64decode(text).decode('utf-8')
+
+                config.load_incluster_config()
+                api_client = client.ApiClient()
+
+                try:
+                    secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret, get_current_namespace())
+
+                    minio_user = decode(secret.data['accesskey'])
+                    minio_pass = decode(secret.data['secretkey'])
+
+                    return Minio(minio_url,
+                                 access_key=minio_user,
+                                 secret_key=minio_pass,
+                                 secure=False)
+                except ApiException as e:
+                    if e.status == 404:
+                        logger.error("Failed to get secret 'mlpipeline-minio-artifact', which is needed for communicating with MinIO!")
+                    raise Exception(e)
+
+            logger.info(f"Establishing MinIO connection to '{minio_url}'...")
+            minio_client = get_minio_client(minio_secret)
+
+            # Create export bucket if it does not yet exist
+            response = minio_client.list_buckets()
+            export_bucket_exists = False
+            for bucket in response:
+                if bucket.name == export_bucket:
+                    export_bucket_exists = True
+
+            if not export_bucket_exists:
+                logger.info(f"Creating bucket '{export_bucket}'...")
+                minio_client.make_bucket(bucket_name=export_bucket)
+
+            model_path = f"{model_name}/{model_version}/model.{model_format}"
+            s3_address = f"s3://{minio_url}/{export_bucket}/{model_format}"
+            triton_s3_address = f"{s3_address}/{model_path}"
+
+            logger.info(f"Saving onnx file to MinIO (s3 address: {s3_address})...")
+            minio_client.fput_object(
+                bucket_name=export_bucket,  # bucket name in Minio
+                object_name=f"{model_format}/{model_path}",  # file name in bucket of Minio / for Triton name MUST be model.onnx!
+                file_path=file_dir,  # file path / name in local system
+            )
+
+            logger.info("Finished.")
+            out_tuple = namedtuple("UploadOutput", ["s3_address", "triton_s3_address"])
+            return out_tuple(s3_address, triton_s3_address)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(
+                    str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Upload model', description='Uploads a model file to MinIO artifact store.')
+        _parser.add_argument("--file-dir", dest="file_dir", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("--minio-url", dest="minio_url", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--minio-secret", dest="minio_secret", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--export-bucket", dest="export_bucket", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-name", dest="model_name", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-version", dest="model_version", type=int, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("--model-format", dest="model_format", type=str, required=False, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = upload_model(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      image: quay.io/ibm/kubeflow-notebook-image-ppc64le:latest
+    inputs:
+      parameters:
+      - {name: minio_endpoint}
+      - {name: model_name}
+      artifacts:
+      - {name: train-model-distributed-model, path: /tmp/inputs/file_dir/data}
+    outputs:
+      parameters:
+      - name: upload-model-triton_s3_address
+        valueFrom: {path: /tmp/outputs/triton_s3_address/data}
+      artifacts:
+      - {name: upload-model-s3_address, path: /tmp/outputs/s3_address/data}
+      - {name: upload-model-triton_s3_address, path: /tmp/outputs/triton_s3_address/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.18
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Uploads
+          a model file to MinIO artifact store.", "implementation": {"container":
+          {"args": ["--file-dir", {"inputPath": "file_dir"}, {"if": {"cond": {"isPresent":
+          "minio_url"}, "then": ["--minio-url", {"inputValue": "minio_url"}]}}, {"if":
+          {"cond": {"isPresent": "minio_secret"}, "then": ["--minio-secret", {"inputValue":
+          "minio_secret"}]}}, {"if": {"cond": {"isPresent": "export_bucket"}, "then":
+          ["--export-bucket", {"inputValue": "export_bucket"}]}}, {"if": {"cond":
+          {"isPresent": "model_name"}, "then": ["--model-name", {"inputValue": "model_name"}]}},
+          {"if": {"cond": {"isPresent": "model_version"}, "then": ["--model-version",
+          {"inputValue": "model_version"}]}}, {"if": {"cond": {"isPresent": "model_format"},
+          "then": ["--model-format", {"inputValue": "model_format"}]}}, "----output-paths",
+          {"outputPath": "s3_address"}, {"outputPath": "triton_s3_address"}], "command":
+          ["sh", "-ec", "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def upload_model(\n    file_dir,\n    minio_url
+          = \"minio-service.kubeflow:9000\",\n    minio_secret = \"mlpipeline-minio-artifact\",\n    export_bucket
+          = \"models\",\n    model_name = \"my-model\",\n    model_version = 1,\n    model_format
+          = \"onnx\",\n):\n    \"\"\"Uploads a model file to MinIO artifact store.\"\"\"\n\n    from
+          collections import namedtuple\n    from kubernetes import (\n        client,\n        config\n    )\n    import
+          logging\n    from minio import Minio\n    import sys\n\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=logging.INFO,\n        format=''%(levelname)s
+          %(asctime)s: %(message)s''\n    )\n    logger = logging.getLogger()\n\n    def
+          get_minio_client(minio_secret):\n        import base64\n        from kubernetes.client.rest
+          import ApiException\n\n        def get_current_namespace():\n            SA_NAMESPACE
+          = \"/var/run/secrets/kubernetes.io/serviceaccount/namespace\"\n            with
+          open(SA_NAMESPACE) as f:\n                return f.read()\n\n        def
+          decode(text):\n            return base64.b64decode(text).decode(''utf-8'')\n\n        config.load_incluster_config()\n        api_client
+          = client.ApiClient()\n\n        try:\n            secret = client.CoreV1Api(api_client).read_namespaced_secret(minio_secret,
+          get_current_namespace())\n\n            minio_user = decode(secret.data[''accesskey''])\n            minio_pass
+          = decode(secret.data[''secretkey''])\n\n            return Minio(minio_url,\n                         access_key=minio_user,\n                         secret_key=minio_pass,\n                         secure=False)\n        except
+          ApiException as e:\n            if e.status == 404:\n                logger.error(\"Failed
+          to get secret ''mlpipeline-minio-artifact'', which is needed for communicating
+          with MinIO!\")\n            raise Exception(e)\n\n    logger.info(f\"Establishing
+          MinIO connection to ''{minio_url}''...\")\n    minio_client = get_minio_client(minio_secret)\n\n    #
+          Create export bucket if it does not yet exist\n    response = minio_client.list_buckets()\n    export_bucket_exists
+          = False\n    for bucket in response:\n        if bucket.name == export_bucket:\n            export_bucket_exists
+          = True\n\n    if not export_bucket_exists:\n        logger.info(f\"Creating
+          bucket ''{export_bucket}''...\")\n        minio_client.make_bucket(bucket_name=export_bucket)\n\n    model_path
+          = f\"{model_name}/{model_version}/model.{model_format}\"\n    s3_address
+          = f\"s3://{minio_url}/{export_bucket}/{model_format}\"\n    triton_s3_address
+          = f\"{s3_address}/{model_path}\"\n\n    logger.info(f\"Saving onnx file
+          to MinIO (s3 address: {s3_address})...\")\n    minio_client.fput_object(\n        bucket_name=export_bucket,  #
+          bucket name in Minio\n        object_name=f\"{model_format}/{model_path}\",  #
+          file name in bucket of Minio / for Triton name MUST be model.onnx!\n        file_path=file_dir,  #
+          file path / name in local system\n    )\n\n    logger.info(\"Finished.\")\n    out_tuple
+          = namedtuple(\"UploadOutput\", [\"s3_address\", \"triton_s3_address\"])\n    return
+          out_tuple(s3_address, triton_s3_address)\n\ndef _serialize_str(str_value:
+          str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError(''Value
+          \"{}\" has type \"{}\" instead of str.''.format(\n            str(str_value),
+          str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser
+          = argparse.ArgumentParser(prog=''Upload model'', description=''Uploads a
+          model file to MinIO artifact store.'')\n_parser.add_argument(\"--file-dir\",
+          dest=\"file_dir\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-url\",
+          dest=\"minio_url\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--minio-secret\",
+          dest=\"minio_secret\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--export-bucket\",
+          dest=\"export_bucket\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-name\",
+          dest=\"model_name\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-version\",
+          dest=\"model_version\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-format\",
+          dest=\"model_format\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = upload_model(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx,
+          output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "quay.io/ibm/kubeflow-notebook-image-ppc64le:latest"}}, "inputs":
+          [{"name": "file_dir", "type": "String"}, {"default": "minio-service.kubeflow:9000",
+          "name": "minio_url", "optional": true, "type": "String"}, {"default": "mlpipeline-minio-artifact",
+          "name": "minio_secret", "optional": true, "type": "String"}, {"default":
+          "models", "name": "export_bucket", "optional": true, "type": "String"},
+          {"default": "my-model", "name": "model_name", "optional": true, "type":
+          "String"}, {"default": "1", "name": "model_version", "optional": true, "type":
+          "Integer"}, {"default": "onnx", "name": "model_format", "optional": true,
+          "type": "String"}], "name": "Upload model", "outputs": [{"name": "s3_address",
+          "type": "String"}, {"name": "triton_s3_address", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "a2d50683fd032a165ddeab601c5b2d94403f7899fe0563f16ab45b39d762f058", "url":
+          "/home/jovyan/components/model-building/upload-model/component.yaml"}',
+        pipelines.kubeflow.org/arguments.parameters: '{"export_bucket": "{{workflow.namespace}}-models",
+          "minio_secret": "mlpipeline-minio-artifact", "minio_url": "{{inputs.parameters.minio_endpoint}}",
+          "model_format": "pt", "model_name": "{{inputs.parameters.model_name}}",
+          "model_version": "1"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: yolo-coco
+    inputs:
+      parameters:
+      - {name: app_image}
+      - {name: minio_endpoint}
+      - {name: model_name}
+      - {name: source_branch}
+      - {name: source_context}
+      - {name: source_repo}
+      - {name: worker_image}
+    dag:
+      tasks:
+      - name: configure-tensorboard
+        template: configure-tensorboard
+        dependencies: [create-workspace-for-training]
+        arguments:
+          parameters:
+          - {name: create-workspace-for-training-name, value: '{{tasks.create-workspace-for-training.outputs.parameters.create-workspace-for-training-name}}'}
+          - {name: source_context, value: '{{inputs.parameters.source_context}}'}
+      - {name: create-workspace-for-training, template: create-workspace-for-training}
+      - name: deploy-prediction-visualizer-app
+        template: deploy-prediction-visualizer-app
+        dependencies: [upload-model]
+        arguments:
+          parameters:
+          - {name: app_image, value: '{{inputs.parameters.app_image}}'}
+          - {name: minio_endpoint, value: '{{inputs.parameters.minio_endpoint}}'}
+          - {name: model_name, value: '{{inputs.parameters.model_name}}'}
+          - {name: upload-model-triton_s3_address, value: '{{tasks.upload-model.outputs.parameters.upload-model-triton_s3_address}}'}
+      - name: run-commands
+        template: run-commands
+        dependencies: [create-workspace-for-training]
+        arguments:
+          parameters:
+          - {name: create-workspace-for-training-name, value: '{{tasks.create-workspace-for-training.outputs.parameters.create-workspace-for-training-name}}'}
+          - {name: source_branch, value: '{{inputs.parameters.source_branch}}'}
+          - {name: source_context, value: '{{inputs.parameters.source_context}}'}
+          - {name: source_repo, value: '{{inputs.parameters.source_repo}}'}
+      - name: run-commands-2
+        template: run-commands-2
+        dependencies: [create-workspace-for-training, run-commands]
+        arguments:
+          parameters:
+          - {name: create-workspace-for-training-name, value: '{{tasks.create-workspace-for-training.outputs.parameters.create-workspace-for-training-name}}'}
+          - {name: source_context, value: '{{inputs.parameters.source_context}}'}
+      - name: train-model-distributed
+        template: train-model-distributed
+        dependencies: [configure-tensorboard, create-workspace-for-training, run-commands-2]
+        arguments:
+          parameters:
+          - {name: create-workspace-for-training-name, value: '{{tasks.create-workspace-for-training.outputs.parameters.create-workspace-for-training-name}}'}
+          - {name: source_context, value: '{{inputs.parameters.source_context}}'}
+          - {name: worker_image, value: '{{inputs.parameters.worker_image}}'}
+      - name: upload-model
+        template: upload-model
+        dependencies: [train-model-distributed]
+        arguments:
+          parameters:
+          - {name: minio_endpoint, value: '{{inputs.parameters.minio_endpoint}}'}
+          - {name: model_name, value: '{{inputs.parameters.model_name}}'}
+          artifacts:
+          - {name: train-model-distributed-model, from: '{{tasks.train-model-distributed.outputs.artifacts.train-model-distributed-model}}'}
+  arguments:
+    parameters:
+    - {name: worker_image, value: 'quay.io/ntlawrence/yolo-base:0.0.2'}
+    - {name: app_image, value: 'quay.io/ntlawrence/yolo-app:0.0.2'}
+    - {name: source_repo, value: 'https://github.com/ntl-ibm/kubeflow-ppc64le-examples.git'}
+    - {name: source_branch, value: 3.0.0}
+    - {name: source_context, value: distributed_training/pytorch/yolo/src}
+    - {name: minio_endpoint, value: 'minio-service.kubeflow:9000'}
+    - {name: model_version, value: '1'}
+    - {name: model_name, value: yolo}
+  serviceAccountName: pipeline-runner
