@@ -39,10 +39,17 @@ RUN dnf install -y bzip2 wget zip unzip ca-certificates git compat-openssl10 num
 COPY fix-permissions /usr/local/bin/fix-permissions
 RUN chmod a+rx /usr/local/bin/fix-permissions
 
-## Install mamba and common packages
+# Install mamba and common packages
+# Directions for installing mamba:
 # https://mamba.readthedocs.io/en/latest/installation.html#manual-installation
+# Note: https://micro.mamba.pm/api/micromamba/linux-ppc64le/latest redirects to
+#       https://api.anaconda.org/download/conda-forge/micromamba/1.5.6/linux-ppc64le/micromamba-1.5.6-0.tar.bz2
+#       the former was not allowed through the firewall and the later was allowed in my environment.
+#       Using 1.4.2 because that avoids some temporary issues with mamba in the latest release on IBM Power.
+#       I did a  curl -vvv https://api.anaconda.org/download/conda-forge/micromamba/1.4.2/linux-ppc64le/micromamba-1.4.2-2.tar.bz2 to 
+#       list the URLs in the redirect chain and picked the first one, the firewall allowed that.
 WORKDIR /tmp
-RUN curl --location --silent --output /tmp/micromamba.tar https://micro.mamba.pm/api/micromamba/linux-ppc64le/1.4.2  \
+RUN curl --location --silent --output /tmp/micromamba.tar https://api.anaconda.org/download/conda-forge/micromamba/1.4.2/linux-ppc64le/micromamba-1.4.2-2.tar.bz2 \
     && tar --extract --file /tmp/micromamba.tar --strip-components=1 bin/micromamba  \
     && rm /tmp/micromamba.tar \
     && mkdir -p ${CONDA_DIR}  \
