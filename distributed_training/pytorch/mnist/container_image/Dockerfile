@@ -22,6 +22,11 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 USER root
 WORKDIR /root
 
+# alalinux:8.6 is too old now, better might be to just base the build
+# on 8.9, but have not tested that yet. This upgrade fixes the issue
+# with keys
+RUN dnf upgrade -y almalinux-release
+
 # The trick here is to install into a root prefix that is first in the path
 # Then the python environment will be what we installed using mamba, but we
 # will not need to directly activate the environment.
