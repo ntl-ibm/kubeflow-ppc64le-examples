@@ -19,13 +19,13 @@ LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
 # IBM Power 9 or Power 10 hardware.
 # It does NOT include a notebook server.
 
-# These arguments define where to install the distributed kf tools package from.
-ARG DISTRIBUTED_KF_TOOLS_BRANCH="2.0.3"
-ARG DISTRIBUTED_KF_TOOLS_SUBDIR="distributed_training/distributed_kf_tools"
-ARG DISTRIBUTED_KF_TOOLS_GIT="https://github.com/ntl-ibm/kubeflow-ppc64le-examples@${DISTRIBUTED_KF_TOOLS_BRANCH}#subdirectory=${DISTRIBUTED_KF_TOOLS_SUBDIR}"
-
 USER root
 WORKDIR /root
+
+# alalinux:8.6 is too old now, better might be to just base the build
+# on 8.9, but have not tested that yet. This upgrade fixes the issue
+# with keys
+RUN dnf upgrade -y almalinux-release
 
 # The trick here is to install into a root prefix that is first in the path
 # Then the python environment will be what we installed using mamba, but we
@@ -69,17 +69,11 @@ RUN curl --location --silent --output  /tmp/micromamba.tar https://micro.mamba.p
     rocketce::onnx==1.13.1 \
     rocketce::onnxruntime==1.15.1 \
     rocketce::cudatoolkit==11.8.0 \
-    && rm /tmp/micromamba
-
-RUN pip install --verbose "distributed_kf_tools @ git+${DISTRIBUTED_KF_TOOLS_GIT}" \
-    && dnf clean all && rm -rf /var/cache/dnf/* && rm -rf /var/cache/yum  \
-    && pip cache purge \
-    && fix-permissions ${CONDA_DIR}
+    && rm /tmp/micromamba \
+    && fix-permissions ${CONDA_DIR}  
 
 WORKDIR /root
 RUN fix-permissions /root
 
 CMD ["bash"]
 USER 1000:0
-
-ENTRYPOINT ["python", "-m", "torch.distributed.run"]

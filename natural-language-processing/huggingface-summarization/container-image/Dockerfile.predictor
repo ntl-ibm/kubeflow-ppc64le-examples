@@ -1,0 +1,86 @@
+# Copyright 2023 IBM All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+ARG ROOT_CONTAINER=quay.io/almalinux/almalinux:8.6
+FROM $ROOT_CONTAINER
+LABEL maintainer="Nick Lawrence ntl@us.ibm.com"
+
+USER root
+WORKDIR /root
+
+# Tensorboard and KServe don't install well together
+# They share some of the same dependencies, but at different version
+# requirements. KServe especially needs very specific versions of things.
+RUN  micromamba remove --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} tensorboard
+RUN  micromamba install --root-prefix=${CONDA_DIR} --prefix=${CONDA_DIR} \
+    -c rocketce \
+    -c https://repo.anaconda.com/pkgs/main \
+    --yes \
+    # For KServe, which is installed by pip
+    # commented out lines are packages in the requirements.txt,
+    # but do not exist in conda
+    six==1.16.0 \
+    python-dateutil \
+    python-kubernetes \
+    minio==7.1.0 \
+    #google-cloud-storage>=1.20.0 \
+    adal==1.2.7 \
+    #tabulate>=0.9.0 \
+    rocketce::numpy==1.23.5 \
+    #azure-storage-blob==12.9.0 \
+    #azure-storage-file-share==12.7.0 \
+    #azure-identity>=1.8.0 \
+    #cloudevents>=1.6.2 \
+    #avro>=1.11.0 \
+    boto3==1.21.32 \
+    #psutil>=5.9.0 \
+    # ray[serve]==2.0.0 (only 2.0.1 is in anaconda/rocketce) \
+    # tritonclient==2.18.0 \
+    rocketce::protobuf==4.21.12 \
+    prometheus_client==0.14.1 \
+    conda-forge::grpcio==1.43.0   \
+    rocketce::orjson==3.8.0 \
+    httpx==0.23.0 \
+    rocketce::fastapi==0.85.1 \
+    # timing_asgi>=0.3.0 \
+    click==8.0.4 \
+    jsonschema \
+    virtualenv \
+    uvicorn==0.16.0 \
+    aiorwlock \
+    conda-forge::gpustat \
+    msgpack-python \
+    aiorwlock \
+    fastapi \
+    starlette \
+    cryptography==3.4.8 \
+    conda-forge::avro \
+    rocketce::dill==0.3.1.1 \ 
+    # needed for huggingface with GPU in inference service/ray
+    # https://github.com/ray-project/ray/issues/28064
+    conda-forge::gputil \
+    && pip install --extra-index-url https://repo.fury.io/mgiessing ray[serve]==2.0.0 \
+    && pip install kserve==0.10.1 \
+    && pip cache purge \
+    && fix-permissions ${CONDA_DIR} 
+
+WORKDIR /.cache
+RUN fix-permissions /.cache
+
+WORKDIR /root
+COPY ./inference_service.py .
+
+RUN fix-permissions /root
+
+CMD ["bash"]
+USER 1000:0

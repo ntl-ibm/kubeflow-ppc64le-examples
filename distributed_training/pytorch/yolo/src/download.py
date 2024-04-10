@@ -21,9 +21,17 @@ from pathlib import Path
 import yaml
 import os
 import stat
+import sys
+
+# Expect the directory to download stuff from as a param
+# Would normally use a URL, but there are firewall concerns in some
+# demo environments
+path = sys.argv[1]
 
 # Download Pretrained weights
-download("https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt")
+# Normally https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
+# but changed due to firewall issues
+download(f"file://{path}/yolov8n.pt")
 os.chmod("yolov8n.pt", stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
 
 # Open configuration
@@ -31,9 +39,11 @@ with open("./data.yaml") as f:
     cfg = yaml.safe_load(f.read())
 
 # Download training and validation data
+# Normally the link is here "https://ultralytics.com/assets/coco128.zip"
+# Due to firewall issues in some environments, the zip is included in my github repo
 os.makedirs(Path(cfg["path"]).parent, exist_ok=True)
 download(
-    "https://ultralytics.com/assets/coco128.zip",
+    f"file://{path}/coco128.zip",
     dir=Path(cfg["path"]).parent,
     unzip=True,
     delete=True,

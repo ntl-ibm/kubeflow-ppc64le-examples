@@ -1,0 +1,40 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    serving.kserve.io/enable-prometheus-scraping: 'true'
+    sidecar.istio.io/inject: 'false'
+  name: billsum-pegasus
+  namespace: ntl-us-ibm-com
+spec:
+  predictor:
+    containers:
+    - args:
+      - /bin/bash
+      - -c
+      - sleep 1000
+      #- python
+      #- inference_service.py
+      #- --model_name=billsum-pegasus
+      #- --model_version=1
+      #- --num_replicas=1
+      env:
+      - name: STORAGE_URI
+        value: s3://ntl-us-ibm-com/billsum-pegasus
+      - name: PREFIX
+        value: ''
+      - name: SUFFIX
+        value: ''
+      image: quay.io/ntlawrence/summary-predictor:1.0.20
+      name: kserve-container
+      resources:
+        limits:
+          memory: 50Gi
+        requests:
+          memory: 2Gi
+    maxReplicas: 1
+    minReplicas: 0
+    nodeSelector:
+      nvidia.com/gpu.product: Tesla-T4
+    scaleMetric: concurrency
+    serviceAccountName: summary-inference-sa
